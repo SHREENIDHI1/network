@@ -17,6 +17,7 @@ import {
 import { cidrsOverlap, formatIpv4, maskToPrefix, parseIpv4, validateHostAddress } from '../ip/ipv4';
 import type { Sim } from '../sim';
 import * as F from './format';
+import { phase3Cmds } from './ios3';
 
 /**
  * Cisco IOS-like CLI (subset) for switches and routers.
@@ -27,13 +28,30 @@ import * as F from './format';
  * returned topology.
  */
 
-export type CliMode = 'user' | 'priv' | 'config' | 'config-if' | 'config-subif' | 'config-vlan';
+export type CliMode =
+  | 'user'
+  | 'priv'
+  | 'config'
+  | 'config-if'
+  | 'config-subif'
+  | 'config-vlan'
+  | 'config-router'
+  | 'config-std-nacl'
+  | 'config-ext-nacl'
+  | 'dhcp-config'
+  | 'config-cmap'
+  | 'config-pmap'
+  | 'config-pmap-c';
 
 export interface CliSession {
   deviceId: string;
   mode: CliMode;
   iface?: string;
   vlan?: number;
+  /** Name of the ACL / DHCP pool / class-map / policy-map being edited. */
+  ctxName?: string;
+  /** Class being edited inside a policy-map. */
+  pmapClass?: string;
 }
 
 export interface CliContext {
@@ -53,21 +71,21 @@ export interface CliResult {
 // Grammar
 // ---------------------------------------------------------------------------
 
-type ParamKind = 'ip' | 'mask' | 'num' | 'word' | 'line' | 'if' | 'vlans';
-type Tok = { k: 'kw'; w: string; help: string } | { k: ParamKind; name: string; help: string; min?: number; max?: number };
+export type ParamKind = 'ip' | 'mask' | 'num' | 'word' | 'line' | 'if' | 'vlans';
+export type Tok = { k: 'kw'; w: string; help: string } | { k: ParamKind; name: string; help: string; min?: number; max?: number };
 
-const kw = (w: string, help: string): Tok => ({ k: 'kw', w, help });
-const ip = (name: string, help = 'IP address'): Tok => ({ k: 'ip', name, help });
-const mask = (name: string, help = 'IP subnet mask'): Tok => ({ k: 'mask', name, help });
-const num = (name: string, min: number, max: number, help: string): Tok => ({ k: 'num', name, min, max, help });
-const word = (name: string, help: string): Tok => ({ k: 'word', name, help });
-const line = (name: string, help: string): Tok => ({ k: 'line', name, help });
-const iface = (name = 'if', help = 'Interface name, e.g. GigabitEthernet0/1, Vlan10'): Tok => ({ k: 'if', name, help });
-const vlans = (name = 'vlans', help = 'VLAN IDs of the allowed VLANs, e.g. 10,20,30-32'): Tok => ({ k: 'vlans', name, help });
+export const kw = (w: string, help: string): Tok => ({ k: 'kw', w, help });
+export const ip = (name: string, help = 'IP address'): Tok => ({ k: 'ip', name, help });
+export const mask = (name: string, help = 'IP subnet mask'): Tok => ({ k: 'mask', name, help });
+export const num = (name: string, min: number, max: number, help: string): Tok => ({ k: 'num', name, min, max, help });
+export const word = (name: string, help: string): Tok => ({ k: 'word', name, help });
+export const line = (name: string, help: string): Tok => ({ k: 'line', name, help });
+export const iface = (name = 'if', help = 'Interface name, e.g. GigabitEthernet0/1, Vlan10'): Tok => ({ k: 'if', name, help });
+export const vlans = (name = 'vlans', help = 'VLAN IDs of the allowed VLANs, e.g. 10,20,30-32'): Tok => ({ k: 'vlans', name, help });
 
-type Args = Record<string, string | number | number[]>;
+export type Args = Record<string, string | number | number[]>;
 
-interface Exec {
+export interface Exec {
   args: Args;
   device: Device;
   cfg: NetConfig;
@@ -80,21 +98,21 @@ interface Exec {
   invalid(): string;
 }
 
-interface Cmd {
+export interface Cmd {
   modes: CliMode[];
   toks: Tok[];
   run: (x: Exec) => string | void;
 }
 
-const EXEC: CliMode[] = ['user', 'priv'];
-const PRIV: CliMode[] = ['priv'];
-const CONF: CliMode[] = ['config'];
-const IFM: CliMode[] = ['config-if', 'config-subif'];
-const ANYCONF: CliMode[] = ['config', 'config-if', 'config-subif', 'config-vlan'];
+export const EXEC: CliMode[] = ['user', 'priv'];
+export const PRIV: CliMode[] = ['priv'];
+export const CONF: CliMode[] = ['config'];
+export const IFM: CliMode[] = ['config-if', 'config-subif'];
+const ANYCONF: CliMode[] = ['config', 'config-if', 'config-subif', 'config-vlan', 'config-router', 'config-std-nacl', 'config-ext-nacl', 'dhcp-config', 'config-cmap', 'config-pmap', 'config-pmap-c'];
 
 const INVALID = "% Invalid input detected at '^' marker.";
 
-function ifCfg(x: Exec): InterfaceConfig {
+export function ifCfg(x: Exec): InterfaceConfig {
   const n = x.session.iface!;
   x.cfg.interfaces[n] ??= {};
   return x.cfg.interfaces[n];
@@ -106,7 +124,7 @@ const isSwitchport = (x: Exec) => {
   return isBridgeRole(role) && x.device.ports.some((p) => p.id === n) && effectivePort(role, x.cfg.interfaces[n]).switchport === true;
 };
 
-function needSwitchport(x: Exec): string | undefined {
+export function needSwitchport(x: Exec): string | undefined {
   if (!isBridgeRole(roleOf(x.device.kind)) || isSubinterface(x.session.iface!) || sviVlan(x.session.iface!) !== null) return x.invalid();
   if (!isSwitchport(x)) return '% Command rejected: interface is a routed port. Use "switchport" first.';
   return undefined;
@@ -217,7 +235,8 @@ const CMDS: Cmd[] = [
 
   // ---------------------------------------------------------- global ----
   { modes: ANYCONF, toks: [kw('end', 'Exit from configure mode')], run: (x) => x.setMode('priv') },
-  { modes: ANYCONF, toks: [kw('exit', 'Exit from current mode')], run: (x) => x.setMode(x.session.mode === 'config' ? 'priv' : 'config') },
+  { modes: ANYCONF, toks: [kw('exit', 'Exit from current mode')], run: (x) =>
+    x.session.mode === 'config' ? x.setMode('priv') : x.session.mode === 'config-pmap-c' ? x.setMode('config-pmap', { ctxName: x.session.ctxName }) : x.setMode('config') },
   { modes: CONF, toks: [kw('hostname', 'Set system\'s network name'), word('name', 'This system\'s network name')], run: (x) => {
     const n = String(x.args.name);
     if (!/^[A-Za-z][A-Za-z0-9_-]{0,62}$/.test(n)) return '% Hostname must start with a letter and contain only letters, digits, - or _';
@@ -396,6 +415,8 @@ const CMDS: Cmd[] = [
     }),
   ),
 ];
+
+CMDS.push(...phase3Cmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -597,6 +618,20 @@ export function prompt(session: CliSession, topology: Topology): string {
       return `${name}(config-subif)#`;
     case 'config-vlan':
       return `${name}(config-vlan)#`;
+    case 'config-router':
+      return `${name}(config-router)#`;
+    case 'config-std-nacl':
+      return `${name}(config-std-nacl)#`;
+    case 'config-ext-nacl':
+      return `${name}(config-ext-nacl)#`;
+    case 'dhcp-config':
+      return `${name}(dhcp-config)#`;
+    case 'config-cmap':
+      return `${name}(config-cmap)#`;
+    case 'config-pmap':
+      return `${name}(config-pmap)#`;
+    case 'config-pmap-c':
+      return `${name}(config-pmap-c)#`;
   }
 }
 
@@ -616,6 +651,14 @@ export function execIos(input: string, session: CliSession, ctx: CliContext): Cl
   const complete = all.filter((m) => m.complete);
   const { ms, ambiguousAt } = disambiguate(complete.length ? complete : all.filter((m) => m.failAt === words.length), words);
   if (ambiguousAt !== undefined) return { output: `% Ambiguous command:  "${input.trim()}"`, session };
+
+  // IOS: a global configuration command typed in a sub-mode (config-if, config-router…)
+  // is executed in global configuration mode, and the prompt drops back to (config)#.
+  const inSubMode = session.mode !== 'config' && (session.mode.startsWith('config') || session.mode === 'dhcp-config');
+  if (inSubMode && !ms.some((m) => m.complete)) {
+    const globalComplete = candidates('config', words, device).filter((m) => m.complete);
+    if (globalComplete.length) return execIos(input, { deviceId: session.deviceId, mode: 'config' }, ctx);
+  }
 
   const winner = ms.find((m) => m.complete);
   if (!winner) {
@@ -642,6 +685,8 @@ export function execIos(input: string, session: CliSession, ctx: CliContext): Cl
       if (mode === 'config' || mode === 'priv' || mode === 'user') {
         delete next.iface;
         delete next.vlan;
+        delete next.ctxName;
+        delete next.pmapClass;
       }
     },
     invalid: () => caret(0),

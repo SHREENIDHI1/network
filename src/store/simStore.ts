@@ -10,7 +10,7 @@ import { useTopologyStore } from './topologyStore';
  */
 
 export type SimMode = 'realtime' | 'simulation';
-export type DockTab = 'cli' | 'inspector' | 'events';
+export type DockTab = 'cli' | 'inspector' | 'events' | 'qos';
 
 interface SimState {
   sim: Sim;
@@ -42,6 +42,8 @@ interface SimState {
 }
 
 const sim = new Sim(useTopologyStore.getState().topology);
+// Hosts using DHCP obtain their address as soon as the app starts (Realtime mode is the default).
+sim.runUntilIdle();
 let timer: ReturnType<typeof setInterval> | undefined;
 
 export const useSimStore = create<SimState>((set, get) => ({
@@ -89,6 +91,7 @@ export const useSimStore = create<SimState>((set, get) => ({
   resetSim: () => {
     get().pause();
     get().sim.reset();
+    if (get().mode === 'realtime') get().sim.runUntilIdle();
     set({ selectedFlowId: undefined, selectedStepSeq: undefined });
   },
 
@@ -107,5 +110,8 @@ sim.onChange(() => useSimStore.setState((s) => ({ version: s.version + 1 })));
 
 // Topology → engine: apply every topology/config edit.
 useTopologyStore.subscribe((state, prev) => {
-  if (state.topology !== prev.topology && state.topology !== sim.topology) sim.setTopology(state.topology);
+  if (state.topology === prev.topology) return;
+  if (state.topology !== sim.topology) sim.setTopology(state.topology);
+  // Realtime: let protocol events triggered by the change (e.g. DHCP DORA) run now.
+  if (useSimStore.getState().mode === 'realtime') sim.runUntilIdle();
 });

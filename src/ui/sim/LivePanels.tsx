@@ -1,12 +1,10 @@
 import { Scissors, Terminal, Wrench } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { validateHostForm } from '../../engine/cli/host';
-import { effectivePort, getNetConfig, isBridgeRole, roleOf, withNetConfig } from '../../engine/config/netConfig';
+import { effectivePort, getNetConfig, isBridgeRole, roleOf } from '../../engine/config/netConfig';
 import { formatIpv4 } from '../../engine/ip/ipv4';
 import { portKey } from '../../engine/physical/linkState';
 import type { Device, Link } from '../../model/types';
 import { useSimStore } from '../../store/simStore';
-import { useTopologyStore } from '../../store/topologyStore';
+import { DhcpServerForm, HostIpForm, TrafficFlowsForm } from './HostPanels';
 
 /** Live engine state for the selected device / link, shown in the properties panel. */
 
@@ -34,6 +32,7 @@ export function DeviceSimSection({ device }: { device: Device }) {
         <button type="button" className="rn-btn" onClick={() => useSimStore.getState().openCli(device.id)}>
           <Terminal className="h-4 w-4" /> {role === 'host' ? 'Open command prompt' : 'Open CLI'}
         </button>
+        <ProtocolSummary deviceId={device.id} />
         {stpBridge && (
           <p className="mt-2 text-xs text-slate-400">
             STP: {stpBridge.isRoot ? <span className="text-emerald-300">root bridge</span> : <>root port {stpBridge.rootPortId ?? '—'}, cost {stpBridge.rootCost}</>} · priority {stpBridge.bridgeId.priority}
@@ -41,6 +40,8 @@ export function DeviceSimSection({ device }: { device: Device }) {
         )}
       </Section>
       {role === 'host' && <HostIpForm device={device} />}
+      {device.kind === 'dns-dhcp' && <DhcpServerForm device={device} />}
+      {role === 'host' && <TrafficFlowsForm device={device} />}
       <Section title="Interfaces (live)">
         <table className="w-full text-xs">
           <thead className="text-left text-slate-500">
@@ -88,64 +89,29 @@ export function DeviceSimSection({ device }: { device: Device }) {
   );
 }
 
-/** "IP Configuration" form for end hosts (like a PC's network settings). */
-function HostIpForm({ device }: { device: Device }) {
-  const cfg = getNetConfig(device);
-  const nic = device.ports[0]?.id ?? 'eth0';
-  const cur = cfg.interfaces[nic]?.ip;
-  const [address, setAddress] = useState(cur?.address ?? '');
-  const [mask, setMask] = useState(cur?.mask ?? '255.255.255.0');
-  const [gateway, setGateway] = useState(cfg.defaultGateway ?? '');
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setAddress(cur?.address ?? '');
-    setMask(cur?.mask ?? '255.255.255.0');
-    setGateway(cfg.defaultGateway ?? '');
-    setError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [device.id, cur?.address, cur?.mask, cfg.defaultGateway]);
-
-  const apply = () => {
-    const err = validateHostForm(address.trim(), mask.trim(), gateway.trim());
-    setError(err);
-    if (err) return;
-    const next = structuredClone(cfg);
-    next.interfaces[nic] = { ...(next.interfaces[nic] ?? {}) };
-    if (address.trim()) next.interfaces[nic].ip = { address: address.trim(), mask: mask.trim() };
-    else delete next.interfaces[nic].ip;
-    if (gateway.trim()) next.defaultGateway = gateway.trim();
-    else delete next.defaultGateway;
-    const t = useTopologyStore.getState().topology;
-    useTopologyStore.getState().applyTopology({ ...t, devices: t.devices.map((d) => (d.id === device.id ? withNetConfig(d, next) : d)) });
-  };
-
+/** One-line status of the control-plane protocols running on a device. */
+function ProtocolSummary({ deviceId }: { deviceId: string }) {
+  const sim = useSimStore((s) => s.sim);
+  const rid = sim.ospf.routerIds.get(deviceId);
+  const nbrs = sim.ospf.neighbors.filter((n) => n.deviceId === deviceId);
+  const full = nbrs.filter((n) => n.state === 'FULL').length;
+  const problems = sim.ospf.problems.filter((p) => p.deviceId === deviceId).length;
+  const roles: string[] = [];
+  for (const [k, entries] of sim.fhrp.byIface) {
+    if (!k.startsWith(`${deviceId}|`)) continue;
+    for (const { group, member } of entries) roles.push(`${group.protocol.toUpperCase()} ${group.group} ${member.role}`);
+  }
+  if (rid === undefined && !roles.length) return null;
   return (
-    <Section title={`IP Configuration (${nic})`}>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="col-span-2 block">
-          <span className="rn-label">IPv4 address</span>
-          <input className="rn-input font-mono" value={address} placeholder="e.g. 10.20.10.11" onChange={(e) => setAddress(e.target.value)} />
-        </label>
-        <label className="block">
-          <span className="rn-label">Subnet mask</span>
-          <input className="rn-input font-mono" value={mask} onChange={(e) => setMask(e.target.value)} />
-        </label>
-        <label className="block">
-          <span className="rn-label">Default gateway</span>
-          <input className="rn-input font-mono" value={gateway} placeholder="optional" onChange={(e) => setGateway(e.target.value)} />
-        </label>
-      </div>
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
-      <button type="button" className="rn-btn-primary mt-2" onClick={apply}>
-        Apply
-      </button>
-      {cur && (
-        <p className="mt-1 text-[11px] text-slate-500">
-          Current: {cur.address} {cur.mask}
+    <div className="mt-2 space-y-0.5 text-xs text-slate-400">
+      {rid !== undefined && (
+        <p>
+          OSPF RID {formatIpv4(rid)} · {full}/{nbrs.length} neighbours FULL
+          {problems > 0 && <span className="text-amber-300"> · {problems} issue(s) — see "show logging"</span>}
         </p>
       )}
-    </Section>
+      {roles.length > 0 && <p>{roles.join(' · ')}</p>}
+    </div>
   );
 }
 

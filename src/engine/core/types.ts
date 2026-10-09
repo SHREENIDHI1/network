@@ -26,13 +26,42 @@ export interface IcmpMessage {
   code?: string;
 }
 
+export type DhcpOp = 'discover' | 'offer' | 'request' | 'ack' | 'nak' | 'release';
+
+export interface DhcpMessage {
+  op: DhcpOp;
+  xid: number;
+  /** Client hardware address. */
+  chaddr: string;
+  ciaddr?: number;
+  yiaddr?: number;
+  /** Server identifier (option 54). */
+  serverId?: number;
+  /** Relay agent address. */
+  giaddr?: number;
+  requestedIp?: number;
+  mask?: number;
+  router?: number;
+  dns?: number;
+  leaseSec?: number;
+}
+
+export interface UdpDatagram {
+  srcPort: number;
+  dstPort: number;
+  dhcp?: DhcpMessage;
+}
+
 export interface Ipv4Packet {
   kind: 'ipv4';
   src: number;
   dst: number;
   ttl: number;
-  protocol: 'icmp';
-  icmp: IcmpMessage;
+  /** Differentiated Services Code Point (0–63). */
+  dscp: number;
+  protocol: 'icmp' | 'udp';
+  icmp?: IcmpMessage;
+  udp?: UdpDatagram;
   sizeBytes: number;
 }
 

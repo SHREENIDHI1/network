@@ -39,6 +39,15 @@ const portSecuritySchema = z.object({
   violation: z.enum(['shutdown', 'restrict', 'protect']),
 });
 
+const fhrpSchema = z.object({
+  protocol: z.enum(['hsrp', 'vrrp']),
+  group: z.number().int().min(0).max(255),
+  ip: dotted.optional(),
+  priority: z.number().int().min(1).max(255).optional(),
+  preempt: z.boolean().optional(),
+  track: z.array(z.object({ iface: z.string(), decrement: z.number().int().min(1).max(255) })).default([]),
+});
+
 const interfaceSchema = z.object({
   shutdown: z.boolean().optional(),
   description: z.string().max(240).optional(),
@@ -52,6 +61,86 @@ const interfaceSchema = z.object({
   /** Subinterfaces: 802.1Q VLAN; native = send/receive untagged. */
   encapsulation: z.object({ vlan: vlanId, native: z.boolean() }).optional(),
   portSecurity: portSecuritySchema.optional(),
+  /** Forced Ethernet speed in Mbit/s ("speed 10|100|1000|10000"); absent = auto (link speed). */
+  speedMbps: z.number().int().positive().optional(),
+  /** IP MTU in bytes ("ip mtu"); only checked by OSPF (MTU mismatch). */
+  mtu: z.number().int().min(68).max(9216).optional(),
+  ospfCost: z.number().int().min(1).max(65535).optional(),
+  ospfHello: z.number().int().min(1).max(65535).optional(),
+  ospfDead: z.number().int().min(1).max(65535).optional(),
+  ospfPriority: z.number().int().min(0).max(255).optional(),
+  natRole: z.enum(['inside', 'outside']).optional(),
+  aclIn: z.string().optional(),
+  aclOut: z.string().optional(),
+  /** DHCP relay targets ("ip helper-address"). */
+  helpers: z.array(dotted).optional(),
+  /** Host NIC obtains its address by DHCP. */
+  dhcpClient: z.boolean().optional(),
+  fhrp: z.array(fhrpSchema).optional(),
+  servicePolicyIn: z.string().optional(),
+  servicePolicyOut: z.string().optional(),
+});
+
+const ospfSchema = z.object({
+  processId: z.number().int().min(1).max(65535),
+  routerId: dotted.optional(),
+  networks: z.array(z.object({ address: dotted, wildcard: dotted, area: z.number().int().min(0) })).default([]),
+  passive: z.array(z.string()).default([]),
+  defaultOriginate: z.enum(['off', 'on', 'always']).default('off'),
+  redistributeStatic: z.boolean().default(false),
+  /** auto-cost reference-bandwidth, Mbit/s (IOS default 100). */
+  referenceBandwidth: z.number().int().min(1).max(4294967).default(100),
+});
+
+const aclEntrySchema = z.object({
+  action: z.enum(['permit', 'deny', 'remark']),
+  protocol: z.enum(['ip', 'icmp', 'udp', 'tcp']).default('ip'),
+  src: z.object({ address: dotted, wildcard: dotted }).optional(),
+  dst: z.object({ address: dotted, wildcard: dotted }).optional(),
+  dstPort: z.number().int().min(0).max(65535).optional(),
+  icmpType: z.enum(['echo', 'echo-reply', 'unreachable', 'time-exceeded']).optional(),
+  text: z.string().max(100).optional(),
+});
+
+const aclSchema = z.object({ kind: z.enum(['standard', 'extended']), entries: z.array(aclEntrySchema).default([]) });
+
+const natSchema = z.object({
+  statics: z.array(z.object({ local: dotted, global: dotted })).default([]),
+  /** "ip nat inside source list ACL interface IF overload" */
+  overload: z.array(z.object({ acl: z.string(), iface: z.string() })).default([]),
+});
+
+const dhcpPoolSchema = z.object({
+  network: dotted.optional(),
+  mask: dotted.optional(),
+  defaultRouter: dotted.optional(),
+  dnsServer: dotted.optional(),
+  leaseDays: z.number().min(0).max(365).default(1),
+});
+
+const dhcpSchema = z.object({
+  excluded: z.array(z.object({ from: dotted, to: dotted })).default([]),
+  pools: z.record(dhcpPoolSchema).default({}),
+});
+
+const qosClassSchema = z.object({
+  name: z.string(),
+  priorityPercent: z.number().min(1).max(100).optional(),
+  bandwidthPercent: z.number().min(1).max(100).optional(),
+  setDscp: z.number().int().min(0).max(63).optional(),
+});
+
+const qosSchema = z.object({
+  classMaps: z.record(z.object({ matchAll: z.boolean().default(false), dscp: z.array(z.number().int().min(0).max(63)).default([]) })).default({}),
+  policyMaps: z.record(z.object({ classes: z.array(qosClassSchema).default([]) })).default({}),
+});
+
+const trafficSchema = z.object({
+  id: z.string(),
+  dst: dotted,
+  app: z.string(),
+  dscp: z.number().int().min(0).max(63),
+  rateMbps: z.number().positive().max(100000),
 });
 
 const staticRouteSchema = z.object({
@@ -69,6 +158,13 @@ const baseConfigSchema = z.object({
   staticRoutes: z.array(staticRouteSchema).default([]),
   defaultGateway: dotted.optional(),
   stpPriority: z.number().int().min(0).max(61440).default(32768),
+  ospf: ospfSchema.optional(),
+  acls: z.record(aclSchema).default({}),
+  nat: natSchema.default({}),
+  dhcp: dhcpSchema.default({}),
+  qos: qosSchema.default({}),
+  /** Application traffic this host offers (QoS analysis). */
+  traffic: z.array(trafficSchema).default([]),
 });
 
 export const netConfigSchema = baseConfigSchema.extend({
@@ -80,6 +176,13 @@ export type InterfaceConfig = z.infer<typeof interfaceSchema>;
 export type StaticRoute = z.infer<typeof staticRouteSchema>;
 export type NetConfig = z.infer<typeof netConfigSchema>;
 export type PortSecurityConfig = z.infer<typeof portSecuritySchema>;
+export type OspfConfig = z.infer<typeof ospfSchema>;
+export type AclConfig = z.infer<typeof aclSchema>;
+export type AclEntry = z.infer<typeof aclEntrySchema>;
+export type FhrpConfig = z.infer<typeof fhrpSchema>;
+export type DhcpPool = z.infer<typeof dhcpPoolSchema>;
+export type QosClass = z.infer<typeof qosClassSchema>;
+export type TrafficFlowConfig = z.infer<typeof trafficSchema>;
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -93,6 +196,11 @@ export function defaultNetConfig(kind: DeviceKind): NetConfig {
     ipRouting: role === 'router',
     staticRoutes: [],
     stpPriority: 32768,
+    acls: {},
+    nat: { statics: [], overload: [] },
+    dhcp: { excluded: [], pools: {} },
+    qos: { classMaps: {}, policyMaps: {} },
+    traffic: [],
   };
 }
 

@@ -51,7 +51,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
       <div className="mr-3 flex items-center gap-2">
         <TrainFront className="h-5 w-5 text-amber-400" />
         <span className="font-semibold tracking-tight">RailNet Sim</span>
-        <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">Phase 2 · Ethernet + IP</span>
+        <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">Phase 3 · Routing + Services</span>
       </div>
       <button
         type="button"

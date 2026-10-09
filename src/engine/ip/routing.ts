@@ -8,7 +8,7 @@ import { inSubnet, maskToPrefix, networkOf, parseIpv4 } from './ipv4';
  * routes, longest-prefix-match lookup. OSPF adds routes in Phase 3.
  */
 
-export type RouteProtocol = 'C' | 'L' | 'S';
+export type RouteProtocol = 'C' | 'L' | 'S' | 'O' | 'O IA' | 'O E2';
 
 export interface Route {
   network: number;
@@ -21,6 +21,8 @@ export interface Route {
   iface?: string;
   /** Default route installed from "ip default-gateway" / host gateway (non-routing stacks). */
   isGateway?: boolean;
+  /** Equal-cost paths (OSPF); forwarding uses the first. */
+  paths?: Array<{ nextHop: number; iface: string }>;
 }
 
 /** Does this device forward packets between interfaces? */
@@ -31,7 +33,11 @@ export function routesPackets(kind: DeviceKind, cfg: NetConfig): boolean {
   return false;
 }
 
-export function buildRoutingTable(kind: DeviceKind, cfg: NetConfig, ifs: L3Interface[]): Route[] {
+/**
+ * Builds the routing table. `dynamic` = routes from routing protocols (OSPF);
+ * for the same prefix the lowest administrative distance wins.
+ */
+export function buildRoutingTable(kind: DeviceKind, cfg: NetConfig, ifs: L3Interface[], dynamic: Route[] = []): Route[] {
   const routes: Route[] = [];
   for (const i of ifs) {
     if (!i.up || i.ip === undefined || i.prefixLen === undefined || i.network === undefined) continue;
@@ -72,12 +78,12 @@ export function buildRoutingTable(kind: DeviceKind, cfg: NetConfig, ifs: L3Inter
           continue;
         }
         if (c.nextHop === undefined) continue;
-        const via = lookup([...connected, ...accepted.filter((a) => a !== c)], c.nextHop);
+        const via = lookup([...connected, ...dynamic, ...accepted.filter((a) => a !== c)], c.nextHop);
         if (via && !(via.network === c.network && via.prefixLen === c.prefixLen)) accepted.push(c);
       }
     }
     // Lower AD wins for identical prefixes.
-    for (const a of accepted) {
+    for (const a of [...accepted, ...dynamic]) {
       const same = routes.find((r) => r.network === a.network && r.prefixLen === a.prefixLen);
       if (!same) routes.push(a);
       else if (a.ad < same.ad) routes.splice(routes.indexOf(same), 1, a);

@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1) and the Ethernet + IPv4 engine (Phase 2). OSPF, DHCP, NAT, ACL, QoS, MPLS, VPNs and fault/NMS features are not simulated yet.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), and OSPF, DHCP, NAT, ACL, HSRP/VRRP and QoS analysis (Phase 3, engine + CLI). MPLS, VPNs and fault/NMS features are not simulated yet.',
   },
   // ---------------- Physical ----------------
   {
@@ -130,6 +130,31 @@ export const LIMITATIONS: Limitation[] = [
     status: 'active',
     phase: 2,
     text: 'The CLI is an IOS-like subset for learning: commands, prompts and "show" layouts follow Cisco IOS closely but are not byte-identical, and many options are absent. Hosts use a Windows-style prompt with ipconfig, ping, tracert and arp; their IP settings are made in the IP Configuration form. Firewall, LER/LSR, RR and uCPE behave as plain IPv4 routers until their features arrive.',
+  },
+  // ---------------- Phase 3 ----------------
+  {
+    area: 'OSPF',
+    status: 'active',
+    phase: 3,
+    text: 'OSPF state is computed directly from topology and config (no Hello/DBD/LSU packets, timers or LSA ageing). Modelled: neighbours with failure reasons (area, subnet, hello/dead, duplicate RID, MTU → EXSTART), DR/BDR election (non-preemptive history not kept), per-area SPF, ABR inter-area summaries, E2 externals (default-information originate, redistribute static), cost, ECMP up to 4 paths. Not modelled: stub/NSSA areas, virtual links, summarisation, authentication, route age in "show ip route".',
+  },
+  {
+    area: 'Services',
+    status: 'active',
+    phase: 3,
+    text: 'DHCP: real DORA packets, relay (ip helper-address) and APIPA fallback; lease timers, renewal/rebinding, conflict detection (ping before offer) and DNS resolution are not modelled. NAT/PAT translates ICMP only (ICMP id used as the "port"); translations do not time out. ACLs: standard/extended, numbered/named, first match, implicit deny, ICMP admin-prohibited; TCP traffic is never generated so TCP entries never match.',
+  },
+  {
+    area: 'Redundancy',
+    status: 'active',
+    phase: 3,
+    text: 'HSRP v1 / VRRPv2 election is computed from config and live interface state (no hello timers, so failover is instantaneous); priority, preempt and interface tracking are modelled. A new active router moves the virtual MAC in switch tables immediately (stands in for its hellos).',
+  },
+  {
+    area: 'QoS',
+    status: 'active',
+    phase: 3,
+    text: 'QoS is a steady-state fluid model of configured traffic flows, not packet scheduling: per-flow delivered rate and loss at each L3 egress interface, with LLQ (priority, policed under congestion), CBWFQ (bandwidth %) and FIFO. Queue delay/jitter, L2 switch queues, policing/shaping tools other than LLQ, and WRED are not modelled. SVI egress capacity is assumed 1 Gbit/s. The railway DSCP plan is illustrative, not an official IR policy.',
   },
   // ---------------- Planned ----------------
   {

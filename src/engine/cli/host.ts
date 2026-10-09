@@ -22,7 +22,9 @@ export interface HostContext {
 const HELP = [
   'Available commands:',
   '  ipconfig            Show IP configuration of each adapter',
-  '  ipconfig /all       Also show physical (MAC) addresses',
+  '  ipconfig /all       Also show physical (MAC) addresses and DHCP details',
+  '  ipconfig /renew     Obtain an address by DHCP again (DHCP adapters)',
+  '  ipconfig /release   Release the DHCP address',
   '  ping <ip> [-n N]    Send ICMP echo requests (default 4)',
   '  tracert <ip>        Trace the route to a host',
   '  arp -a              Show the ARP cache',
@@ -41,8 +43,19 @@ export function execHost(input: string, device: Device, ctx: HostContext): strin
   if (cmd === 'help' || cmd === '?') return HELP;
 
   if (cmd === 'ipconfig') {
-    const all = words[1]?.toLowerCase() === '/all';
-    const cfg = getNetConfig(device);
+    const opt = words[1]?.toLowerCase();
+    if (opt === '/renew' || opt === '/release') {
+      if (!device.ports.some((p) => getNetConfig(device).interfaces[p.id]?.dhcpClient))
+        return 'The operation failed as no adapter is in the state permissible for this operation (adapter is not DHCP enabled).';
+      if (opt === '/renew') sim.dhcpRenew(device.id);
+      else sim.dhcpRelease(device.id);
+      if (ctx.simulationMode) return `DHCP ${opt.slice(1)} queued (Simulation mode): press Step or Play, then read the Packet Inspector.`;
+      sim.runUntilIdle();
+      return execHost('ipconfig', device, ctx);
+    }
+    const all = opt === '/all';
+    const cfg = sim.config(device.id) ?? getNetConfig(device);
+    const base = getNetConfig(device);
     const out: string[] = ['', 'Windows IP Configuration', ''];
     for (const i of sim.interfaces(device.id).filter((x) => x.kind === 'port')) {
       out.push(`Ethernet adapter ${i.name}:`, '');
@@ -50,11 +63,21 @@ export function execHost(input: string, device: Device, ctx: HostContext): strin
       if (!up) {
         out.push('   Media State . . . . . . . . . . . : Media disconnected');
       } else {
+        const dhcp = !!base.interfaces[i.name]?.dhcpClient;
+        const client = sim.dhcpClient(device.id, i.name);
         out.push('   Connection-specific DNS Suffix  . :');
-        if (all) out.push(`   Physical Address. . . . . . . . . : ${windowsMac(i.mac).toUpperCase()}`);
-        out.push(`   IPv4 Address. . . . . . . . . . . : ${i.ip !== undefined ? formatIpv4(i.ip) : '0.0.0.0'}`);
+        if (all) {
+          out.push(`   Physical Address. . . . . . . . . : ${windowsMac(i.mac).toUpperCase()}`);
+          out.push(`   DHCP Enabled. . . . . . . . . . . : ${dhcp ? 'Yes' : 'No'}`);
+        }
+        const label = client?.lease?.apipa ? 'Autoconfiguration IPv4 Address. .' : 'IPv4 Address. . . . . . . . . . .';
+        out.push(`   ${label} : ${i.ip !== undefined ? formatIpv4(i.ip) : '0.0.0.0'}`);
         out.push(`   Subnet Mask . . . . . . . . . . . : ${i.prefixLen !== undefined ? prefixToMask(i.prefixLen) : '0.0.0.0'}`);
         out.push(`   Default Gateway . . . . . . . . . : ${cfg.defaultGateway ?? ''}`);
+        if (all && client?.lease && !client.lease.apipa) {
+          out.push(`   DHCP Server . . . . . . . . . . . : ${client.lease.server !== undefined ? formatIpv4(client.lease.server) : ''}`);
+          if (client.lease.dns !== undefined) out.push(`   DNS Servers . . . . . . . . . . . : ${formatIpv4(client.lease.dns)}`);
+        }
       }
       out.push('');
     }

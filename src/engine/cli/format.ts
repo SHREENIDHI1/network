@@ -6,6 +6,7 @@ import { formatIpv4, prefixToMask } from '../ip/ipv4';
 import { routesPackets } from '../ip/routing';
 import { portKey } from '../physical/linkState';
 import type { ProbeSession, Sim } from '../sim';
+import { globalLinesAfterInterfaces, globalLinesBeforeInterfaces, interfaceLines } from './format3';
 
 /**
  * Text renderers for IOS-style "show" output. Layout follows Cisco IOS closely
@@ -80,6 +81,7 @@ export function runningConfig(device: Device, cfg: NetConfig, header = 'Current 
       L.push(`vlan ${id}`, ` name ${cfg.vlans[String(id)].name}`, '!');
     }
   }
+  L.push(...globalLinesBeforeInterfaces(cfg));
   for (const name of sortedIfNames(device, cfg)) {
     const ic = cfg.interfaces[name];
     const isSvi = sviVlan(name) !== null;
@@ -108,9 +110,11 @@ export function runningConfig(device: Device, cfg: NetConfig, header = 'Current 
       if (ic?.ip) L.push(` ip address ${ic.ip.address} ${ic.ip.mask}`);
       else if (role !== 'host') L.push(' no ip address');
     }
+    L.push(...interfaceLines(ic));
     if (eff.shutdown) L.push(' shutdown');
     L.push('!');
   }
+  L.push(...globalLinesAfterInterfaces(cfg));
   for (const r of cfg.staticRoutes) {
     L.push(`ip route ${r.prefix} ${r.mask}${r.exitInterface ? ` ${longIfName(r.exitInterface)}` : ''}${r.nextHop ? ` ${r.nextHop}` : ''}${r.distance ? ` ${r.distance}` : ''}`);
   }
@@ -354,11 +358,18 @@ export function showIpRoute(sim: Sim, device: Device): string {
   const def = table.find((r) => r.prefixLen === 0);
   L.push(def ? `Gateway of last resort is ${def.nextHop !== undefined ? formatIpv4(def.nextHop) : 'directly connected'} to network 0.0.0.0` : 'Gateway of last resort is not set', '');
   const line = (r: (typeof table)[number], indent: string) => {
-    const code = `${r.protocol}${r.prefixLen === 0 ? '*' : ''}`;
+    const star = r.prefixLen === 0 ? '*' : '';
+    const code = r.protocol === 'O E2' ? `O${star}E2` : `${r.protocol}${star}`;
+    const head = code.length < indent.length ? `${code}${indent.slice(code.length)}` : `${code} `;
     const pfx = `${formatIpv4(r.network)}/${r.prefixLen}`;
-    if (r.protocol === 'C' || r.protocol === 'L') return `${pad(code, indent.length + 0)}${indent.slice(code.length)}${pfx} is directly connected, ${longIfName(r.iface!)}`;
+    if (r.protocol === 'C' || r.protocol === 'L') return `${head}${pfx} is directly connected, ${longIfName(r.iface!)}`;
+    if (r.paths && r.paths.length) {
+      const first = `${head}${pfx} [${r.ad}/${r.metric}] via ${formatIpv4(r.paths[0].nextHop)}, ${longIfName(r.paths[0].iface)}`;
+      const more = r.paths.slice(1).map((p) => `${' '.repeat(head.length + pfx.length + 1)}[${r.ad}/${r.metric}] via ${formatIpv4(p.nextHop)}, ${longIfName(p.iface)}`);
+      return [first, ...more].join('\n');
+    }
     const via = r.nextHop !== undefined ? `via ${formatIpv4(r.nextHop)}` : 'is directly connected';
-    return `${pad(code, 2)}${indent.slice(2)}${pfx} [${r.ad}/${r.metric}] ${via}${r.iface && r.nextHop === undefined ? `, ${longIfName(r.iface)}` : ''}`;
+    return `${head}${pfx} [${r.ad}/${r.metric}] ${via}${r.iface && r.nextHop === undefined ? `, ${longIfName(r.iface)}` : ''}`;
   };
   // Group by classful major network, as IOS does.
   const groups = new Map<string, typeof table>();
@@ -416,7 +427,7 @@ export function iosTraceOutput(s: ProbeSession): string {
   for (let h = 0; h * s.probesPerHop < s.probes.length; h++) {
     const ps = s.probes.slice(h * s.probesPerHop, (h + 1) * s.probesPerHop);
     const from = ps.find((p) => p.from !== undefined)?.from;
-    const cells = ps.map((p) => (p.outcome === 'timeout' || p.outcome === 'no-route' || p.outcome === 'pending' ? '*' : p.outcome === 'unreachable' ? `${ms(p.rttMs)} msec !${p.code === 'host-unreachable' ? 'H' : 'N'}` : `${ms(p.rttMs)} msec`));
+    const cells = ps.map((p) => (p.outcome === 'timeout' || p.outcome === 'no-route' || p.outcome === 'pending' ? '*' : p.outcome === 'unreachable' ? `${ms(p.rttMs)} msec !${p.code === 'host-unreachable' ? 'H' : p.code === 'admin-prohibited' ? 'A' : 'N'}` : `${ms(p.rttMs)} msec`));
     L.push(`${lpad(h + 1, 3)} ${from !== undefined ? `${formatIpv4(from)} ` : ''}${cells.join(' ')}`);
   }
   return L.join('\n');

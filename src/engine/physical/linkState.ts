@@ -97,7 +97,12 @@ export function computePhysical(
   }
 
   for (const l of topo.links) {
-    const speed = linkSpeedGbps(l, topo);
+    // A forced "speed" on either end caps the link (both ends must agree on real gear).
+    const forced = [configs.get(l.a.deviceId)?.interfaces[l.a.portId]?.speedMbps, configs.get(l.b.deviceId)?.interfaces[l.b.portId]?.speedMbps]
+      .filter((x): x is number => x !== undefined)
+      .map((m) => m / 1000);
+    const nominal = linkSpeedGbps(l, topo);
+    const speed = nominal > 0 && forced.length ? Math.min(nominal, ...forced) : nominal;
     let linkReason: PortDownReason | undefined;
     if (speed === 0) linkReason = 'media not simulated';
     else if (cuts.has(l.id)) linkReason = 'fibre cut';
