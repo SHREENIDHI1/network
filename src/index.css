@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #0b1220;
+  color: #e2e8f0;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.react-flow,
+.react-flow.dark {
+  --xy-background-color: #0b1220;
+  --xy-background-color-default: #0b1220;
+}
+
+.react-flow__node.selected .rn-device {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.rn-handle {
+  width: 10px !important;
+  height: 10px !important;
+  background: #38bdf8 !important;
+  border: 2px solid #0b1220 !important;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.react-flow__node:hover .rn-handle,
+.react-flow__handle-connecting {
+  opacity: 1;
+}
+
+@layer components {
+  .rn-input {
+    @apply w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 outline-none focus:border-sky-500;
+  }
+
+  .rn-btn {
+    @apply inline-flex items-center gap-1.5 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-sm text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .rn-btn-primary {
+    @apply inline-flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .rn-btn-danger {
+    @apply inline-flex items-center gap-1.5 rounded border border-red-800 bg-red-950 px-2.5 py-1 text-sm text-red-200 hover:bg-red-900;
+  }
+
+  .rn-label {
+    @apply mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400;
+  }
+}
