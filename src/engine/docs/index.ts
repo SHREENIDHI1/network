@@ -1,4 +1,6 @@
+import { ENABLE_LEGACY_TDM } from '../../config/features';
 import { getTemplate } from '../../model/catalog';
+import { isDeviceKindAllowed } from '../../model/networkingMode';
 import type { DeviceCategory, DeviceKind } from '../../model/types';
 import type { DeviceDoc } from './types';
 
@@ -17,17 +19,20 @@ export function hasDocsFor(category: DeviceCategory): boolean {
   return category in LOADERS;
 }
 
-export async function loadCategoryDocs(category: DeviceCategory): Promise<DeviceDoc[]> {
+/** Docs of one category, without docs for device kinds hidden in the current mode. */
+export async function loadCategoryDocs(category: DeviceCategory, legacyEnabled = ENABLE_LEGACY_TDM): Promise<DeviceDoc[]> {
   const load = LOADERS[category];
-  return load ? load() : [];
+  if (!load) return [];
+  return (await load()).filter((d) => isDeviceKindAllowed(d.type, legacyEnabled));
 }
 
-export async function loadDeviceDoc(kind: DeviceKind): Promise<DeviceDoc | undefined> {
-  const docs = await loadCategoryDocs(getTemplate(kind).category);
+export async function loadDeviceDoc(kind: DeviceKind, legacyEnabled = ENABLE_LEGACY_TDM): Promise<DeviceDoc | undefined> {
+  const docs = await loadCategoryDocs(getTemplate(kind).category, legacyEnabled);
   return docs.find((d) => d.type === kind);
 }
 
-export async function loadAllDeviceDocs(): Promise<DeviceDoc[]> {
-  const lists = await Promise.all(Object.values(LOADERS).map((l) => l!()));
+export async function loadAllDeviceDocs(legacyEnabled = ENABLE_LEGACY_TDM): Promise<DeviceDoc[]> {
+  const cats = Object.keys(LOADERS) as DeviceCategory[];
+  const lists = await Promise.all(cats.map((c) => loadCategoryDocs(c, legacyEnabled)));
   return lists.flat();
 }

@@ -15,6 +15,11 @@ export interface TopologyEntry {
 
 export const TOPOLOGIES: readonly TopologyEntry[] = [
   {
+    id: 'demo-networking',
+    title: 'Demo: GOTN station LAN + MPLS uplink',
+    load: () => import('./demoNetworking').then((m) => m.demoNetworking()),
+  },
+  {
     id: 'demo-two-station',
     title: 'Demo: two-station SDH + LAN',
     load: () => import('./demoTwoStation').then((m) => m.demoTwoStation()),

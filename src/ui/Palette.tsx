@@ -1,7 +1,8 @@
 import { useReactFlow } from '@xyflow/react';
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CATEGORY_LABELS, DEVICE_TEMPLATES, type DeviceTemplate } from '../model/catalog';
+import { CATEGORY_LABELS, type DeviceTemplate } from '../model/catalog';
+import { visibleDeviceTemplates } from '../model/networkingMode';
 import type { DeviceCategory } from '../model/types';
 import { useTopologyStore } from '../store/topologyStore';
 import { DRAG_MIME } from './canvas/TopologyCanvas';
@@ -16,8 +17,9 @@ export function Palette() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return DEVICE_TEMPLATES;
-    return DEVICE_TEMPLATES.filter(
+    const templates = visibleDeviceTemplates();
+    if (!q) return templates;
+    return templates.filter(
       (t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.kind.includes(q),
     );
   }, [query]);

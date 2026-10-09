@@ -51,9 +51,9 @@ describe('topology operations', () => {
 
   it('creates OFC links with default optics and validates length edits', () => {
     let t = emptyTopology();
-    const a = addDevice(t, 'adm-stm1', { x: 0, y: 0 });
+    const a = addDevice(t, 'adm-stm1', { x: 0, y: 0 }, true);
     t = a.topology;
-    const b = addDevice(t, 'adm-stm1', { x: 0, y: 0 });
+    const b = addDevice(t, 'adm-stm1', { x: 0, y: 0 }, true);
     t = b.topology;
     const r = addLink(t, { kind: 'ofc', a: { deviceId: a.device.id, portId: 'STM1-E' }, b: { deviceId: b.device.id, portId: 'STM1-W' }, lengthKm: 30 });
     expect(r.ok).toBe(true);

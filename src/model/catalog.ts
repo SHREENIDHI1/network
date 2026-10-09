@@ -343,11 +343,11 @@ export const DEVICE_TEMPLATES: DeviceTemplate[] = [
   },
   {
     kind: 'dns-dhcp',
-    label: 'DNS/DHCP Server',
+    label: 'DNS/DHCP/NTP Server',
     category: 'lan',
     prefix: 'SRV',
     icon: 'server',
-    description: 'DNS and DHCP services for station LANs.',
+    description: 'DNS, DHCP and NTP services for station LANs.',
     buildPorts: () => [port('eth0', 'rj45', GE)],
   },
 

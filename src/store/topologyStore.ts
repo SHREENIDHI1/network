@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { parseTopology, serializeTopology } from '../io/serialize';
+import { hasHiddenLegacy, isDeviceKindAllowed, LEGACY_HIDDEN_MESSAGE } from '../model/networkingMode';
 import * as ops from '../model/topologyOps';
 import type { DeviceKind, Topology, XY } from '../model/types';
 
@@ -80,6 +81,7 @@ export const useTopologyStore = create<TopologyState>((set, get) => ({
     }
     get().loadTopology(res.topology);
     get().notify('info', `Loaded "${res.topology.meta.name}" (${res.topology.devices.length} devices, ${res.topology.links.length} links).`);
+    if (hasHiddenLegacy(res.topology)) get().notify('info', LEGACY_HIDDEN_MESSAGE);
     return true;
   },
 
@@ -89,6 +91,10 @@ export const useTopologyStore = create<TopologyState>((set, get) => ({
     set((s) => ({ topology: { ...s.topology, meta: { name, description: description ?? s.topology.meta.description } } })),
 
   addDevice: (kind, position) => {
+    if (!isDeviceKindAllowed(kind)) {
+      get().notify('error', 'This device type is hidden in networking-only mode.');
+      return;
+    }
     const { topology, device } = ops.addDevice(get().topology, kind, position);
     set({ topology, selection: { type: 'device', id: device.id } });
   },

@@ -6,6 +6,9 @@ import { buildTopology } from './builder';
  * PD-Mux carrying Section Control and Block circuits, plus a small LAN at
  * Station A. Used to explore the editor; full preloaded topologies arrive
  * in Phase 7.
+ *
+ * Legacy TDM fixture: always built with legacy ports, so tests can check
+ * that such files still load in networking-only mode.
  */
 export function demoTwoStation(): Topology {
   return buildTopology(
@@ -36,5 +39,6 @@ export function demoTwoStation(): Topology {
       { kind: 'cat6', a: ['swA', 'Gi0/1'], b: ['pcA', 'eth0'] },
       { kind: 'cat6', a: ['swA', 'Gi0/2'], b: ['utsA', 'eth0'] },
     ],
+    true,
   );
 }

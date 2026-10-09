@@ -1,3 +1,4 @@
+import { ENABLE_LEGACY_TDM } from '../config/features';
 import * as ops from '../model/topologyOps';
 import type { DeviceKind, LinkKind, Topology } from '../model/types';
 
@@ -25,13 +26,20 @@ export interface LinkSpec {
   label?: string;
 }
 
-export function buildTopology(name: string, description: string, devices: DeviceSpec[], links: LinkSpec[]): Topology {
+export function buildTopology(
+  name: string,
+  description: string,
+  devices: DeviceSpec[],
+  links: LinkSpec[],
+  /** Build with legacy TDM ports (for legacy fixtures), regardless of the UI mode. */
+  legacy = ENABLE_LEGACY_TDM,
+): Topology {
   let topo = ops.emptyTopology(name);
   topo.meta.description = description;
   const ids = new Map<string, string>();
 
   for (const spec of devices) {
-    const res = ops.addDevice(topo, spec.kind, { x: spec.x, y: spec.y });
+    const res = ops.addDevice(topo, spec.kind, { x: spec.x, y: spec.y }, legacy);
     topo = ops.updateDevice(res.topology, res.device.id, { name: spec.name, station: spec.station, notes: spec.notes });
     ids.set(spec.key, res.device.id);
   }

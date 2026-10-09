@@ -2,6 +2,8 @@ import { useReactFlow } from '@xyflow/react';
 import { FilePlus, FolderOpen, Info, Save, Sparkles, TrainFront } from 'lucide-react';
 import { useRef } from 'react';
 import { useTopologyStore } from '../store/topologyStore';
+import { ENABLE_LEGACY_TDM } from '../config/features';
+import { demoNetworking } from '../topologies/demoNetworking';
 import { demoTwoStation } from '../topologies/demoTwoStation';
 
 function safeFileName(name: string): string {
@@ -80,7 +82,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
         className="rn-btn"
         onClick={() => {
           if (!confirmDiscard()) return;
-          loadTopology(demoTwoStation());
+          loadTopology(ENABLE_LEGACY_TDM ? demoTwoStation() : demoNetworking());
           fit();
         }}
       >

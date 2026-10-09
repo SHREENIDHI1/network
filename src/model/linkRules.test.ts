@@ -51,9 +51,9 @@ describe('physical link rules', () => {
 
   it('lists compatible link options between two devices', () => {
     let t = emptyTopology();
-    const a = addDevice(t, 'pdmux', { x: 0, y: 0 });
+    const a = addDevice(t, 'pdmux', { x: 0, y: 0 }, true);
     t = a.topology;
-    const b = addDevice(t, 'adm-stm1', { x: 0, y: 0 });
+    const b = addDevice(t, 'adm-stm1', { x: 0, y: 0 }, true);
     const opts = compatibleOptions(a.device, b.device, []);
     const kinds = opts.map((o) => o.kind).sort();
     expect(kinds).toEqual(['cat6', 'e1-copper']);

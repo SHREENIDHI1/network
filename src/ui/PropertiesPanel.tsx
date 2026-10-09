@@ -3,6 +3,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { computeBudget, SYSTEM_MARGIN_DB, type OpticalStatus } from '../engine/physical/opticalBudget';
 import { getTemplate } from '../model/catalog';
 import { applyOpticProfile, defaultSpliceCount, getLinkKindInfo, OPTIC_PROFILES } from '../model/linkRules';
+import { ENABLE_LEGACY_TDM } from '../config/features';
+import { visibleTopology } from '../model/networkingMode';
 import { linkOnPort } from '../model/topologyOps';
 import type { Device, Link, OpticalParams, Topology } from '../model/types';
 import { useTopologyStore } from '../store/topologyStore';
@@ -98,9 +100,10 @@ export function PropertiesPanel() {
 
 function TopologyProps({ topology }: { topology: Topology }) {
   const rename = useTopologyStore((s) => s.renameTopology);
+  const shown = visibleTopology(topology);
   const counts = { legacy: 0, lan: 0, mpls: 0 };
-  for (const d of topology.devices) counts[getTemplate(d.kind).category] += 1;
-  const opticalIssues = topology.links.filter(
+  for (const d of shown.devices) counts[getTemplate(d.kind).category] += 1;
+  const opticalIssues = shown.links.filter(
     (l) => l.kind === 'ofc' && l.optical && computeBudget(l.lengthKm, l.optical).status !== 'ok',
   ).length;
 
@@ -118,15 +121,27 @@ function TopologyProps({ topology }: { topology: Topology }) {
       <Section title="Summary">
         <dl className="grid grid-cols-2 gap-y-1 text-sm">
           <dt className="text-slate-400">Devices</dt>
-          <dd>{topology.devices.length}</dd>
-          <dt className="text-amber-400">Legacy</dt>
-          <dd>{counts.legacy}</dd>
+          <dd>{shown.devices.length}</dd>
+          {ENABLE_LEGACY_TDM && (
+            <>
+              <dt className="text-amber-400">Legacy</dt>
+              <dd>{counts.legacy}</dd>
+            </>
+          )}
           <dt className="text-sky-400">LAN / IP</dt>
           <dd>{counts.lan}</dd>
           <dt className="text-fuchsia-400">IP-MPLS</dt>
           <dd>{counts.mpls}</dd>
           <dt className="text-slate-400">Links</dt>
-          <dd>{topology.links.length}</dd>
+          <dd>{shown.links.length}</dd>
+          {(shown.hiddenDevices > 0 || shown.hiddenLinks > 0) && (
+            <>
+              <dt className="text-slate-500">Hidden legacy TDM</dt>
+              <dd className="text-slate-500">
+                {shown.hiddenDevices} dev / {shown.hiddenLinks} links
+              </dd>
+            </>
+          )}
           <dt className="text-slate-400">Optical issues</dt>
           <dd className={opticalIssues ? 'text-red-400' : ''}>{opticalIssues}</dd>
         </dl>

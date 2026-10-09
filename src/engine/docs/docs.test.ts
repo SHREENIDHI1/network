@@ -48,9 +48,14 @@ describe('legacy equipment docs', () => {
 });
 
 describe('lazy loaders', () => {
-  it('load a single doc and all docs', async () => {
-    expect((await loadDeviceDoc('pdmux'))?.fullName).toMatch(/PD-Mux/);
-    expect((await loadAllDeviceDocs()).length).toBeGreaterThanOrEqual(LEGACY_DOCS.length);
+  it('load a single doc and all docs when legacy TDM is enabled', async () => {
+    expect((await loadDeviceDoc('pdmux', true))?.fullName).toMatch(/PD-Mux/);
+    expect((await loadAllDeviceDocs(true)).length).toBeGreaterThanOrEqual(LEGACY_DOCS.length);
+  });
+
+  it('hide legacy docs in networking-only mode', async () => {
+    expect(await loadDeviceDoc('pdmux', false)).toBeUndefined();
+    expect((await loadAllDeviceDocs(false)).some((d) => d.type === 'adm-stm1')).toBe(false);
   });
 });
 

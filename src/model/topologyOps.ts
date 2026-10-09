@@ -1,5 +1,7 @@
+import { ENABLE_LEGACY_TDM } from '../config/features';
 import { getTemplate } from './catalog';
 import { checkLink, defaultOptical, getLinkKindInfo, type CheckResult } from './linkRules';
+import { visiblePorts } from './networkingMode';
 import type { Device, DeviceKind, Link, LinkEnd, LinkKind, Topology, XY } from './types';
 
 /**
@@ -31,20 +33,29 @@ export function nextDeviceName(devices: Device[], prefix: string): string {
   return `${prefix}-${max + 1}`;
 }
 
-export function createDevice(devices: Device[], kind: DeviceKind, position: XY): Device {
+/**
+ * Creates a device from its template. In networking-only mode legacy TDM ports
+ * (E1, STM, VF, CWDM) are left off, e.g. a router gets no E1 WAN ports.
+ */
+export function createDevice(devices: Device[], kind: DeviceKind, position: XY, legacyEnabled = ENABLE_LEGACY_TDM): Device {
   const t = getTemplate(kind);
   return {
     id: newId('dev'),
     kind,
     name: nextDeviceName(devices, t.prefix),
     position: { x: Math.round(position.x), y: Math.round(position.y) },
-    ports: t.buildPorts(),
+    ports: visiblePorts(t.buildPorts(), legacyEnabled),
     config: {},
   };
 }
 
-export function addDevice(topo: Topology, kind: DeviceKind, position: XY): { topology: Topology; device: Device } {
-  const device = createDevice(topo.devices, kind, position);
+export function addDevice(
+  topo: Topology,
+  kind: DeviceKind,
+  position: XY,
+  legacyEnabled = ENABLE_LEGACY_TDM,
+): { topology: Topology; device: Device } {
+  const device = createDevice(topo.devices, kind, position, legacyEnabled);
   return { topology: { ...topo, devices: [...topo.devices, device] }, device };
 }
 

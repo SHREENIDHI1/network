@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react
 import { computeBudget } from '../../engine/physical/opticalBudget';
 import { usedPortKeys } from '../../model/linkRules';
 import { isDeviceKind } from '../../model/catalog';
+import { visibleTopology } from '../../model/networkingMode';
 import { useTopologyStore } from '../../store/topologyStore';
 import { DeviceNode, type DeviceFlowNode } from './DeviceNode';
 import { LinkEdge, type LinkFlowEdge } from './LinkEdge';
@@ -25,8 +26,9 @@ const nodeTypes = { device: DeviceNode };
 const edgeTypes = { link: LinkEdge };
 
 export function TopologyCanvas() {
-  const devices = useTopologyStore((s) => s.topology.devices);
-  const links = useTopologyStore((s) => s.topology.links);
+  const topology = useTopologyStore((s) => s.topology);
+  // Networking-only mode hides legacy TDM devices/links; they stay in the file.
+  const { devices, links } = useMemo(() => visibleTopology(topology), [topology]);
   const selection = useTopologyStore((s) => s.selection);
   const select = useTopologyStore((s) => s.select);
   const addDevice = useTopologyStore((s) => s.addDevice);

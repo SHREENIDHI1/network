@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { compatibleOptions, getLinkKindInfo } from '../model/linkRules';
+import { isLegacyLinkKind } from '../model/networkingMode';
+import { ENABLE_LEGACY_TDM } from '../config/features';
 import type { LinkKind, Port } from '../model/types';
 import { useTopologyStore } from '../store/topologyStore';
 import { Modal } from './Modal';
@@ -23,7 +25,10 @@ export function LinkDialog() {
   const da = devices.find((d) => d.id === pending?.aDeviceId);
   const db = devices.find((d) => d.id === pending?.bDeviceId);
 
-  const options = useMemo(() => (da && db ? compatibleOptions(da, db, links) : []), [da, db, links]);
+  const options = useMemo(
+    () => (da && db ? compatibleOptions(da, db, links).filter((o) => ENABLE_LEGACY_TDM || !isLegacyLinkKind(o.kind)) : []),
+    [da, db, links],
+  );
 
   const [kind, setKind] = useState<LinkKind | ''>('');
   const [portA, setPortA] = useState('');
@@ -97,8 +102,8 @@ export function LinkDialog() {
             No physically valid connection exists between free ports of <b>{da.name}</b> and <b>{db.name}</b>.
           </p>
           <p className="text-slate-400">
-            Examples: a PC cannot take an E1; an STM-1 aggregate cannot be fibred to an STM-4 aggregate; FXS must face a
-            phone or an FXO. All matching ports may also already be in use.
+            Examples: a PC has only an RJ45 port, so it cannot take an SFP patch; a 10G SFP patch needs 10G-capable SFP
+            ports on both ends; Cat6 is limited to 100 m. All matching ports may also already be in use.
           </p>
         </div>
       ) : (

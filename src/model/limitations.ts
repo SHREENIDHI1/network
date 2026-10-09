@@ -132,4 +132,10 @@ export const LIMITATIONS: Limitation[] = [
     phase: 7,
     text: 'Equipment descriptions are educational summaries; real equipment follows its OEM manual and IR/RDSO documents. Numeric values are typical teaching values unless marked as Standard. Safety-critical circuits (block, BPAC, LC gate, signalling data) are worked only as per IR manuals, RDSO guidelines and zonal instructions.',
   },
+  {
+    area: 'Scope',
+    status: 'active',
+    phase: 7,
+    text: 'Networking-only mode (ENABLE_LEGACY_TDM = false): SDH/STM, PD-Mux, CWDM, E1/G.703, quad/VF and the voice/signalling terminals on them are hidden from the palette, link dialog, canvas and docs. Their model code is kept; files containing them still load, and the legacy items are preserved in the file but not shown. New routers are created without E1 WAN ports in this mode.',
+  },
 ];

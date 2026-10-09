@@ -1,11 +1,14 @@
 import { computeBudget } from '../engine/physical/opticalBudget';
+import { ENABLE_LEGACY_TDM } from '../config/features';
+import { visibleTopology } from '../model/networkingMode';
 import { useTopologyStore } from '../store/topologyStore';
 
 export function StatusBar() {
   const topology = useTopologyStore((s) => s.topology);
+  const shown = visibleTopology(topology);
   let los = 0;
   let marginal = 0;
-  for (const l of topology.links) {
+  for (const l of shown.links) {
     if (l.kind !== 'ofc' || !l.optical) continue;
     const st = computeBudget(l.lengthKm, l.optical).status;
     if (st === 'los' || st === 'overload') los += 1;
@@ -13,11 +16,18 @@ export function StatusBar() {
   }
   return (
     <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-slate-800 bg-slate-950 px-3 text-xs text-slate-400">
-      <span>{topology.devices.length} devices</span>
-      <span>{topology.links.length} links</span>
+      <span>{shown.devices.length} devices</span>
+      <span>{shown.links.length} links</span>
+      {(shown.hiddenDevices > 0 || shown.hiddenLinks > 0) && (
+        <span className="text-slate-500" title="Legacy TDM items are kept in the file but hidden in networking-only mode.">
+          {shown.hiddenDevices} legacy device(s), {shown.hiddenLinks} link(s) hidden
+        </span>
+      )}
       {los > 0 && <span className="text-red-400">{los} optical link(s) failing budget</span>}
       {marginal > 0 && <span className="text-yellow-300">{marginal} marginal optical link(s)</span>}
-      <span className="ml-auto">Simulation engine (step / play) arrives in Phase 2 — this phase edits topology only.</span>
+      <span className="ml-auto">
+        {ENABLE_LEGACY_TDM ? 'Full mode' : 'Networking-only mode'} · simulation engine (step / play) not built yet — topology editing only.
+      </span>
     </footer>
   );
 }
