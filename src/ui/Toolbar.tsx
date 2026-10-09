@@ -1,5 +1,6 @@
 import { useReactFlow } from '@xyflow/react';
-import { FilePlus, FolderOpen, Info, Save, Sparkles, TrainFront } from 'lucide-react';
+import { BookOpen, FilePlus, FlaskConical, FolderOpen, Info, LayoutGrid, Save, Sparkles, TrainFront } from 'lucide-react';
+import { useAppMode, type AppMode } from '../store/appModeStore';
 import { useRef } from 'react';
 import { useTopologyStore } from '../store/topologyStore';
 import { ENABLE_LEGACY_TDM } from '../config/features';
@@ -20,6 +21,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
   const notify = useTopologyStore((s) => s.notify);
   const fileInput = useRef<HTMLInputElement>(null);
   const { fitView } = useReactFlow();
+  const mode = useAppMode((s) => s.mode);
 
   const confirmDiscard = () =>
     topology.devices.length === 0 || window.confirm('Replace the current topology? Unsaved changes will be lost (save first if needed).');
@@ -51,51 +53,105 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
       <div className="mr-3 flex items-center gap-2">
         <TrainFront className="h-5 w-5 text-amber-400" />
         <span className="font-semibold tracking-tight">RailMPLS Lab</span>
-        <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">Phase 3 · Routing + Services</span>
+        <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">P1 · Foundations</span>
       </div>
-      <button
-        type="button"
-        className="rn-btn"
-        onClick={() => {
-          if (confirmDiscard()) newTopology();
-        }}
-      >
-        <FilePlus className="h-4 w-4" /> New
-      </button>
-      <button type="button" className="rn-btn" onClick={() => fileInput.current?.click()}>
-        <FolderOpen className="h-4 w-4" /> Open
-      </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept=".json,application/json"
-        className="hidden"
-        onChange={(e) => {
-          if (confirmDiscard()) void onOpenFile(e.target.files?.[0]);
-          e.target.value = '';
-        }}
-      />
-      <button type="button" className="rn-btn" onClick={onSave}>
-        <Save className="h-4 w-4" /> Save
-      </button>
-      <button
-        type="button"
-        className="rn-btn"
-        onClick={() => {
-          if (!confirmDiscard()) return;
-          loadTopology(ENABLE_LEGACY_TDM ? demoTwoStation() : demoNetworking());
-          fit();
-        }}
-      >
-        <Sparkles className="h-4 w-4" /> Load demo
-      </button>
-      <div className="ml-3 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
-        {topology.meta.name}
-      </div>
-      <SimControls />
+      <ModeSwitch />
+      {mode === 'sandbox' && (
+        <>
+          <button
+            type="button"
+            className="rn-btn"
+            onClick={() => {
+              if (confirmDiscard()) newTopology();
+            }}
+          >
+            <FilePlus className="h-4 w-4" /> New
+          </button>
+          <button type="button" className="rn-btn" onClick={() => fileInput.current?.click()}>
+            <FolderOpen className="h-4 w-4" /> Open
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              if (confirmDiscard()) void onOpenFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          <button type="button" className="rn-btn" onClick={onSave}>
+            <Save className="h-4 w-4" /> Save
+          </button>
+          <button
+            type="button"
+            className="rn-btn"
+            onClick={() => {
+              if (!confirmDiscard()) return;
+              loadTopology(ENABLE_LEGACY_TDM ? demoTwoStation() : demoNetworking());
+              fit();
+            }}
+          >
+            <Sparkles className="h-4 w-4" /> Load demo
+          </button>
+          <div className="ml-3 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
+            {topology.meta.name}
+          </div>
+          <SimControls />
+        </>
+      )}
+      {mode !== 'sandbox' && <div className="flex-1" />}
       <button type="button" className="rn-btn border-amber-800 text-amber-200" onClick={onShowLimitations}>
         <Info className="h-4 w-4" /> Model Limitations
       </button>
     </header>
+  );
+}
+
+const MODES: Array<{
+  id: AppMode;
+  label: string;
+  icon: typeof BookOpen;
+  hint: string;
+}> = [
+  {
+    id: 'learn',
+    label: 'Learn',
+    icon: BookOpen,
+    hint: 'Lessons with widgets and flash quizzes',
+  },
+  {
+    id: 'lab',
+    label: 'Lab',
+    icon: FlaskConical,
+    hint: 'Auto-checked labs (from P2)',
+  },
+  {
+    id: 'sandbox',
+    label: 'Sandbox',
+    icon: LayoutGrid,
+    hint: 'Free canvas: build, configure, simulate',
+  },
+];
+
+function ModeSwitch() {
+  const mode = useAppMode((s) => s.mode);
+  const setMode = useAppMode((s) => s.setMode);
+  return (
+    <div role="tablist" aria-label="Mode" className="mr-2 flex rounded border border-slate-700 p-0.5">
+      {MODES.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          role="tab"
+          aria-selected={mode === m.id}
+          title={m.hint}
+          onClick={() => setMode(m.id)}
+          className={`flex items-center gap-1 rounded px-2 py-0.5 text-sm ${mode === m.id ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+        >
+          <m.icon className="h-3.5 w-3.5" /> {m.label}
+        </button>
+      ))}
+    </div>
   );
 }
