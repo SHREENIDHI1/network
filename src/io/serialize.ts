@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isDeviceKind } from '../model/catalog';
+import { validateStoredNetConfig } from '../engine/config/netConfig';
 import { checkLink, isLinkKind } from '../model/linkRules';
 import type { Topology } from '../model/types';
 
@@ -109,6 +110,7 @@ export function parseTopology(text: string): ParseResult {
   for (const d of topology.devices) {
     if (deviceIds.has(d.id)) errors.push(`Duplicate device id ${d.id}`);
     deviceIds.add(d.id);
+    errors.push(...validateStoredNetConfig(d as Topology['devices'][number]));
     const portIds = new Set<string>();
     for (const p of d.ports) {
       if (portIds.has(p.id)) errors.push(`Duplicate port ${p.id} on ${d.name}`);

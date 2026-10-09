@@ -24,8 +24,8 @@ export const LIMITATIONS: Limitation[] = [
   {
     area: 'General',
     status: 'active',
-    phase: 1,
-    text: 'Phase 1 is a topology editor only. No traffic, protocols, alarms or timing are simulated yet; the canvas shows static physical properties (ports, link types, optical budget).',
+    phase: 2,
+    text: 'Built so far: topology editor (Phase 1) and the Ethernet + IPv4 engine (Phase 2). OSPF, DHCP, NAT, ACL, QoS, MPLS, VPNs and fault/NMS features are not simulated yet.',
   },
   // ---------------- Physical ----------------
   {
@@ -82,19 +82,56 @@ export const LIMITATIONS: Limitation[] = [
     phase: 1,
     text: 'Device port counts are representative, not a specific vendor model (e.g. STM-1 ADM has 21 × E1, STM-4/16 have 63 × E1). Card slots, power supplies and fans are not modelled individually yet.',
   },
-  // ---------------- Planned ----------------
+  // ---------------- Engine (Phase 2) ----------------
   {
     area: 'Engine',
-    status: 'planned',
+    status: 'active',
     phase: 2,
-    text: 'Discrete-event engine uses simulated time; protocol timers are scaled and processing delays are idealised (no CPU/queue jitter unless QoS module is active).',
+    text: 'Discrete-event engine with simulated time in milliseconds. Link delay = 0.01 ms + 0.005 ms/km; device processing, serialisation, queuing and CPU load are not modelled, so round-trip times are idealised (IOS output shows them as 1 ms).',
+  },
+  {
+    area: 'Engine',
+    status: 'active',
+    phase: 2,
+    text: 'Realtime mode runs a command’s events to completion instantly; Simulation mode queues them for Step / Play. Fibre cuts, MAC/ARP tables and traces are runtime state and are not saved in the topology file (configs are).',
   },
   {
     area: 'Ethernet',
-    status: 'planned',
+    status: 'active',
     phase: 2,
-    text: 'RSTP will be simplified: role/state election and proposal/agreement are modelled, but BPDU timers and edge cases (e.g. dispute, TC flooding storms) are abstracted.',
+    text: 'Spanning tree is a simplified RSTP: one instance for all VLANs (like 802.1Q CST / MST0, even though "show" uses PVST-style wording), roles computed directly from the topology with 802.1D-2004 path costs, instant convergence, no BPDUs, timers, proposal/agreement or TCN messages. A topology change flushes dynamic MAC entries.',
   },
+  {
+    area: 'Ethernet',
+    status: 'active',
+    phase: 2,
+    text: 'Switch ports default to static access mode in VLAN 1 (real Catalyst default is dynamic auto/DTP). DTP, VTP, voice VLAN, CDP/LLDP, EtherChannel, storm control and jumbo frames are not modelled. IP phones do not bridge their PC port.',
+  },
+  {
+    area: 'Ethernet',
+    status: 'active',
+    phase: 2,
+    text: 'Port security: sticky MACs, aging and err-disable auto-recovery are not modelled; recovery is "shutdown" then "no shutdown". Duplex/speed negotiation is assumed to succeed at the link speed.',
+  },
+  {
+    area: 'IP',
+    status: 'active',
+    phase: 2,
+    text: 'IPv4 only. ICMP echo, time-exceeded and net-unreachable are modelled; traceroute uses ICMP echo probes with increasing TTL (like Windows tracert), not UDP as IOS does. No IP options, fragmentation, MTU, ICMP redirects, proxy ARP or gratuitous ARP. Static routes to an exit interface ARP for the destination directly.',
+  },
+  {
+    area: 'IP',
+    status: 'active',
+    phase: 2,
+    text: 'Routers drop the packet that triggers ARP resolution (so the first ping often shows ".!!!!", as on IOS); hosts queue it for up to 3 s. MAC addresses are generated deterministically from the device ID (locally-administered 02:xx…).',
+  },
+  {
+    area: 'CLI',
+    status: 'active',
+    phase: 2,
+    text: 'The CLI is an IOS-like subset for learning: commands, prompts and "show" layouts follow Cisco IOS closely but are not byte-identical, and many options are absent. Hosts use a Windows-style prompt with ipconfig, ping, tracert and arp; their IP settings are made in the IP Configuration form. Firewall, LER/LSR, RR and uCPE behave as plain IPv4 routers until their features arrive.',
+  },
+  // ---------------- Planned ----------------
   {
     area: 'SDH',
     status: 'planned',

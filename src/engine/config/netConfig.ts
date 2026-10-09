@@ -1,0 +1,198 @@
+import { z } from 'zod';
+import type { Device, DeviceKind, Port } from '../../model/types';
+
+/**
+ * Per-device network configuration ("running-config"), stored in
+ * device.config.net so it is saved and loaded with the topology file.
+ *
+ * Interface keys:
+ *   physical port id      e.g. "Gi0/1", "Te0/1/0", "eth0"
+ *   router subinterface   "<port>.<n>"  e.g. "Gi0/0.10"
+ *   switch virtual iface  "Vlan<n>"     e.g. "Vlan10"
+ */
+
+export type DeviceRole = 'host' | 'switch' | 'l3switch' | 'router' | 'opaque';
+
+const HOST_KINDS: DeviceKind[] = ['pc', 'uts-prs', 'fois', 'ip-phone', 'cctv', 'nvr', 'wifi-ap', 'nms', 'dns-dhcp'];
+const ROUTER_KINDS: DeviceKind[] = ['router', 'firewall', 'ler', 'lsr', 'rr', 'ucpe', 'hybrid-agg'];
+
+export function roleOf(kind: DeviceKind): DeviceRole {
+  if (HOST_KINDS.includes(kind)) return 'host';
+  if (kind === 'l2-switch') return 'switch';
+  if (kind === 'l3-switch') return 'l3switch';
+  if (ROUTER_KINDS.includes(kind)) return 'router';
+  return 'opaque'; // legacy TDM equipment: no packet forwarding
+}
+
+export const isBridgeRole = (r: DeviceRole) => r === 'switch' || r === 'l3switch';
+
+// ---------------------------------------------------------------------------
+// Schema
+// ---------------------------------------------------------------------------
+
+const vlanId = z.number().int().min(1).max(4094);
+const dotted = z.string().regex(/^\d{1,3}(\.\d{1,3}){3}$/);
+
+const portSecuritySchema = z.object({
+  enabled: z.boolean(),
+  maximum: z.number().int().min(1).max(8192),
+  violation: z.enum(['shutdown', 'restrict', 'protect']),
+});
+
+const interfaceSchema = z.object({
+  shutdown: z.boolean().optional(),
+  description: z.string().max(240).optional(),
+  /** Switch ports only: false = routed port ("no switchport", L3 switch). */
+  switchport: z.boolean().optional(),
+  mode: z.enum(['access', 'trunk']).optional(),
+  accessVlan: vlanId.optional(),
+  trunkAllowed: z.union([z.literal('all'), z.array(vlanId)]).optional(),
+  nativeVlan: vlanId.optional(),
+  ip: z.object({ address: dotted, mask: dotted }).optional(),
+  /** Subinterfaces: 802.1Q VLAN; native = send/receive untagged. */
+  encapsulation: z.object({ vlan: vlanId, native: z.boolean() }).optional(),
+  portSecurity: portSecuritySchema.optional(),
+});
+
+const staticRouteSchema = z.object({
+  prefix: dotted,
+  mask: dotted,
+  nextHop: dotted.optional(),
+  exitInterface: z.string().optional(),
+  distance: z.number().int().min(1).max(255).optional(),
+});
+
+const baseConfigSchema = z.object({
+  interfaces: z.record(interfaceSchema).default({}),
+  vlans: z.record(z.object({ name: z.string().max(32) })).default({}),
+  ipRouting: z.boolean().default(false),
+  staticRoutes: z.array(staticRouteSchema).default([]),
+  defaultGateway: dotted.optional(),
+  stpPriority: z.number().int().min(0).max(61440).default(32768),
+});
+
+export const netConfigSchema = baseConfigSchema.extend({
+  /** Saved copy from "write memory" / "copy running-config startup-config". */
+  startup: baseConfigSchema.optional(),
+});
+
+export type InterfaceConfig = z.infer<typeof interfaceSchema>;
+export type StaticRoute = z.infer<typeof staticRouteSchema>;
+export type NetConfig = z.infer<typeof netConfigSchema>;
+export type PortSecurityConfig = z.infer<typeof portSecuritySchema>;
+
+// ---------------------------------------------------------------------------
+// Defaults
+// ---------------------------------------------------------------------------
+
+export function defaultNetConfig(kind: DeviceKind): NetConfig {
+  const role = roleOf(kind);
+  return {
+    interfaces: {},
+    vlans: isBridgeRole(role) ? { '1': { name: 'default' } } : {},
+    ipRouting: role === 'router',
+    staticRoutes: [],
+    stpPriority: 32768,
+  };
+}
+
+/**
+ * Effective settings of a physical port, applying IOS-like defaults:
+ * switch ports are "switchport mode access, vlan 1, no shutdown";
+ * router ports are shut down until "no shutdown"; host NICs are up.
+ */
+export function effectivePort(role: DeviceRole, cfg: InterfaceConfig | undefined): Required<Pick<InterfaceConfig, 'shutdown'>> & InterfaceConfig {
+  const c = cfg ?? {};
+  if (isBridgeRole(role)) {
+    const switchport = c.switchport ?? true;
+    return {
+      ...c,
+      shutdown: c.shutdown ?? false,
+      switchport,
+      mode: switchport ? (c.mode ?? 'access') : undefined,
+      accessVlan: c.accessVlan ?? 1,
+      nativeVlan: c.nativeVlan ?? 1,
+      trunkAllowed: c.trunkAllowed ?? 'all',
+    };
+  }
+  if (role === 'router') return { ...c, shutdown: c.shutdown ?? true, switchport: false };
+  return { ...c, shutdown: c.shutdown ?? false, switchport: false };
+}
+
+/** Reads and validates device.config.net, falling back to defaults. */
+export function getNetConfig(device: Device): NetConfig {
+  const raw = (device.config as { net?: unknown }).net;
+  if (raw === undefined) return defaultNetConfig(device.kind);
+  const parsed = netConfigSchema.safeParse(raw);
+  return parsed.success ? parsed.data : defaultNetConfig(device.kind);
+}
+
+/** Validation for file loading: returns error strings for an invalid stored config. */
+export function validateStoredNetConfig(device: Device): string[] {
+  const raw = (device.config as { net?: unknown }).net;
+  if (raw === undefined) return [];
+  const parsed = netConfigSchema.safeParse(raw);
+  if (parsed.success) return [];
+  return parsed.error.issues.map((i) => `${device.name} config.net.${i.path.join('.')}: ${i.message}`);
+}
+
+export function withNetConfig(device: Device, net: NetConfig): Device {
+  return { ...device, config: { ...device.config, net } };
+}
+
+// ---------------------------------------------------------------------------
+// Interface naming
+// ---------------------------------------------------------------------------
+
+const LONG_NAMES: Array<[short: string, long: string]> = [
+  ['Gi', 'GigabitEthernet'],
+  ['Te', 'TenGigabitEthernet'],
+  ['Twe', 'TwentyFiveGigE'],
+  ['Hu', 'HundredGigE'],
+  ['Fa', 'FastEthernet'],
+];
+
+/** "Gi0/1" -> "GigabitEthernet0/1", "Vlan10" stays, "eth0" stays. */
+export function longIfName(name: string): string {
+  for (const [s, l] of LONG_NAMES) if (name.startsWith(s) && /\d/.test(name.charAt(s.length))) return l + name.slice(s.length);
+  return name;
+}
+
+/**
+ * Resolves what a user typed ("gi0/1", "GigabitEthernet 0/1", "g0/0.10",
+ * "vlan 10", "te1/1/1") to an interface key on this device. Returns null when
+ * it does not name a valid interface for the device.
+ */
+export function resolveIfName(typed: string, ports: Port[]): string | null {
+  const t = typed.replace(/\s+/g, '');
+  const vlan = /^vl(?:an?)?(\d+)$/i.exec(t);
+  if (vlan) return `Vlan${Number(vlan[1])}`;
+  const m = /^([a-z-]+?)(\d[\d/]*)(?:\.(\d+))?$/i.exec(t);
+  for (const p of ports) {
+    if (p.name.toLowerCase() === t.toLowerCase()) return p.id;
+  }
+  if (!m) return null;
+  const [, word, nums, sub] = m;
+  for (const p of ports) {
+    const pm = /^([A-Za-z]+)(\d[\d/]*)$/.exec(p.name);
+    if (!pm || pm[2] !== nums) continue;
+    const short = pm[1];
+    const long = longIfName(p.name).slice(0, -pm[2].length);
+    const w = word.toLowerCase();
+    if (short.toLowerCase().startsWith(w) || long.toLowerCase().startsWith(w)) return sub ? `${p.id}.${Number(sub)}` : p.id;
+  }
+  return null;
+}
+
+export function isSubinterface(name: string): boolean {
+  return /\.\d+$/.test(name);
+}
+
+export function parentOf(name: string): string {
+  return name.replace(/\.\d+$/, '');
+}
+
+export function sviVlan(name: string): number | null {
+  const m = /^Vlan(\d+)$/.exec(name);
+  return m ? Number(m[1]) : null;
+}

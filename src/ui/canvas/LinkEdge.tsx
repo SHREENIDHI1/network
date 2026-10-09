@@ -11,6 +11,11 @@ export type LinkEdgeData = {
   parallelIndex: number;
   parallelCount: number;
   opticalStatus?: OpticalStatus;
+  /** Live engine state. */
+  operUp?: boolean;
+  downReason?: string;
+  stpBlocked?: boolean;
+  inFlight?: boolean;
 };
 
 export type LinkFlowEdge = Edge<LinkEdgeData, 'link'>;
@@ -68,6 +73,8 @@ function LinkEdgeImpl({ id, source, target, data, selected }: EdgeProps<LinkFlow
   const style = LINK_STYLES[data.link.kind];
   const info = getLinkKindInfo(data.link.kind);
   const badge = data.opticalStatus ? STATUS_BADGE[data.opticalStatus] : undefined;
+  const down = data.operUp === false;
+  const downText = !down ? undefined : data.downReason === 'administratively down' ? 'DOWN (admin)' : data.downReason === 'fibre cut' ? 'CUT' : data.downReason === 'optical LOS' ? undefined : 'DOWN';
   const lengthText = data.link.kind === 'ofc' ? ` ${data.link.lengthKm} km` : '';
 
   return (
@@ -77,10 +84,11 @@ function LinkEdgeImpl({ id, source, target, data, selected }: EdgeProps<LinkFlow
         path={path}
         interactionWidth={14}
         style={{
-          stroke: badge && data.opticalStatus === 'los' ? '#ef4444' : style.stroke,
-          strokeWidth: selected ? style.width + 2 : style.width,
-          strokeDasharray: data.opticalStatus === 'los' ? '8 6' : style.dash,
-          filter: selected ? 'drop-shadow(0 0 4px #38bdf8)' : undefined,
+          stroke: down ? '#ef4444' : style.stroke,
+          strokeWidth: data.inFlight ? style.width + 3 : selected ? style.width + 2 : style.width,
+          strokeDasharray: down ? '8 6' : style.dash,
+          strokeOpacity: down ? 0.75 : 1,
+          filter: data.inFlight ? 'drop-shadow(0 0 6px #fde047)' : selected ? 'drop-shadow(0 0 4px #38bdf8)' : undefined,
         }}
       />
       <EdgeLabelRenderer>
@@ -94,6 +102,17 @@ function LinkEdgeImpl({ id, source, target, data, selected }: EdgeProps<LinkFlow
             {lengthText}
           </span>
           {badge && <span className={`rounded px-1 font-bold ${badge.cls}`}>{badge.text}</span>}
+          {downText && (
+            <span className="rounded bg-red-700 px-1 font-bold text-white" title={data.downReason}>
+              {downText}
+            </span>
+          )}
+          {data.stpBlocked && !down && (
+            <span className="rounded bg-amber-500 px-1 font-bold text-slate-900" title="Spanning tree: one end is an alternate (discarding) port">
+              STP BLK
+            </span>
+          )}
+          {data.inFlight && <span className="rounded bg-yellow-300 px-1 font-bold text-slate-900">frame</span>}
         </div>
       </EdgeLabelRenderer>
     </>

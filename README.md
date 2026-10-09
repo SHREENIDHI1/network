@@ -9,7 +9,7 @@ An educational, browser-based network simulator for **Indian Railways S&T teleco
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Scaffold, canvas, device palette, links, save/load JSON, Model Limitations panel | ✅ Done |
-| 2 | Engine core (event loop, step/play), Physical, Ethernet/VLAN, IP/ping, CLI basics, packet inspector | Planned |
+| 2 | Engine core (event loop, step/play), Physical, Ethernet/VLAN, IP/ping, CLI basics, packet inspector | ✅ Done |
 | 3 | OSPF, DHCP, NAT, ACL, QoS | Planned |
 | 4 | PD-Mux + E1 + SDH (mapping view, cross-connects, alarms, ring protection) | Planned |
 | 5 | MPLS (LDP, LFIB, PHP), L3VPN, L2VPN/pseudowire, TE/FRR | Planned |
@@ -47,6 +47,31 @@ macOS/Linux: same commands from step 3.
 | `npm run build` | Type check + production build into `dist/` (works fully offline) |
 | `npm run preview` | Serve the production build |
 
+## Using the simulator (Phase 2)
+
+- **Configure hosts** (PC, UTS/PRS, FOIS, CCTV…): select the device → *IP Configuration* (address, mask, gateway) → Apply.
+- **Configure switches/routers**: select the device → *Open CLI* (or *Console* in the toolbar). IOS-like commands, e.g.
+  ```
+  enable
+  configure terminal
+  vlan 10
+   name UTS
+  interface gi0/1
+   switchport mode access
+   switchport access vlan 10
+  interface gi0/24
+   switchport mode trunk
+   switchport trunk allowed vlan 10,20
+  end
+  show vlan brief
+  ```
+  Router-on-a-stick: `interface g0/0` → `no shutdown`; `interface g0/0.10` → `encapsulation dot1Q 10` → `ip address 10.0.10.1 255.255.255.0`.
+  Router ports are shut down by default, as on real routers. `?` gives help, Tab completes, `do` works in config mode, `write memory` saves startup-config.
+- **Test**: `ping`, `traceroute` on routers/switches; `ping`, `tracert`, `ipconfig`, `arp -a` on hosts.
+- **Packet Inspector** (Console dock): each probe/ARP exchange as a flow; step hop by hop and see Ethernet / 802.1Q / ARP / IPv4 / ICMP headers and which table decided (MAC table, VLAN, STP, ARP cache, routing table).
+- **Realtime vs Simulation mode** (toolbar): Realtime runs commands instantly; Simulation queues events — use Step ⏭ / Play ▶ / speed and watch frames move on the canvas (yellow glow) and in the *Events* tab.
+- **Faults**: select a link → *Cut fibre/cable* and *Repair*. Canvas shows `DOWN`, `DOWN (admin)`, `CUT` and `STP BLK` badges.
+
 ## Using the editor (Phase 1)
 
 - **Add devices**: drag from the left palette (Legacy / LAN-IP / IP-MPLS), or click a palette item.
@@ -66,7 +91,13 @@ macOS/Linux: same commands from step 3.
 src/
   model/          domain types, device catalog, link rules, pure topology ops, limitations register
   engine/         simulation engine (pure TypeScript, no UI imports)
-    physical/     optical power budget (Phase 1); link state, fibre cuts (Phase 2)
+    core/         event queue, frame/packet types, MAC addressing
+    config/       per-device NetConfig (running-config) model + defaults
+    physical/     optical power budget, link/port state, fibre cuts
+    ethernet/     simplified RSTP
+    ip/           IPv4 helpers, L3 interfaces (ports, subinterfaces, SVIs), routing table
+    cli/          IOS-like CLI parser/commands, show formatting, host command prompt
+    sim.ts        discrete-event engine: bridging, ARP, IPv4 forwarding, ICMP, traces
   io/             save/load JSON with schema validation
   store/          Zustand store
   ui/             React components (canvas, palette, properties, dialogs)

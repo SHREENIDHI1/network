@@ -55,7 +55,7 @@ export const MODULES: Record<EngineModule, ModuleInfo> = {
 };
 
 /** Modules that actually exist in this build. */
-export const BUILT_MODULES: ReadonlySet<EngineModule> = new Set<EngineModule>(['topology', 'physical']);
+export const BUILT_MODULES: ReadonlySet<EngineModule> = new Set<EngineModule>(['topology', 'physical', 'sim', 'ethernet', 'ip']);
 
 export function missingModules(required: readonly EngineModule[], built: ReadonlySet<EngineModule> = BUILT_MODULES): EngineModule[] {
   return required.filter((m) => !built.has(m));

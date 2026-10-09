@@ -21,6 +21,8 @@ interface TopologyState {
 
   newTopology: (name?: string) => void;
   loadTopology: (t: Topology) => void;
+  /** Replaces the topology after an edit (e.g. CLI config), keeping the selection when still valid. */
+  applyTopology: (t: Topology) => void;
   loadFromText: (text: string) => boolean;
   exportText: () => string;
   renameTopology: (name: string, description?: string) => void;
@@ -72,6 +74,13 @@ export const useTopologyStore = create<TopologyState>((set, get) => ({
   newTopology: (name) => set({ topology: ops.emptyTopology(name), selection: null, pendingConnection: null }),
 
   loadTopology: (t) => set({ topology: t, selection: null, pendingConnection: null }),
+
+  applyTopology: (t) =>
+    set((s) => {
+      const sel = s.selection;
+      const keep = sel && (sel.type === 'device' ? t.devices.some((d) => d.id === sel.id) : t.links.some((l) => l.id === sel.id));
+      return { topology: t, selection: keep ? sel : null };
+    }),
 
   loadFromText: (text) => {
     const res = parseTopology(text);

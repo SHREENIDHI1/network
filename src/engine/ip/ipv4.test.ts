@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { cidrWithin, findOverlaps, formatCidr, parseCidr, parseIpv4, sameSubnet } from './ipUtils';
+import { cidrWithin, findOverlaps, formatCidr, parseCidr, parseIpv4, sameSubnet } from './ipv4';
 
-describe('ipUtils', () => {
+describe('ipv4 utils', () => {
   it('parses IPv4 and rejects bad input', () => {
     expect(parseIpv4('10.0.0.1')).toBe(0x0a000001);
     expect(parseIpv4('256.1.1.1')).toBeNull();
@@ -28,5 +28,21 @@ describe('ipUtils', () => {
     expect(sameSubnet('10.1.1.1/24', '10.1.1.254/24')).toBe(true);
     expect(sameSubnet('10.1.1.1/24', '10.1.2.1/24')).toBe(false);
     expect(sameSubnet('10.1.1.1/24', '10.1.1.2/25')).toBe(false);
+  });
+});
+
+describe('mask helpers', () => {
+  it('maskToPrefix / prefixToMask', async () => {
+    const { maskToPrefix, prefixToMask, validateHostAddress } = await import('./ipv4');
+    expect(maskToPrefix('255.255.255.0')).toBe(24);
+    expect(maskToPrefix('255.255.255.252')).toBe(30);
+    expect(maskToPrefix('0.0.0.0')).toBe(0);
+    expect(maskToPrefix('255.0.255.0')).toBeNull();
+    expect(prefixToMask(26)).toBe('255.255.255.192');
+    expect(validateHostAddress('10.1.1.1', '255.255.255.0')).toBeNull();
+    expect(validateHostAddress('10.1.1.0', '255.255.255.0')).toMatch(/Bad mask/);
+    expect(validateHostAddress('10.1.1.255', '255.255.255.0')).toMatch(/Bad mask/);
+    expect(validateHostAddress('10.1.1.1', '255.0.255.0')).toMatch(/Bad mask/);
+    expect(validateHostAddress('10.0.0.0', '255.255.255.254')).toBeNull(); // /31 point-to-point
   });
 });

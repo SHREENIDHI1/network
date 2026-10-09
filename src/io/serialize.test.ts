@@ -43,3 +43,21 @@ describe('save / load', () => {
     if (!r.ok) expect(r.errors.join(' ')).toMatch(/already connected/);
   });
 });
+
+describe('device configs in files', () => {
+  it('round-trips a stored net config and rejects an invalid one', async () => {
+    const { configure, ipIf } = await import('../engine/testing/fixtures');
+    const { demoNetworking } = await import('../topologies/demoNetworking');
+    const t = configure(demoNetworking(), 'GOTN-LER', (c) => ipIf(c, 'Gi0/0/0', '10.9.9.1', '255.255.255.0', { shutdown: false }));
+    const r = parseTopology(serializeTopology(t));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.topology).toEqual(t);
+
+    const file = JSON.parse(serializeTopology(t));
+    const ler = file.topology.devices.find((d: { name: string }) => d.name === 'GOTN-LER');
+    ler.config.net.interfaces['Gi0/0/0'].ip.address = 'not-an-ip';
+    const bad = parseTopology(JSON.stringify(file));
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.errors.join(' ')).toMatch(/GOTN-LER config\.net\.interfaces/);
+  });
+});

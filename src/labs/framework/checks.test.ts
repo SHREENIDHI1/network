@@ -56,7 +56,7 @@ describe('module-dependent checks', () => {
   const topo = demoTwoStation();
 
   it('fail with a "needs module" message when the module is not built', () => {
-    const snap = buildSnapshot(topo); // only topology + physical built
+    const snap = buildSnapshot(topo, {}, new Set<EngineModule>(['topology', 'physical']));
     for (const check of [
       C.vlanOnPort('A-SW', 'Gi0/1', 10),
       C.routeExists('R1', '10.0.0.0/24'),

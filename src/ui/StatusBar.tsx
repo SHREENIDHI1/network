@@ -26,7 +26,7 @@ export function StatusBar() {
       {los > 0 && <span className="text-red-400">{los} optical link(s) failing budget</span>}
       {marginal > 0 && <span className="text-yellow-300">{marginal} marginal optical link(s)</span>}
       <span className="ml-auto">
-        {ENABLE_LEGACY_TDM ? 'Full mode' : 'Networking-only mode'} · simulation engine (step / play) not built yet — topology editing only.
+        {ENABLE_LEGACY_TDM ? 'Full mode' : 'Networking-only mode'} · Engine: Ethernet, VLAN, RSTP, IPv4, static routes · Console = CLI + Packet Inspector
       </span>
     </footer>
   );

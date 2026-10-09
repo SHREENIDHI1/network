@@ -5,6 +5,7 @@ import { useTopologyStore } from '../store/topologyStore';
 import { ENABLE_LEGACY_TDM } from '../config/features';
 import { demoNetworking } from '../topologies/demoNetworking';
 import { demoTwoStation } from '../topologies/demoTwoStation';
+import { SimControls } from './sim/SimControls';
 
 function safeFileName(name: string): string {
   return name.replace(/[^a-z0-9_-]+/gi, '_').replace(/^_+|_+$/g, '') || 'topology';
@@ -50,7 +51,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
       <div className="mr-3 flex items-center gap-2">
         <TrainFront className="h-5 w-5 text-amber-400" />
         <span className="font-semibold tracking-tight">RailNet Sim</span>
-        <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">Phase 1 · Editor</span>
+        <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">Phase 2 · Ethernet + IP</span>
       </div>
       <button
         type="button"
@@ -91,6 +92,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
       <div className="ml-3 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
         {topology.meta.name}
       </div>
+      <SimControls />
       <button type="button" className="rn-btn border-amber-800 text-amber-200" onClick={onShowLimitations}>
         <Info className="h-4 w-4" /> Model Limitations
       </button>

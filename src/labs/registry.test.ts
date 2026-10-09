@@ -69,7 +69,7 @@ describe('lab registry', () => {
 
 describe('module locks', () => {
   it('reports missing modules with their phase', () => {
-    expect(missingModules(['topology', 'physical'])).toEqual([]);
+    expect(missingModules(['topology', 'physical', 'ethernet', 'ip'])).toEqual([]);
     expect(lockReason(['topology'])).toBeNull();
     expect(lockReason(['topology', 'ospf', 'mpls'])).toMatch(/Locked – needs OSPF, MPLS .* \(Phase 3\/5\)/);
   });

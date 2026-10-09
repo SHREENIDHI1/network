@@ -1,6 +1,6 @@
 import { getTemplate } from '../../model/catalog';
 import type { Device, DeviceKind, Link, LinkKind } from '../../model/types';
-import { cidrsOverlap, parseCidr } from './ipUtils';
+import { cidrsOverlap, parseCidr } from '../../engine/ip/ipv4';
 import { MODULES, type EngineModule } from './modules';
 import type { AlarmType, Check, CheckResult, RouteProtocol, SimSnapshot } from './types';
 
@@ -45,7 +45,8 @@ function needs(module: EngineModule): CheckResult {
 /** Returns the section or a "needs module" failure. */
 function section<K extends keyof SimSnapshot>(snap: SimSnapshot, key: K, module: EngineModule): NonNullable<SimSnapshot[K]> | CheckResult {
   const v = snap[key];
-  if (!snap.modules.has(module) || v === undefined) return needs(module);
+  if (!snap.modules.has(module)) return needs(module);
+  if (v === undefined) return fail(`No ${MODULES[module].label} data in this snapshot — run the simulation first.`);
   return v as NonNullable<SimSnapshot[K]>;
 }
 

@@ -17,6 +17,8 @@ import { usedPortKeys } from '../../model/linkRules';
 import { isDeviceKind } from '../../model/catalog';
 import { visibleTopology } from '../../model/networkingMode';
 import { useTopologyStore } from '../../store/topologyStore';
+import { useSimStore } from '../../store/simStore';
+import { portKey } from '../../engine/physical/linkState';
 import { DeviceNode, type DeviceFlowNode } from './DeviceNode';
 import { LinkEdge, type LinkFlowEdge } from './LinkEdge';
 
@@ -60,7 +62,12 @@ export function TopologyCanvas() {
     });
   }, [devices, links, selection]);
 
+  const sim = useSimStore((s) => s.sim);
+  const simVersion = useSimStore((s) => s.version);
+  const simMode = useSimStore((s) => s.mode);
+
   const edges = useMemo<LinkFlowEdge[]>(() => {
+    const inFlight = simMode === 'simulation' ? sim.linksInFlight() : new Set<string>();
     const groups = new Map<string, string[]>();
     for (const l of links) {
       const key = [l.a.deviceId, l.b.deviceId].sort().join('|');
@@ -80,10 +87,16 @@ export function TopologyCanvas() {
           parallelIndex: group.indexOf(l.id),
           parallelCount: group.length,
           opticalStatus: l.kind === 'ofc' && l.optical ? computeBudget(l.lengthKm, l.optical).status : undefined,
+          operUp: sim.phys.links.get(l.id)?.up ?? false,
+          downReason: sim.phys.links.get(l.id)?.reason,
+          stpBlocked: [portKey(l.a.deviceId, l.a.portId), portKey(l.b.deviceId, l.b.portId)].some((k) => sim.stp.ports.get(k)?.role === 'alternate'),
+          inFlight: inFlight.has(l.id),
         },
       };
     });
-  }, [links, selection]);
+    // simVersion: engine state changed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [links, selection, sim, simVersion, simMode]);
 
   const onNodesChange = useCallback((changes: NodeChange<DeviceFlowNode>[]) => {
     // Removal and selection are owned by the store; apply only geometry here.

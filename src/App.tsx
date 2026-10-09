@@ -1,6 +1,7 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { useState } from 'react';
 import { TopologyCanvas } from './ui/canvas/TopologyCanvas';
+import { BottomDock } from './ui/dock/BottomDock';
 import { LimitationsPanel } from './ui/LimitationsPanel';
 import { LinkDialog } from './ui/LinkDialog';
 import { Notices } from './ui/Notices';
@@ -18,9 +19,12 @@ export default function App() {
         <Toolbar onShowLimitations={() => setShowLimitations(true)} />
         <div className="flex min-h-0 flex-1">
           <Palette />
-          <main className="relative min-w-0 flex-1">
-            <TopologyCanvas />
-          </main>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <main className="relative min-h-0 flex-1">
+              <TopologyCanvas />
+            </main>
+            <BottomDock />
+          </div>
           <PropertiesPanel />
         </div>
         <StatusBar />

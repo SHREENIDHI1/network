@@ -9,6 +9,7 @@ import { linkOnPort } from '../model/topologyOps';
 import type { Device, Link, OpticalParams, Topology } from '../model/types';
 import { useTopologyStore } from '../store/topologyStore';
 import { DEVICE_ICONS } from './icons';
+import { DeviceSimSection, LinkSimSection } from './sim/LivePanels';
 
 // ---------------------------------------------------------------------------
 // Small field helpers: commit on blur / Enter so half-typed values never
@@ -206,6 +207,7 @@ function DeviceProps({ device, topology }: { device: Device; topology: Topology 
           </label>
         </div>
       </Section>
+      <DeviceSimSection device={device} />
       <Section title={`Ports (${device.ports.length})`}>
         <table className="w-full text-xs">
           <thead className="text-left text-slate-500">
@@ -317,6 +319,8 @@ function LinkProps({ link, topology }: { link: Link; topology: Topology }) {
           )}
         </div>
       </Section>
+
+      <LinkSimSection link={link} />
 
       {link.optical && <OpticalSection link={link} optical={link.optical} setOptical={setOptical} update={update} />}
 
