@@ -126,4 +126,10 @@ export const LIMITATIONS: Limitation[] = [
     phase: 7,
     text: 'Completion certificates are RailNet Sim training records only. They are not official Indian Railways, RDSO or IRISET certificates.',
   },
+  {
+    area: 'Equipment docs',
+    status: 'active',
+    phase: 7,
+    text: 'Equipment descriptions are educational summaries; real equipment follows its OEM manual and IR/RDSO documents. Numeric values are typical teaching values unless marked as Standard. Safety-critical circuits (block, BPAC, LC gate, signalling data) are worked only as per IR manuals, RDSO guidelines and zonal instructions.',
+  },
 ];
