@@ -15,7 +15,7 @@ import { buildRoutingTable, resolve, routesPackets, type Route } from './ip/rout
 import { computePhysical, portKey, type PhysicalState } from './physical/linkState';
 
 /**
- * RailNet Sim discrete-event network engine (Phase 2).
+ * RailMPLS Lab discrete-event network engine (Phase 2).
  *
  * Models: physical link state, 802.1Q bridging with MAC learning and
  * simplified RSTP, port security, ARP, IPv4 forwarding with connected and
@@ -795,6 +795,12 @@ export class Sim {
       return;
     }
     const cfg = this.configs.get(deviceId)!;
+    if (role === 'hub') {
+      const out = this.devices.get(deviceId)!.ports.filter((p) => p.id !== portId && this.phys.ports.get(portKey(deviceId, p.id))?.operUp);
+      this.trace(frame.flowId, { deviceId, portId, action: 'flood', table: 'Interface', detail: `Hub repeats the bits out of every other port (${out.map((p) => p.id).join(', ') || 'none'}) — no MAC learning, one collision domain.` }, frame);
+      for (const p of out) this.transmit(deviceId, p.id, frame);
+      return;
+    }
     if (isBridgeRole(role) && effectivePort(role, cfg.interfaces[portId]).switchport) {
       this.bridgeReceive(deviceId, portId, frame);
       return;

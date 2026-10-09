@@ -309,7 +309,7 @@ export function showSpanningTree(sim: Sim, device: Device): string {
   const ports = [...sim.stp.ports.values()].filter((p) => p.deviceId === device.id && p.role !== 'disabled');
   const rootPort = br.rootPortId ? ports.find((p) => p.portId === br.rootPortId) : undefined;
   const L = [
-    'Spanning tree instance 0 (common to all VLANs in RailNet Sim)',
+    'Spanning tree instance 0 (common to all VLANs in RailMPLS Lab)',
     '  Spanning tree enabled protocol rstp',
     `  Root ID    Priority    ${br.rootId.priority}`,
     `             Address     ${ciscoMac(br.rootId.mac)}`,

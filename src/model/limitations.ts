@@ -19,7 +19,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 1,
-    text: 'RailNet Sim is an educational simulator, not a carrier-grade emulator. It models protocol behaviour at the level needed to teach concepts correctly; it does not run real vendor software or reproduce vendor-specific defaults.',
+    text: 'RailMPLS Lab is an educational simulator, not a carrier-grade emulator. It models protocol behaviour at the level needed to teach concepts correctly; it does not run real vendor software or reproduce vendor-specific defaults.',
   },
   {
     area: 'General',
@@ -156,6 +156,31 @@ export const LIMITATIONS: Limitation[] = [
     phase: 3,
     text: 'QoS is a steady-state fluid model of configured traffic flows, not packet scheduling: per-flow delivered rate and loss at each L3 egress interface, with LLQ (priority, policed under congestion), CBWFQ (bandwidth %) and FIFO. Queue delay/jitter, L2 switch queues, policing/shaping tools other than LLQ, and WRED are not modelled. SVI egress capacity is assumed 1 Gbit/s. The railway DSCP plan is illustrative, not an official IR policy.',
   },
+  // ---------------- RailMPLS Lab profiles & data ----------------
+  {
+    area: 'Equipment profiles',
+    status: 'active',
+    phase: 1,
+    text: 'Team Engineers NEON\'s real CLI is not public. NEON-LER/LSR profiles use the exact hardware figures quoted from CAMTECH SP37A p.35 and RailMPLS Lab\'s generic SP CLI (IOS-XE style); the console says "CLI syntax is generic, not official NEON syntax". src/profiles/commandMapping.neon.json is left unmapped until the official manual is available.',
+  },
+  {
+    area: 'Equipment profiles',
+    status: 'active',
+    phase: 1,
+    text: 'Cisco ASR 920/903, Juniper ACX4000/MX104 and Nokia SAR 8/IXR R4 are listed because the CAMTECH vendor table names them, but their specifications could not be read for this build: they show "unverified", use a generic placeholder port layout, and behave like the generic SP router. Vendor CLI dialects are not emulated.',
+  },
+  {
+    area: 'Jodhpur division data',
+    status: 'active',
+    phase: 1,
+    text: 'Station data comes from a reading of the NWR Jodhpur Division TRACK map (km = chainage as printed). Simulated OFC is assumed to run along the track, as is normal IR practice; the simulated network is not the actual RailTel/NWR telecom network. Items marked "check" must be verified on the physical map (see docs/jodhpur-check-report.md).',
+  },
+  {
+    area: 'Devices',
+    status: 'active',
+    phase: 1,
+    text: 'The hub repeats every frame out of every other port (no MAC learning), which shows why hubs waste bandwidth; collisions and half-duplex timing are not modelled yet. Internet and Adjacent Division clouds are placeholders whose behaviour arrives in later phases (their links show "media not simulated").',
+  },
   // ---------------- Planned ----------------
   {
     area: 'SDH',
@@ -186,7 +211,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'Labs',
     status: 'planned',
     phase: 7,
-    text: 'Completion certificates are RailNet Sim training records only. They are not official Indian Railways, RDSO or IRISET certificates.',
+    text: 'Completion certificates are RailMPLS Lab training records only. They are not official Indian Railways, RDSO or IRISET certificates.',
   },
   {
     area: 'Equipment docs',

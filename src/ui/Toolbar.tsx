@@ -40,7 +40,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
   const onOpenFile = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > 5_000_000) {
-      notify('error', 'File is larger than 5 MB; not a RailNet Sim topology.');
+      notify('error', 'File is larger than 5 MB; not a RailMPLS Lab topology.');
       return;
     }
     if (loadFromText(await file.text())) fit();
@@ -50,7 +50,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950 px-3">
       <div className="mr-3 flex items-center gap-2">
         <TrainFront className="h-5 w-5 text-amber-400" />
-        <span className="font-semibold tracking-tight">RailNet Sim</span>
+        <span className="font-semibold tracking-tight">RailMPLS Lab</span>
         <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">Phase 3 · Routing + Services</span>
       </div>
       <button

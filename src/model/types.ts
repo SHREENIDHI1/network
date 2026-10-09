@@ -1,5 +1,5 @@
 /**
- * Core domain types for RailNet Sim topologies.
+ * Core domain types for RailMPLS Lab topologies.
  * These types are shared by the UI, the store, save/load and (from Phase 2) the
  * simulation engine. They must not import anything from React or the UI.
  */
@@ -38,19 +38,34 @@ export type DeviceKind =
   | 'lsr'
   | 'rr'
   | 'hybrid-agg'
-  | 'ucpe';
+  | 'ucpe'
+  // RailMPLS Lab additions: basics + IP-MPLS router profiles
+  | 'laptop'
+  | 'hub'
+  | 'server'
+  | 'internet'
+  | 'adj-division'
+  | 'neon-ler'
+  | 'neon-lsr'
+  | 'asr920'
+  | 'asr903'
+  | 'acx4000'
+  | 'mx104'
+  | 'sar8'
+  | 'ixr-r4';
 
 /**
  * Physical port families.
  * - rj45      : copper Ethernet (Cat6)
  * - sfp       : pluggable optical/DAC Ethernet port (speeds in speedsGbps)
+ * - combo     : 1G combo port — accepts either an RJ45 cable or an SFP (used as one at a time)
  * - stm       : SDH aggregate/tributary optical port (stmLevel 1/4/16)
  * - e1        : 2.048 Mbit/s G.703 electrical interface (120 ohm balanced assumed)
  * - vf2w/vf4w : voice-frequency analogue 2-wire / 4-wire interface
  * - cwdm-line : common (multiplexed) port of a CWDM mux/demux
  * - cwdm-ch   : single-wavelength channel port of a CWDM mux/demux
  */
-export type PortKind = 'rj45' | 'sfp' | 'stm' | 'e1' | 'vf2w' | 'vf4w' | 'cwdm-line' | 'cwdm-ch';
+export type PortKind = 'rj45' | 'sfp' | 'combo' | 'stm' | 'e1' | 'vf2w' | 'vf4w' | 'cwdm-line' | 'cwdm-ch';
 
 /**
  * Voice-frequency interface role.

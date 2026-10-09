@@ -99,6 +99,11 @@ export function computeSegments(
           visitVlan(dev, vlan);
           return;
         }
+        if (role === 'hub') {
+          // A hub repeats everything out of every other port.
+          for (const p of d.ports) if (p.id !== port) emit(dev, p.id, tag);
+          return;
+        }
         const ifs = l3.get(dev) ?? [];
         const target =
           tag !== undefined

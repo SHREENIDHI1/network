@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { HOST_PROMPT, execHost } from '../../engine/cli/host';
 import { completeIos, execIos, helpIos, newSession, prompt, type CliSession } from '../../engine/cli/ios';
 import { roleOf } from '../../engine/config/netConfig';
+import { getProfile } from '../../profiles/profiles';
 import { visibleTopology } from '../../model/networkingMode';
 import { useSimStore } from '../../store/simStore';
 import { useTopologyStore } from '../../store/topologyStore';
@@ -136,7 +137,12 @@ function Term({ deviceId }: { deviceId: string }) {
     if (st.scrollback) term.write(st.scrollback);
     else {
       const d = device();
-      write(isHost() ? `RailNet Sim command prompt — ${d?.name}\nType "help" for commands.\n\n` : `RailNet Sim IOS-like CLI (subset) — ${d?.name}\nPress RETURN to get started. Type ? for help.\n\n`);
+      const banner = d ? getProfile(d.kind)?.cliBanner : undefined;
+      write(
+        isHost()
+          ? `RailMPLS Lab command prompt — ${d?.name}\nType "help" for commands.\n\n`
+          : `RailMPLS Lab IOS-like CLI (subset) — ${d?.name}\n${banner ? `*** ${banner} ***\n` : ''}Press RETURN to get started. Type ? for help.\n\n`,
+      );
       showPrompt();
     }
 

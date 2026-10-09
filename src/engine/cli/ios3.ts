@@ -55,7 +55,7 @@ export function phase3Cmds(): Cmd[] {
     { modes: CONF, toks: [kw('router', 'Enable a routing process'), kw('ospf', 'Open Shortest Path First (OSPF)'), num('pid', 1, 65535, '<1-65535> Process ID')], run: (x) => {
       if (!routerRole(x)) return x.invalid();
       const pid = Number(x.args.pid);
-      if (x.cfg.ospf && x.cfg.ospf.processId !== pid) return `% RailNet Sim supports one OSPF process per device (process ${x.cfg.ospf.processId} exists).`;
+      if (x.cfg.ospf && x.cfg.ospf.processId !== pid) return `% RailMPLS Lab supports one OSPF process per device (process ${x.cfg.ospf.processId} exists).`;
       if (!x.cfg.ospf) {
         x.cfg.ospf = { processId: pid, networks: [], passive: [], defaultOriginate: 'off', redistributeStatic: false, referenceBandwidth: 100 };
         x.dirty();

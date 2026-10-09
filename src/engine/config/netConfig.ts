@@ -11,12 +11,16 @@ import type { Device, DeviceKind, Port } from '../../model/types';
  *   switch virtual iface  "Vlan<n>"     e.g. "Vlan10"
  */
 
-export type DeviceRole = 'host' | 'switch' | 'l3switch' | 'router' | 'opaque';
+export type DeviceRole = 'host' | 'switch' | 'l3switch' | 'router' | 'hub' | 'opaque';
 
-const HOST_KINDS: DeviceKind[] = ['pc', 'uts-prs', 'fois', 'ip-phone', 'cctv', 'nvr', 'wifi-ap', 'nms', 'dns-dhcp'];
-const ROUTER_KINDS: DeviceKind[] = ['router', 'firewall', 'ler', 'lsr', 'rr', 'ucpe', 'hybrid-agg'];
+const HOST_KINDS: DeviceKind[] = ['pc', 'uts-prs', 'fois', 'ip-phone', 'cctv', 'nvr', 'wifi-ap', 'nms', 'dns-dhcp', 'laptop', 'server'];
+const ROUTER_KINDS: DeviceKind[] = [
+  'router', 'firewall', 'ler', 'lsr', 'rr', 'ucpe', 'hybrid-agg',
+  'neon-ler', 'neon-lsr', 'asr920', 'asr903', 'acx4000', 'mx104', 'sar8', 'ixr-r4',
+];
 
 export function roleOf(kind: DeviceKind): DeviceRole {
+  if (kind === 'hub') return 'hub';
   if (HOST_KINDS.includes(kind)) return 'host';
   if (kind === 'l2-switch') return 'switch';
   if (kind === 'l3-switch') return 'l3switch';

@@ -116,11 +116,14 @@ function sharedSpeed(a: Port, b: Port): number[] {
   return sa.filter((s) => sb.includes(s));
 }
 
+const rj45Like = (p: Port) => p.kind === 'rj45' || p.kind === 'combo';
+const sfpLike = (p: Port) => p.kind === 'sfp' || p.kind === 'combo';
+
 /** Can a link of `kind` join port `a` to port `b`? Pure port-level check. */
 export function checkPortPair(kind: LinkKind, a: Port, b: Port): CheckResult {
   switch (kind) {
     case 'cat6':
-      if (a.kind !== 'rj45' || b.kind !== 'rj45') return fail('Cat6 needs RJ45 ports on both ends.');
+      if (!rj45Like(a) || !rj45Like(b)) return fail('Cat6 needs RJ45 (or combo) ports on both ends.');
       return OK;
 
     case 'e1-copper':
@@ -141,7 +144,7 @@ export function checkPortPair(kind: LinkKind, a: Port, b: Port): CheckResult {
     case 'sfp-25g':
     case 'sfp-100g': {
       const speed = SFP_SPEED[kind]!;
-      if (a.kind !== 'sfp' || b.kind !== 'sfp') return fail('SFP patch needs SFP ports on both ends.');
+      if (!sfpLike(a) || !sfpLike(b)) return fail('SFP patch needs SFP (or combo) ports on both ends.');
       if (!a.speedsGbps?.includes(speed) || !b.speedsGbps?.includes(speed))
         return fail(`Both SFP ports must support ${speed}G.`);
       return OK;
@@ -151,19 +154,20 @@ export function checkPortPair(kind: LinkKind, a: Port, b: Port): CheckResult {
       const ch = a.kind === 'cwdm-ch' ? a : b.kind === 'cwdm-ch' ? b : undefined;
       const other = ch === a ? b : a;
       if (!ch) return fail('CWDM lambda patch must land on a CWDM channel port.');
-      if (other.kind !== 'stm' && other.kind !== 'sfp')
+      if (other.kind !== 'stm' && !sfpLike(other))
         return fail('The other end of a CWDM lambda must be a coloured STM or SFP optic.');
       return OK;
     }
 
     case 'ofc': {
+      const opt = (p: Port) => (p.kind === 'combo' ? 'sfp' : p.kind);
       const optical = ['stm', 'sfp', 'cwdm-line'];
-      if (!optical.includes(a.kind) || !optical.includes(b.kind))
+      if (!optical.includes(opt(a)) || !optical.includes(opt(b)))
         return fail('OFC must terminate on optical ports (STM, SFP or CWDM LINE).');
-      if (a.kind !== b.kind) return fail(`Optical port types differ (${a.kind} vs ${b.kind}).`);
+      if (opt(a) !== opt(b)) return fail(`Optical port types differ (${a.kind} vs ${b.kind}).`);
       if (a.kind === 'stm' && a.stmLevel !== b.stmLevel)
         return fail(`SDH rate mismatch: STM-${a.stmLevel} cannot be fibred to STM-${b.stmLevel}.`);
-      if (a.kind === 'sfp' && sharedSpeed(a, b).length === 0) return fail('SFP ports share no common speed.');
+      if (opt(a) === 'sfp' && sharedSpeed(a, b).length === 0) return fail('SFP ports share no common speed.');
       return OK;
     }
   }
@@ -263,7 +267,7 @@ export function defaultOptical(a: Port, lengthKm: number): OpticalParams {
   let profileId = '1000BASE-LX';
   if (a.kind === 'stm') profileId = a.stmLevel === 16 ? 'L-16.2' : a.stmLevel === 4 ? 'L-4.1' : 'L-1.1';
   else if (a.kind === 'cwdm-line') profileId = 'CWDM-80';
-  else if (a.kind === 'sfp' && a.speedsGbps?.some((s) => s >= 10)) profileId = '10GBASE-ER';
+  else if ((a.kind === 'sfp' || a.kind === 'combo') && a.speedsGbps?.some((s) => s >= 10)) profileId = '10GBASE-ER';
   const p = OPTIC_PROFILES.find((o) => o.id === profileId)!;
   return {
     profile: p.id,

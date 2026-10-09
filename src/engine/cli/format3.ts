@@ -54,7 +54,7 @@ export function showOspfDatabase(sim: Sim, device: Device): string {
     L.push('', '                Type-5 AS External Link States', '', `${pad('Link ID', 16)}${pad('ADV Router', 16)}Detail`);
     for (const l of ext) L.push(`${pad(formatIpv4(l.linkId), 16)}${pad(formatIpv4(l.advRouter), 16)}${l.detail}`);
   }
-  L.push('', '(Derived summary — RailNet Sim does not keep LSA ages, sequence numbers or checksums.)');
+  L.push('', '(Derived summary — RailMPLS Lab does not keep LSA ages, sequence numbers or checksums.)');
   return L.join('\n');
 }
 
@@ -210,7 +210,7 @@ export function showPolicyInterface(sim: Sim, device: Device, iface: string): st
       }
     }
   }
-  L.push('  (Steady-state rates from the RailNet Sim fluid QoS model, not packet counters.)');
+  L.push('  (Steady-state rates from the RailMPLS Lab fluid QoS model, not packet counters.)');
   return L.join('\n');
 }
 
@@ -227,7 +227,7 @@ export function showLogging(sim: Sim, device: Device): string {
   for (const p of sim.topology.devices.find((d) => d.id === device.id)?.ports ?? []) {
     if (sim.isErrDisabled(device.id, p.id)) lines.push(`%PM-4-ERR_DISABLE: psecure-violation error detected on ${longIfName(p.id)}, putting ${longIfName(p.id)} in err-disable state`);
   }
-  return ['Syslog logging: enabled (RailNet Sim derived messages)', '', 'Log Buffer:', ...(lines.length ? lines : ['(no messages)'])].join('\n');
+  return ['Syslog logging: enabled (RailMPLS Lab derived messages)', '', 'Log Buffer:', ...(lines.length ? lines : ['(no messages)'])].join('\n');
 }
 
 // ---------------------------------------------------------------- running-config sections

@@ -1,0 +1,314 @@
+{
+  "dialect": "NEON",
+  "status": "unmapped",
+  "note": "Team Engineers NEON CLI is not public. Fill the 'neon' field from the official NEON manual; leave null until verified. RailMPLS Lab executes the 'generic' syntax.",
+  "source": null,
+  "commands": [
+    {
+      "generic": "enable",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "configure terminal",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "hostname NAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "interface IFNAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip address A.B.C.D M.M.M.M",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "shutdown",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "no shutdown",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "description TEXT",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip route PREFIX MASK NEXTHOP",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "router ospf PID",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "network A.B.C.D WILDCARD area N",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "passive-interface IFNAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "router-id A.B.C.D",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "default-information originate",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip ospf cost N",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip mtu N",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "speed N",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip access-list extended NAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "access-list N permit|deny ...",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip access-group NAME in|out",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip nat inside|outside",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip nat inside source list ACL interface IF overload",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip dhcp pool NAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ip helper-address A.B.C.D",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "standby G ip A.B.C.D",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "vrrp G ip A.B.C.D",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "class-map match-any NAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "match dscp VALUES",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "policy-map NAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "class NAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "priority percent N",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "bandwidth percent N",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "service-policy output NAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "write memory",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "copy running-config startup-config",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show running-config",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip interface brief",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip route",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip ospf neighbor",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip ospf interface brief",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip ospf database",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip protocols",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show access-lists",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip nat translations",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show ip dhcp binding",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show standby brief",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show vrrp brief",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show policy-map interface IFNAME",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "show logging",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "ping A.B.C.D",
+      "neon": null,
+      "verified": false,
+      "source": null
+    },
+    {
+      "generic": "traceroute A.B.C.D",
+      "neon": null,
+      "verified": false,
+      "source": null
+    }
+  ]
+}

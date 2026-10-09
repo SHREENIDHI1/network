@@ -1,7 +1,7 @@
 /**
  * Railway application classes and an illustrative DSCP plan.
  *
- * Priority order (highest first), as used across RailNet Sim labs:
+ * Priority order (highest first), as used across RailMPLS Lab labs:
  *   Signalling / safety data > Control voice / VoIP > UTS / PRS / FOIS > CCTV > Railnet / Wi-Fi
  * DSCP values follow common practice (RFC 4594 classes: EF for voice, AF4x
  * for video, AF3x for transactional data, CS5 for critical signalling here).

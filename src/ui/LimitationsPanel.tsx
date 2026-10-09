@@ -6,7 +6,7 @@ export function LimitationsPanel({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Model Limitations" onClose={onClose} wide>
       <p className="mb-3 text-sm text-slate-300">
-        RailNet Sim is an <b>educational</b> simulator. Every simplification it makes is listed here so you know exactly
+        RailMPLS Lab is an <b>educational</b> simulator. Every simplification it makes is listed here so you know exactly
         where the model differs from real equipment. <span className="text-emerald-300">Active</span> items apply to what is
         built now; <span className="text-slate-400">Planned</span> items describe how upcoming phases will simplify.
       </p>

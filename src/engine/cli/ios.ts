@@ -432,7 +432,7 @@ function stpPriority(x: Exec): string | void {
     return '% Bridge Priority must be in increments of 4096.\n% Allowed values are:\n  0     4096  8192  12288 16384 20480 24576 28672\n  32768 36864 40960 45056 49152 53248 57344 61440';
   x.cfg.stpPriority = p;
   x.dirty();
-  if (Array.isArray(x.args.vl)) return 'Note: RailNet Sim runs one spanning-tree instance for all VLANs; the priority applies to that instance.';
+  if (Array.isArray(x.args.vl)) return 'Note: RailMPLS Lab runs one spanning-tree instance for all VLANs; the priority applies to that instance.';
 }
 
 function encap(x: Exec, native: boolean): void {

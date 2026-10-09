@@ -5,7 +5,7 @@ import { checkLink, isLinkKind } from '../model/linkRules';
 import type { Topology } from '../model/types';
 
 /**
- * Save/load format for RailNet Sim topologies.
+ * Save/load format for RailMPLS Lab topologies.
  * The file is plain JSON with a format tag and schema version so future
  * phases can migrate older files instead of rejecting them.
  */
@@ -18,7 +18,7 @@ const xySchema = z.object({ x: z.number().finite(), y: z.number().finite() });
 const portSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  kind: z.enum(['rj45', 'sfp', 'stm', 'e1', 'vf2w', 'vf4w', 'cwdm-line', 'cwdm-ch']),
+  kind: z.enum(['rj45', 'sfp', 'combo', 'stm', 'e1', 'vf2w', 'vf4w', 'cwdm-line', 'cwdm-ch']),
   speedsGbps: z.array(z.number().positive()).optional(),
   stmLevel: z.union([z.literal(1), z.literal(4), z.literal(16)]).optional(),
   vfRole: z.enum(['FXS', 'FXO', 'E&M', '2W', '4W', 'TERM']).optional(),

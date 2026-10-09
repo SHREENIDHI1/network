@@ -1,8 +1,8 @@
 {
-  "name": "railnet-sim",
+  "name": "railmpls-lab",
   "private": true,
   "version": "0.1.0",
-  "description": "RailNet Sim - educational network simulator for Indian Railways S&T telecom (PD-Mux, SDH, LAN, IP, IP-MPLS)",
+  "description": "RailMPLS Lab - educational networking and IP-MPLS simulator in Indian Railways (Jodhpur division) context",
   "type": "module",
   "scripts": {
     "dev": "vite",

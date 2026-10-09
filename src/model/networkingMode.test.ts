@@ -17,10 +17,12 @@ import { addDevice, emptyTopology } from './topologyOps';
 const NETWORKING_KINDS = [
   'pc', 'uts-prs', 'fois', 'ip-phone', 'cctv', 'nvr', 'wifi-ap', 'l2-switch', 'l3-switch',
   'router', 'firewall', 'nms', 'dns-dhcp', 'ler', 'lsr', 'rr', 'ucpe',
+  'laptop', 'server', 'hub', 'internet', 'adj-division',
+  'neon-ler', 'neon-lsr', 'asr920', 'asr903', 'acx4000', 'mx104', 'sar8', 'ixr-r4',
 ];
 
 describe('networking-only mode', () => {
-  it('palette shows exactly the 17 networking device kinds', () => {
+  it('palette shows exactly the networking device kinds (basics + IP-MPLS profiles)', () => {
     expect(visibleDeviceTemplates(false).map((t) => t.kind).sort()).toEqual([...NETWORKING_KINDS].sort());
     expect(visibleDeviceTemplates(true)).toHaveLength(DEVICE_TEMPLATES.length);
   });

@@ -2,6 +2,11 @@ import {
   Antenna,
   Blocks,
   Box,
+  Building2,
+  Cloud,
+  Cpu,
+  Laptop,
+  Share2,
   Camera,
   Cctv,
   Combine,
@@ -58,6 +63,14 @@ export const DEVICE_ICONS: Record<IconKey, LucideIcon> = {
   rr: Database,
   hybrid: Container,
   ucpe: Box,
+  laptop: Laptop,
+  hub: Share2,
+  cloud: Cloud,
+  division: Building2,
+  neonler: Route,
+  neonlsr: Cpu,
+  vendorler: Route,
+  vendorlsr: Repeat,
 };
 
 export const CATEGORY_ACCENT: Record<string, string> = {

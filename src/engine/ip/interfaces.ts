@@ -51,7 +51,7 @@ function addr(ifCfg: { ip?: { address: string; mask: string } } | undefined) {
 
 export function deriveL3Interfaces(device: Device, cfg: NetConfig, phys: PhysicalState, stp: StpState): L3Interface[] {
   const role = roleOf(device.kind);
-  if (role === 'opaque') return [];
+  if (role === 'opaque' || role === 'hub') return [];
   const out: L3Interface[] = [];
   const portUp = (portId: string) => !!phys.ports.get(portKey(device.id, portId))?.operUp;
 

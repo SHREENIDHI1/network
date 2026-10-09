@@ -1,3 +1,5 @@
+import { PROFILES } from '../profiles/profiles';
+import type { DeviceProfile } from '../profiles/types';
 import type { DeviceCategory, DeviceKind, Port, PortKind, StmLevel, VfRole } from './types';
 
 /**
@@ -34,7 +36,15 @@ export type IconKey =
   | 'lsr'
   | 'rr'
   | 'hybrid'
-  | 'ucpe';
+  | 'ucpe'
+  | 'laptop'
+  | 'hub'
+  | 'cloud'
+  | 'division'
+  | 'neonler'
+  | 'neonlsr'
+  | 'vendorler'
+  | 'vendorlsr';
 
 export interface DeviceTemplate {
   kind: DeviceKind;
@@ -49,7 +59,7 @@ export interface DeviceTemplate {
 
 export const CATEGORY_LABELS: Record<DeviceCategory, string> = {
   legacy: 'Legacy (PDH / SDH / VF)',
-  lan: 'LAN / IP',
+  lan: 'Basics (LAN / IP)',
   mpls: 'IP-MPLS',
 };
 
@@ -407,6 +417,75 @@ export const DEVICE_TEMPLATES: DeviceTemplate[] = [
     buildPorts: () => [...range('Gi0/', 0, 4, 'rj45', GE), ...range('Gi0/', 4, 2, 'sfp', SFP_1_10G)],
   },
 ];
+
+// ---------------------------------------------------------------------------
+// RailMPLS Lab additions
+// ---------------------------------------------------------------------------
+
+function profilePorts(p: DeviceProfile): () => Port[] {
+  return () => p.ports.flatMap((g) => range(g.prefix, 0, g.count, g.kind, g.speedsGbps ? { speedsGbps: g.speedsGbps } : {}));
+}
+
+const PROFILE_ICON: Record<string, IconKey> = { 'neon-ler': 'neonler', 'neon-lsr': 'neonlsr' };
+
+DEVICE_TEMPLATES.push(
+  {
+    kind: 'laptop',
+    label: 'Laptop',
+    category: 'lan',
+    prefix: 'LT',
+    icon: 'laptop',
+    description: 'Engineer laptop / office user (same network behaviour as a PC).',
+    buildPorts: () => [port('eth0', 'rj45', GE)],
+  },
+  {
+    kind: 'server',
+    label: 'Server',
+    category: 'lan',
+    prefix: 'SRV',
+    icon: 'server',
+    description: 'Generic server (web, application, database). Configure services in later phases.',
+    buildPorts: () => [port('eth0', 'rj45', GE), port('eth1', 'rj45', GE)],
+  },
+  {
+    kind: 'hub',
+    label: 'Hub (teaching)',
+    category: 'lan',
+    prefix: 'HUB',
+    icon: 'hub',
+    description: 'Layer-1 repeater: copies every frame out of every other port. Used only to teach collisions and why switches replaced hubs.',
+    buildPorts: () => range('Port', 1, 8, 'rj45', GE),
+  },
+  {
+    kind: 'internet',
+    label: 'Internet cloud',
+    category: 'lan',
+    prefix: 'INTERNET',
+    icon: 'cloud',
+    description: 'Represents the public Internet (Railnet breakout at JU). Behaviour arrives in a later phase.',
+    buildPorts: () => range('Gi0/', 0, 2, 'rj45', GE),
+  },
+  {
+    kind: 'adj-division',
+    label: 'Adjacent Division',
+    category: 'mpls',
+    prefix: 'ADJDIV',
+    icon: 'division',
+    description: 'Neighbouring division network (Jaipur, Bikaner, Ajmer/ADI…) for inter-division hand-off labs. Behaviour arrives in a later phase.',
+    buildPorts: () => range('Te0/0/', 0, 4, 'sfp', SFP_1_10G),
+  },
+  ...PROFILES.map(
+    (p): DeviceTemplate => ({
+      kind: p.id as DeviceKind,
+      label: p.label,
+      category: 'mpls',
+      prefix: p.id.toUpperCase(),
+      icon: PROFILE_ICON[p.id] ?? (p.role === 'LER' ? 'vendorler' : 'vendorlsr'),
+      description: `${p.role === 'LER' ? 'Label Edge Router (station)' : 'Label Switching Router (junction)'} — ${p.model}. ${p.specsVerified ? 'Specs: CAMTECH p.35.' : 'Specs unverified; generic port layout.'}`,
+      buildPorts: profilePorts(p),
+    }),
+  ),
+);
 
 const TEMPLATE_BY_KIND = new Map<DeviceKind, DeviceTemplate>(DEVICE_TEMPLATES.map((t) => [t.kind, t]));
 
