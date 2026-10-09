@@ -107,4 +107,23 @@ export const LIMITATIONS: Limitation[] = [
     phase: 5,
     text: 'MP-BGP VPNv4 will be simplified: best-path selection uses a reduced attribute set. CESoPSN/SAToP E1 emulation timing (adaptive/differential clock recovery, jitter buffers) is labelled as simplified.',
   },
+  // ---------------- Labs (Phase 7) ----------------
+  {
+    area: 'Labs',
+    status: 'active',
+    phase: 7,
+    text: 'Lab auto-checkers validate simulator STATE (topology, tables, sessions, alarms), not the exact CLI commands typed. Any configuration that produces the required state passes.',
+  },
+  {
+    area: 'Labs',
+    status: 'active',
+    phase: 7,
+    text: 'A lab whose required engine modules are not built is shown as LOCKED with the missing module and phase. The simulator never fakes protocol output to make a lab playable.',
+  },
+  {
+    area: 'Labs',
+    status: 'planned',
+    phase: 7,
+    text: 'Completion certificates are RailNet Sim training records only. They are not official Indian Railways, RDSO or IRISET certificates.',
+  },
 ];
