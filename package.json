@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "report:jodhpur": "vite-node scripts/jodhpur-report.ts"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.10.0",

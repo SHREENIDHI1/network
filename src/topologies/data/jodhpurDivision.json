@@ -1,0 +1,2242 @@
+{
+  "meta": {
+    "title": "North Western Railway – Jodhpur Division (station data for RailMPLS Lab)",
+    "source": "User's seed reading of the NWR Jodhpur Division track map. The map image was NOT available to the build, so nothing beyond the seed has been read from it.",
+    "imageAvailable": false,
+    "disclaimer": "Track map data. The simulated network assumes OFC runs along the track; it is not the real RailTel/NWR telecom network.",
+    "kmNote": "km = chainage as printed on the map, measured along the line named in chainageRef. Span length = chainage difference on the same line.",
+    "version": 1
+  },
+  "controlBoards": [
+    "North",
+    "Central",
+    "West",
+    "East"
+  ],
+  "stations": [
+    {
+      "code": "AAS",
+      "name": "Asranada",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "AJT",
+      "name": "Ajit",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "ALAI",
+      "name": "Alai",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "AQG",
+      "name": "Ashapura Gomat",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BARA",
+      "name": "Bilara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BAWA",
+      "name": "Balwara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BBK",
+      "name": "Bhachbhar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BCW",
+      "name": "Bhawi",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BGKT",
+      "name": "Bhagat ki Kothi",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BIPR",
+      "name": "Bheempura",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BISH",
+      "name": "Bishan Garh",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BK",
+      "name": "Bakra Road",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BKC",
+      "name": "Bhikamkor",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BKN",
+      "name": "Bikaner",
+      "isJunction": false,
+      "isDivisionBoundary": true,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "Boundary: JU division ends at km 465.59."
+    },
+    {
+      "code": "BLDI",
+      "name": "Bhildi Jn",
+      "isJunction": true,
+      "isDivisionBoundary": true,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "JU/ADI division boundary at km 222.23 (BLDI itself at 223.44 is beyond it)."
+    },
+    {
+      "code": "BLSD",
+      "name": "Balsamand",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BLT",
+      "name": "Balotra",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BME",
+      "name": "Barmer",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BMQ",
+      "name": "Bhimarlai",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BMSN",
+      "name": "Bamsin",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BNO",
+      "name": "Banar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BOM",
+      "name": "Bomadra",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BOW",
+      "name": "Borawar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BSDA",
+      "name": "Banya Sanda Dhora",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BSRL",
+      "name": "Besroli",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BUT",
+      "name": "Batu",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "BWS",
+      "name": "Badwasi",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "CLO",
+      "name": "Chilo",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "CTKT",
+      "name": "Chhoti Khatu",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DGQ",
+      "name": "Dugdol",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DJJ",
+      "name": "Daijar Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "DLNA",
+      "name": "Dhelana",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DNA",
+      "name": "Degana Jn",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DOR",
+      "name": "Dundara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DQN",
+      "name": "Dhanera",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DSL",
+      "name": "Deswal",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DSO",
+      "name": "Deshnoke",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "DUK",
+      "name": "Dudia",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "FL",
+      "name": "Phulera",
+      "isJunction": false,
+      "isDivisionBoundary": true,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "Division boundary (Jaipur division side)."
+    },
+    {
+      "code": "GCH",
+      "name": "Gachhipura",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "GDD",
+      "name": "Gadra Road",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "GDH",
+      "name": "Gudha",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "GE",
+      "name": "Gole",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "GGY",
+      "name": "Gagaria",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "GOTN",
+      "name": "Gotan",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "GYT",
+      "name": "Gypsum Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "HRL",
+      "name": "Haralaya",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "HWT",
+      "name": "Hanwant",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JAC",
+      "name": "Jalsu",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JACN",
+      "name": "Jalsu Nanak Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "JDZ",
+      "name": "Jari",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JNE",
+      "name": "Janiyana",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JNX",
+      "name": "Jagnnathji Road Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "JNZ",
+      "name": "Jenal",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JOM",
+      "name": "Jogi Magra",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JOR",
+      "name": "Jalor",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JSA",
+      "name": "Jasai",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JSD",
+      "name": "Jaisindar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JSH",
+      "name": "Jaswant Garh",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JSM",
+      "name": "Jaisalmer",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "End of Central control west line."
+    },
+    {
+      "code": "JTHR",
+      "name": "Jethantri",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "JU",
+      "name": "Jodhpur",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "Main hub, divisional HQ."
+    },
+    {
+      "code": "JWL",
+      "name": "Jajiwal",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KAI",
+      "name": "Kairla",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KHTU",
+      "name": "Khatu",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KHTX",
+      "name": "Khed Temple",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KJW",
+      "name": "Khajwana",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KKNA",
+      "name": "Khun Khuna",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KMNC",
+      "name": "Kuchaman City",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KNDX",
+      "name": "Khandi Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "KOF",
+      "name": "Marwar Kori",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KQF",
+      "name": "Khadeen",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KQW",
+      "name": "Kheduli",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KRC",
+      "name": "Kiroda",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KSW",
+      "name": "Kheri Salwa",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KXC",
+      "name": "Kagmala Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "KXG",
+      "name": "Kharia Khangarh",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "KYA",
+      "name": "Kavas",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "LAU",
+      "name": "Ladnun",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "LDM",
+      "name": "Ladermer",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "LIL",
+      "name": "Lilma",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "LN",
+      "name": "Luni Jn",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "LOH",
+      "name": "Loha",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MBF",
+      "name": "Munabao",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "Indo-Pak border at km 955.55."
+    },
+    {
+      "code": "MBGA",
+      "name": "Marwar Bagra",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MBNL",
+      "name": "Marwar Bhinmal",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MBSK",
+      "name": "Marwar Balia",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MBT",
+      "name": "Marwar Bithri",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MBW",
+      "name": "Malwara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MCPE",
+      "name": "Marwar Chhapri",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MDB",
+      "name": "Mandor",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MDW",
+      "name": "Marwar Mundwa",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MEC",
+      "name": "Merta City",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MHNR",
+      "name": "Mahesh Nagar Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "MJ",
+      "name": "Marwar Jn",
+      "isJunction": true,
+      "isDivisionBoundary": true,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "Boundary: end of JU–LN–MJ line."
+    },
+    {
+      "code": "MKDL",
+      "name": "Mandiyai Kalan Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "MKHR",
+      "name": "Marwar Khara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MKN",
+      "name": "Makrana",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MKSR",
+      "name": "Mokalsar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MLH",
+      "name": "Manaklao",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MMC",
+      "name": "Mahamandir",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MMY",
+      "name": "Marwar Mathaniya",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MON",
+      "name": "Modran",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MSQ",
+      "name": "Marwar Ratanpur",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MTD",
+      "name": "Merta Road Jn",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "MWT",
+      "name": "Marwar Lohawat",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "NAC",
+      "name": "Nawa City",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "NGO",
+      "name": "Nagaur",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "NOK",
+      "name": "Nokha",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "OCH",
+      "name": "Odhaniya Chacha",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "OHV",
+      "name": "Odhava",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "OSN",
+      "name": "Osiyan",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "PAE",
+      "name": "Palana",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "PCY",
+      "name": "Pipar City",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "PIH",
+      "name": "Parihara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "PLC",
+      "name": "Phalodi Jn",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "BKN division boundary at km 152.00 towards north (line not in this dataset)."
+    },
+    {
+      "code": "PMY",
+      "name": "Pali Marwar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "POK",
+      "name": "Pokran",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "PPR",
+      "name": "Pipar Road Jn",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "PRDH",
+      "name": "Pirduleshah Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "PRU",
+      "name": "Parlu",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "PW",
+      "name": "Pirwa",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "RDRA",
+      "name": "Ramdevra",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "REN",
+      "name": "?",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "check",
+      "note": "Station name not given in seed — read from map."
+    },
+    {
+      "code": "RHI",
+      "name": "Rakhi",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "RKB",
+      "name": "Raikabag Palace Jn",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "RKZ",
+      "name": "Rajkiawas",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "RMX",
+      "name": "Ramsar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "RNV",
+      "name": "Raniwara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "RT",
+      "name": "Rohat",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "RTGH",
+      "name": "Ratangarh Jn",
+      "isJunction": true,
+      "isDivisionBoundary": true,
+      "isHalt": false,
+      "confidence": "high",
+      "note": "Boundary: BKN division at km 333.72."
+    },
+    {
+      "code": "RXN",
+      "name": "Ramsan",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SBLJ",
+      "name": "Shri Balaji",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SBLT",
+      "name": "Shri Bhadriya Lathi",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SBR",
+      "name": "Sambhar Lake",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SILR",
+      "name": "Silari",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SMR",
+      "name": "Samdari Jn",
+      "isJunction": true,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SPO",
+      "name": "Surpura",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "STSN",
+      "name": "Saitan Singh Nagar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SUJH",
+      "name": "Sujangarh",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SUT",
+      "name": "Satlana",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SVO",
+      "name": "Sahvrad",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SWF",
+      "name": "Sathin Road",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "SZ",
+      "name": "Salawas",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "THYT",
+      "name": "Thaiyat Hamira",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "TIW",
+      "name": "Tivari",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "TLC",
+      "name": "Talchhapar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "TMO",
+      "name": "Taimor Halt",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": true,
+      "confidence": "high"
+    },
+    {
+      "code": "TWL",
+      "name": "Tilwara",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "UMED",
+      "name": "Umed",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "UMS",
+      "name": "Udramsar",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    },
+    {
+      "code": "UNK-CHANDAN",
+      "name": "Chandan",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "check",
+      "note": "Station code not readable in seed — read from map."
+    },
+    {
+      "code": "UNK-DIDWANA",
+      "name": "Didwana",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "check",
+      "note": "Station code not readable in seed — read from map."
+    },
+    {
+      "code": "UNK-LANELA",
+      "name": "Lanela",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "check",
+      "note": "Station code not readable in seed — read from map."
+    },
+    {
+      "code": "UNK-SONU",
+      "name": "Sonu",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "check",
+      "note": "Station code not readable in seed — read from map."
+    },
+    {
+      "code": "UTL",
+      "name": "Utarlai",
+      "isJunction": false,
+      "isDivisionBoundary": false,
+      "isHalt": false,
+      "confidence": "high"
+    }
+  ],
+  "sections": [
+    {
+      "id": "S1",
+      "name": "JU–MTD (trunk)",
+      "controlBoard": null,
+      "controlBoardConfidence": "check",
+      "chainageRef": "JU–MTD–DNA–RTGH line",
+      "stops": [
+        {
+          "code": "JU",
+          "km": 624.96,
+          "confidence": "high"
+        },
+        {
+          "code": "RKB",
+          "km": 622.55,
+          "confidence": "check",
+          "note": "Seed lists S1 as JU–BNO directly, but RKB chainage 622.55 lies between JU 624.96 and BNO 610.31 — confirm RKB is on this line."
+        },
+        {
+          "code": "BNO",
+          "km": 610.31,
+          "confidence": "high"
+        },
+        {
+          "code": "JWL",
+          "km": 602,
+          "confidence": "check",
+          "note": "~602 (approximate in seed)"
+        },
+        {
+          "code": "AAS",
+          "km": 593,
+          "confidence": "check",
+          "note": "~593"
+        },
+        {
+          "code": "KSW",
+          "km": 584,
+          "confidence": "check",
+          "note": "~584"
+        },
+        {
+          "code": "PPR",
+          "km": 577.81,
+          "confidence": "high"
+        },
+        {
+          "code": "SWF",
+          "km": 569.21,
+          "confidence": "high"
+        },
+        {
+          "code": "UMED",
+          "km": 558.8,
+          "confidence": "high"
+        },
+        {
+          "code": "KXG",
+          "km": 547.84,
+          "confidence": "high"
+        },
+        {
+          "code": "GOTN",
+          "km": 541.15,
+          "confidence": "high"
+        },
+        {
+          "code": "JOM",
+          "km": 531.59,
+          "confidence": "high"
+        },
+        {
+          "code": "MTD",
+          "km": 520.85,
+          "confidence": "high"
+        }
+      ],
+      "note": "Control board for the JU–MTD trunk is not given in the seed — read the map legend."
+    },
+    {
+      "id": "S2",
+      "name": "MTD–DNA (East trunk)",
+      "controlBoard": "East",
+      "controlBoardConfidence": "high",
+      "chainageRef": "JU–MTD–DNA–RTGH line",
+      "stops": [
+        {
+          "code": "MTD",
+          "km": 520.85,
+          "confidence": "high"
+        },
+        {
+          "code": "KQW",
+          "km": 510.72,
+          "confidence": "high"
+        },
+        {
+          "code": "REN",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "JAC",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "JACN",
+          "km": 484.26,
+          "confidence": "high"
+        },
+        {
+          "code": "DNA",
+          "km": 476.61,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "S3",
+      "name": "DNA–FL (East trunk)",
+      "controlBoard": "East",
+      "controlBoardConfidence": "high",
+      "chainageRef": "DNA–FL line",
+      "stops": [
+        {
+          "code": "DNA",
+          "km": 108.75,
+          "confidence": "high"
+        },
+        {
+          "code": "GCH",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "BSRL",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "BOW",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "MKN",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "KMNC",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "NAC",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "SBR",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "GDH",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "FL",
+          "km": 0.0,
+          "confidence": "high"
+        }
+      ],
+      "note": "Intermediate km not in seed — read every station km from the map."
+    },
+    {
+      "id": "S4",
+      "name": "DNA–RTGH (East)",
+      "controlBoard": "East",
+      "controlBoardConfidence": "high",
+      "chainageRef": "JU–MTD–DNA–RTGH line",
+      "stops": [
+        {
+          "code": "DNA",
+          "km": 476.61,
+          "confidence": "high"
+        },
+        {
+          "code": "KRC",
+          "km": 464.18,
+          "confidence": "high"
+        },
+        {
+          "code": "KHTU",
+          "km": 451.8,
+          "confidence": "high"
+        },
+        {
+          "code": "CTKT",
+          "km": 446.56,
+          "confidence": "high"
+        },
+        {
+          "code": "PW",
+          "km": 433.11,
+          "confidence": "high"
+        },
+        {
+          "code": "KKNA",
+          "km": 426.94,
+          "confidence": "high"
+        },
+        {
+          "code": "MBSK",
+          "km": 416.4,
+          "confidence": "high"
+        },
+        {
+          "code": "UNK-DIDWANA",
+          "km": 410.86,
+          "confidence": "check",
+          "note": "~410.86; code not in seed"
+        },
+        {
+          "code": "SVO",
+          "km": 397.7,
+          "confidence": "check",
+          "note": "~397.7"
+        },
+        {
+          "code": "BLSD",
+          "km": null,
+          "confidence": "check"
+        },
+        {
+          "code": "LAU",
+          "km": 379.85,
+          "confidence": "high"
+        },
+        {
+          "code": "JSH",
+          "km": 375.22,
+          "confidence": "high"
+        },
+        {
+          "code": "SUJH",
+          "km": 370.16,
+          "confidence": "high"
+        },
+        {
+          "code": "TLC",
+          "km": 358.77,
+          "confidence": "high"
+        },
+        {
+          "code": "PIH",
+          "km": 344.19,
+          "confidence": "high"
+        },
+        {
+          "code": "LOH",
+          "km": 332.78,
+          "confidence": "high"
+        },
+        {
+          "code": "RTGH",
+          "km": 324.33,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "S5",
+      "name": "MTD–BKN (North)",
+      "controlBoard": "North",
+      "controlBoardConfidence": "high",
+      "chainageRef": "MTD–BKN line",
+      "stops": [
+        {
+          "code": "MTD",
+          "km": 634.26,
+          "confidence": "high"
+        },
+        {
+          "code": "MCPE",
+          "km": 627.61,
+          "confidence": "high"
+        },
+        {
+          "code": "DSL",
+          "km": 620.26,
+          "confidence": "high"
+        },
+        {
+          "code": "KJW",
+          "km": 611.03,
+          "confidence": "high"
+        },
+        {
+          "code": "MDW",
+          "km": 595.01,
+          "confidence": "high"
+        },
+        {
+          "code": "NGO",
+          "km": 577.11,
+          "confidence": "high"
+        },
+        {
+          "code": "BWS",
+          "km": 562.95,
+          "confidence": "high"
+        },
+        {
+          "code": "ALAI",
+          "km": 554.36,
+          "confidence": "high"
+        },
+        {
+          "code": "SBLJ",
+          "km": 542.84,
+          "confidence": "high"
+        },
+        {
+          "code": "CLO",
+          "km": 539.34,
+          "confidence": "high"
+        },
+        {
+          "code": "NOK",
+          "km": 525.99,
+          "confidence": "high"
+        },
+        {
+          "code": "SPO",
+          "km": 508.63,
+          "confidence": "high"
+        },
+        {
+          "code": "DSO",
+          "km": 493.84,
+          "confidence": "high"
+        },
+        {
+          "code": "PAE",
+          "km": 483.92,
+          "confidence": "high"
+        },
+        {
+          "code": "UMS",
+          "km": 473.11,
+          "confidence": "high"
+        },
+        {
+          "code": "BKN",
+          "km": 461.5,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "S6",
+      "name": "RKB–PLC (Central)",
+      "controlBoard": "Central",
+      "controlBoardConfidence": "high",
+      "chainageRef": "RKB–PLC–JSM line",
+      "stops": [
+        {
+          "code": "RKB",
+          "km": 0.0,
+          "confidence": "high"
+        },
+        {
+          "code": "MMC",
+          "km": 2.09,
+          "confidence": "high"
+        },
+        {
+          "code": "MDB",
+          "km": 7.35,
+          "confidence": "high"
+        },
+        {
+          "code": "DJJ",
+          "km": 13.64,
+          "confidence": "high"
+        },
+        {
+          "code": "MLH",
+          "km": 21.05,
+          "confidence": "high"
+        },
+        {
+          "code": "MMY",
+          "km": 30.71,
+          "confidence": "high"
+        },
+        {
+          "code": "TIW",
+          "km": 40.85,
+          "confidence": "high"
+        },
+        {
+          "code": "MKDL",
+          "km": 51.43,
+          "confidence": "high"
+        },
+        {
+          "code": "OSN",
+          "km": 62.08,
+          "confidence": "high"
+        },
+        {
+          "code": "BKC",
+          "km": 76.95,
+          "confidence": "high"
+        },
+        {
+          "code": "HRL",
+          "km": 86.65,
+          "confidence": "high"
+        },
+        {
+          "code": "DLNA",
+          "km": 97.74,
+          "confidence": "high"
+        },
+        {
+          "code": "MWT",
+          "km": 105.78,
+          "confidence": "high"
+        },
+        {
+          "code": "STSN",
+          "km": 120.42,
+          "confidence": "high"
+        },
+        {
+          "code": "PLC",
+          "km": 134.29,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "S7",
+      "name": "PLC–JSM (Central)",
+      "controlBoard": "Central",
+      "controlBoardConfidence": "high",
+      "chainageRef": "RKB–PLC–JSM line",
+      "stops": [
+        {
+          "code": "PLC",
+          "km": 134.29,
+          "confidence": "high"
+        },
+        {
+          "code": "MBT",
+          "km": 144.66,
+          "confidence": "high"
+        },
+        {
+          "code": "MKHR",
+          "km": 160.19,
+          "confidence": "high"
+        },
+        {
+          "code": "RDRA",
+          "km": 180.9,
+          "confidence": "high"
+        },
+        {
+          "code": "AQG",
+          "km": 188.35,
+          "confidence": "high"
+        },
+        {
+          "code": "POK",
+          "km": 191.35,
+          "confidence": "high"
+        },
+        {
+          "code": "OCH",
+          "km": 205.78,
+          "confidence": "high"
+        },
+        {
+          "code": "SBLT",
+          "km": 227.39,
+          "confidence": "high"
+        },
+        {
+          "code": "UNK-CHANDAN",
+          "km": 248.64,
+          "confidence": "check",
+          "note": "~248.64; code not in seed"
+        },
+        {
+          "code": "THYT",
+          "km": 271.83,
+          "confidence": "high"
+        },
+        {
+          "code": "JSM",
+          "km": 290.46,
+          "confidence": "high"
+        },
+        {
+          "code": "UNK-LANELA",
+          "km": null,
+          "confidence": "check",
+          "note": "Beyond JSM — verify"
+        },
+        {
+          "code": "UNK-SONU",
+          "km": null,
+          "confidence": "check",
+          "note": "Beyond JSM — verify"
+        }
+      ]
+    },
+    {
+      "id": "S8",
+      "name": "JU–LN–MJ (Central)",
+      "controlBoard": "Central",
+      "controlBoardConfidence": "high",
+      "chainageRef": "JU–LN–MJ line",
+      "stops": [
+        {
+          "code": "JU",
+          "km": 624.96,
+          "confidence": "high"
+        },
+        {
+          "code": "BGKT",
+          "km": 628.39,
+          "confidence": "high"
+        },
+        {
+          "code": "SZ",
+          "km": 641.14,
+          "confidence": "high"
+        },
+        {
+          "code": "HWT",
+          "km": 649.76,
+          "confidence": "high"
+        },
+        {
+          "code": "LN",
+          "km": 656.51,
+          "confidence": "high"
+        },
+        {
+          "code": "KNDX",
+          "km": 664.2,
+          "confidence": "high"
+        },
+        {
+          "code": "RT",
+          "km": 669.49,
+          "confidence": "high"
+        },
+        {
+          "code": "PRDH",
+          "km": 677.17,
+          "confidence": "high"
+        },
+        {
+          "code": "KAI",
+          "km": 682.59,
+          "confidence": "check",
+          "note": "~682.59"
+        },
+        {
+          "code": "PMY",
+          "km": 697.65,
+          "confidence": "check",
+          "note": "~697.65"
+        },
+        {
+          "code": "BOM",
+          "km": 708.38,
+          "confidence": "check",
+          "note": "~708.38"
+        },
+        {
+          "code": "RKZ",
+          "km": 717.56,
+          "confidence": "check",
+          "note": "~717.56"
+        },
+        {
+          "code": "MJ",
+          "km": 728.22,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "S9",
+      "name": "LN–SMR–BME–MBF (West)",
+      "controlBoard": "West",
+      "controlBoardConfidence": "high",
+      "chainageRef": "LN–SMR–BME–MBF line",
+      "stops": [
+        {
+          "code": "LN",
+          "km": 656.51,
+          "confidence": "high"
+        },
+        {
+          "code": "SUT",
+          "km": 664.11,
+          "confidence": "high"
+        },
+        {
+          "code": "DUK",
+          "km": 670.38,
+          "confidence": "high"
+        },
+        {
+          "code": "DOR",
+          "km": 682.03,
+          "confidence": "high"
+        },
+        {
+          "code": "MHNR",
+          "km": 689.37,
+          "confidence": "high"
+        },
+        {
+          "code": "AJT",
+          "km": 694.71,
+          "confidence": "high"
+        },
+        {
+          "code": "SMR",
+          "km": 706.04,
+          "confidence": "high"
+        },
+        {
+          "code": "JTHR",
+          "km": 714.44,
+          "confidence": "high"
+        },
+        {
+          "code": "PRU",
+          "km": 719.59,
+          "confidence": "high"
+        },
+        {
+          "code": "JNE",
+          "km": 729.05,
+          "confidence": "high"
+        },
+        {
+          "code": "BLT",
+          "km": 738.1,
+          "confidence": "high"
+        },
+        {
+          "code": "KHTX",
+          "km": 746.5,
+          "confidence": "high"
+        },
+        {
+          "code": "TWL",
+          "km": 755.0,
+          "confidence": "high"
+        },
+        {
+          "code": "GE",
+          "km": 764.75,
+          "confidence": "high"
+        },
+        {
+          "code": "BMQ",
+          "km": 776.62,
+          "confidence": "high"
+        },
+        {
+          "code": "BUT",
+          "km": 786.16,
+          "confidence": "high"
+        },
+        {
+          "code": "BSDA",
+          "km": 801.04,
+          "confidence": "high"
+        },
+        {
+          "code": "KYA",
+          "km": 813.17,
+          "confidence": "high"
+        },
+        {
+          "code": "GYT",
+          "km": 819.31,
+          "confidence": "high"
+        },
+        {
+          "code": "UTL",
+          "km": 823.58,
+          "confidence": "high"
+        },
+        {
+          "code": "BME",
+          "km": 834.19,
+          "confidence": "high"
+        },
+        {
+          "code": "JSA",
+          "km": 852.74,
+          "confidence": "high"
+        },
+        {
+          "code": "KQF",
+          "km": 863.63,
+          "confidence": "high"
+        },
+        {
+          "code": "BBK",
+          "km": 876.28,
+          "confidence": "high"
+        },
+        {
+          "code": "RMX",
+          "km": 888.96,
+          "confidence": "high"
+        },
+        {
+          "code": "GGY",
+          "km": 899.26,
+          "confidence": "high"
+        },
+        {
+          "code": "GDD",
+          "km": 914.14,
+          "confidence": "high"
+        },
+        {
+          "code": "TMO",
+          "km": 922.25,
+          "confidence": "high"
+        },
+        {
+          "code": "LIL",
+          "km": 932.47,
+          "confidence": "high"
+        },
+        {
+          "code": "JSD",
+          "km": 943.8,
+          "confidence": "high"
+        },
+        {
+          "code": "MBF",
+          "km": 953.02,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "S10",
+      "name": "SMR–BLDI (West)",
+      "controlBoard": "West",
+      "controlBoardConfidence": "high",
+      "chainageRef": "SMR–BLDI line",
+      "stops": [
+        {
+          "code": "SMR",
+          "km": 0.0,
+          "confidence": "high"
+        },
+        {
+          "code": "BMSN",
+          "km": 10.19,
+          "confidence": "high"
+        },
+        {
+          "code": "RHI",
+          "km": 18.09,
+          "confidence": "high"
+        },
+        {
+          "code": "MKSR",
+          "km": 26.15,
+          "confidence": "high"
+        },
+        {
+          "code": "BAWA",
+          "km": 40.74,
+          "confidence": "high"
+        },
+        {
+          "code": "BISH",
+          "km": 47.03,
+          "confidence": "high"
+        },
+        {
+          "code": "JOR",
+          "km": 59.02,
+          "confidence": "high"
+        },
+        {
+          "code": "JNX",
+          "km": 69.03,
+          "confidence": "high"
+        },
+        {
+          "code": "MBGA",
+          "km": 77.03,
+          "confidence": "high"
+        },
+        {
+          "code": "BK",
+          "km": 87.96,
+          "confidence": "high"
+        },
+        {
+          "code": "MON",
+          "km": 93.69,
+          "confidence": "high"
+        },
+        {
+          "code": "BIPR",
+          "km": 103.38,
+          "confidence": "high"
+        },
+        {
+          "code": "LDM",
+          "km": 111.6,
+          "confidence": "high"
+        },
+        {
+          "code": "MBNL",
+          "km": 121.41,
+          "confidence": "high"
+        },
+        {
+          "code": "KOF",
+          "km": 131.51,
+          "confidence": "high"
+        },
+        {
+          "code": "KXC",
+          "km": 139.21,
+          "confidence": "high"
+        },
+        {
+          "code": "MBW",
+          "km": 144.62,
+          "confidence": "high"
+        },
+        {
+          "code": "RNV",
+          "km": 153.27,
+          "confidence": "high"
+        },
+        {
+          "code": "MSQ",
+          "km": 163.92,
+          "confidence": "high"
+        },
+        {
+          "code": "DGQ",
+          "km": 171.0,
+          "confidence": "high"
+        },
+        {
+          "code": "JDZ",
+          "km": 177.5,
+          "confidence": "high"
+        },
+        {
+          "code": "DQN",
+          "km": 188.22,
+          "confidence": "high"
+        },
+        {
+          "code": "RXN",
+          "km": 198.13,
+          "confidence": "high"
+        },
+        {
+          "code": "JNZ",
+          "km": 207.8,
+          "confidence": "high"
+        },
+        {
+          "code": "OHV",
+          "km": 216.24,
+          "confidence": "high"
+        },
+        {
+          "code": "BLDI",
+          "km": 223.44,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "S11A",
+      "name": "PPR–BARA (branch)",
+      "controlBoard": null,
+      "controlBoardConfidence": "check",
+      "chainageRef": "PPR–BARA line",
+      "stops": [
+        {
+          "code": "PPR",
+          "km": 0.0,
+          "confidence": "high"
+        },
+        {
+          "code": "PCY",
+          "km": 12.39,
+          "confidence": "high"
+        },
+        {
+          "code": "SILR",
+          "km": 21.18,
+          "confidence": "high"
+        },
+        {
+          "code": "BCW",
+          "km": 31.13,
+          "confidence": "high"
+        },
+        {
+          "code": "BARA",
+          "km": 41.14,
+          "confidence": "high"
+        }
+      ],
+      "note": "Control board not given in seed."
+    },
+    {
+      "id": "S11B",
+      "name": "MTD–MEC (branch)",
+      "controlBoard": null,
+      "controlBoardConfidence": "check",
+      "chainageRef": "MTD–MEC line",
+      "stops": [
+        {
+          "code": "MTD",
+          "km": 0.0,
+          "confidence": "high"
+        },
+        {
+          "code": "MEC",
+          "km": 14.5,
+          "confidence": "high"
+        }
+      ],
+      "note": "Control board not given in seed."
+    }
+  ]
+}
