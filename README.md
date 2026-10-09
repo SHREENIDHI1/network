@@ -1,40 +1,45 @@
-# RailNet Sim
+# RailMPLS Lab
 
-An educational, browser-based network simulator for **Indian Railways S&T telecom**: legacy PD-Mux and SDH/STM networks, station LANs, IP routing and IP-MPLS, including SDH → IP-MPLS migration. Think of it as Cisco Packet Tracer for railway telecom.
+A browser-based **networking + IP-MPLS training simulator** set in the context of Indian Railways (NWR, Jodhpur division). It teaches from zero: what a network is → Ethernet, IP, OSPF → MPLS, VPNs and the divisional backbone. Lessons are in simple Hinglish; the UI, labels and CLI are in English.
 
-> RailNet Sim is a teaching tool, not a carrier-grade emulator. Every simplification is listed in the in-app **Model Limitations** panel.
+> **Honesty first.** RailMPLS Lab is an *educational simulator*, not a real router OS. Every simplification is listed in the in-app **Model Limitations** panel.
+> - Team Engineers NEON's real CLI is not public. NEON profiles use the hardware figures quoted from CAMTECH SP37A p.35 plus a *generic SP CLI* (IOS-XE style), with the banner "CLI syntax is generic, not official NEON syntax". `src/profiles/commandMapping.neon.json` stays unmapped until an official manual is available.
+> - Cisco/Juniper/Nokia profiles are marked **unverified** and behave like the generic SP router.
+> - The Jodhpur map is a **track** map. The simulator assumes OFC runs along the track; it is **not** the real RailTel/NWR network. Items marked `check` in `docs/jodhpur-check-report.md` need verification.
+> - Show commands print only state the engine really computes.
+
+## Three modes
+
+| Mode | What you do |
+|---|---|
+| **Learn** | Lessons A0–A15 (foundations) and B0–B15 (IP-MPLS). Each lesson has railway analogies, interactive widgets, a glossary and a 5-question flash quiz. Progress is saved in the browser (Export/Import as JSON). |
+| **Lab** | Auto-checked labs, from build phase P2. |
+| **Sandbox** | Free canvas: place devices, cable them, configure them via CLI, ping, and step packets hop by hop. |
+
+Click any device (or the ⓘ on a palette item, or double-click a device) for its **detail panel**: Overview, Hardware, Capabilities, How it forwards, Config guide, Verify & troubleshoot, Maintenance & safety, Station info and LIVE state, in English or Hinglish.
 
 ## Status
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Scaffold, canvas, device palette, links, save/load JSON, Model Limitations panel | ✅ Done |
-| 2 | Engine core (event loop, step/play), Physical, Ethernet/VLAN, IP/ping, CLI basics, packet inspector | ✅ Done |
-| 3 | OSPF, DHCP, NAT, ACL, QoS | Planned |
-| 4 | PD-Mux + E1 + SDH (mapping view, cross-connects, alarms, ring protection) | Planned |
-| 5 | MPLS (LDP, LFIB, PHP), L3VPN, L2VPN/pseudowire, TE/FRR | Planned |
-| 6 | Fault injection, NMS dashboard, migration mode | Planned |
-| 7 | Labs mode with auto-checkers, preloaded topologies | Planned |
+| P1 | Scaffold, canvas, device catalog (basics, NEON and vendor profiles), links, save/load, Model Limitations, device detail panel, LEARN framework + lessons A0–A3, Jodhpur station data (M0) | ✅ Done — awaiting review |
+| P2–P10 | Labs, IP foundations (A4–A15), MPLS core, VPNs, L2VPN/TDM, QoS/TE, operations/automation, SR, capstones | Planned |
 
-## Run it on Windows (first time)
+The engine already includes Ethernet/VLAN/RSTP, IPv4, OSPF, DHCP, NAT, ACL, HSRP/VRRP and QoS analysis from the earlier RailNet Sim work. These will be wired into lessons and labs in the coming phases.
 
-1. **Install Node.js LTS** (version 20 or 22) from <https://nodejs.org> and keep the default options.
-   Or, in PowerShell: `winget install OpenJS.NodeJS.LTS`
-2. Close and reopen PowerShell, then check: `node -v` and `npm -v`.
-3. Get the code (install Git from <https://git-scm.com> if you don't have it):
-   ```powershell
-   git clone https://github.com/shreenidhi1/network.git
-   cd network
-   git checkout claude/railnet-sim-simulator-le2oq2
-   ```
-4. Install dependencies and start:
-   ```powershell
-   npm install
-   npm run dev
-   ```
-5. Open the URL it prints (usually <http://localhost:5173>).
+## Run it on Windows
 
-macOS/Linux: same commands from step 3.
+You already have Node.js. Check it in PowerShell with `node -v` (version 20 or 22 recommended).
+
+```powershell
+git clone https://github.com/shreenidhi1/network.git
+cd network
+git checkout claude/railnet-sim-simulator-le2oq2
+npm install
+npm run dev
+```
+
+Open the URL it prints (usually <http://localhost:5173>). macOS/Linux: same commands.
 
 ## Scripts
 
@@ -44,10 +49,21 @@ macOS/Linux: same commands from step 3.
 | `npm test` | Run all unit tests once (Vitest) |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run typecheck` | TypeScript type check |
-| `npm run build` | Type check + production build into `dist/` (works fully offline) |
+| `npm run build` | Type check + production build into `dist/` (static files, works offline) |
 | `npm run preview` | Serve the production build |
+| `npm run report:jodhpur` | Regenerate `docs/jodhpur-check-report.md` from the station data |
 
-## Using the simulator (Phase 2)
+## Deploy for free
+
+`npm run build` produces a static site in `dist/`, with relative asset paths so it works from any sub-folder.
+
+- **Netlify** (easiest): <https://app.netlify.com/drop> → drag the `dist` folder onto the page. Or connect the repo with build command `npm run build` and publish directory `dist`.
+- **Vercel**: import the GitHub repo → framework *Vite* → build `npm run build`, output `dist`.
+- **GitHub Pages**: repo *Settings → Pages → Source: GitHub Actions* → use the "Static HTML" starter workflow, and change its upload `path` to `dist` after an `npm ci && npm run build` step.
+
+No server, database or API key is needed. Progress and autosave live in the visitor's browser.
+
+## Sandbox: using the simulator
 
 - **Configure hosts** (PC, UTS/PRS, FOIS, CCTV…): select the device → *IP Configuration* (address, mask, gateway) → Apply.
 - **Configure switches/routers**: select the device → *Open CLI* (or *Console* in the toolbar). IOS-like commands, e.g.
@@ -72,7 +88,7 @@ macOS/Linux: same commands from step 3.
 - **Realtime vs Simulation mode** (toolbar): Realtime runs commands instantly; Simulation queues events — use Step ⏭ / Play ▶ / speed and watch frames move on the canvas (yellow glow) and in the *Events* tab.
 - **Faults**: select a link → *Cut fibre/cable* and *Repair*. Canvas shows `DOWN`, `DOWN (admin)`, `CUT` and `STP BLK` badges.
 
-## Using the editor (Phase 1)
+## Sandbox: using the editor
 
 - **Add devices**: drag from the left palette (Legacy / LAN-IP / IP-MPLS), or click a palette item.
 - **Connect**: hover a device, drag from a blue handle and drop on another device. A dialog offers only *physically valid* link types and free port pairs, for example:
@@ -82,7 +98,7 @@ macOS/Linux: same commands from step 3.
   - Cat6 limited to 100 m
 - **Inspect / edit**: click a device (name, station code, ports and what they connect to) or a link (length, label, cores, optics).
 - **Optical budget**: OFC links compute Rx power from Tx, fibre dB/km, connectors, splices and extra (CWDM) loss using ITU-T G.957 / IEEE 802.3 optic profiles. Failing links turn red with an **LOS** badge.
-- **Save / Open**: JSON files (`*.railnet.json`). Loading re-validates every link against the physical rules. Work is also autosaved in the browser.
+- **Save / Open**: JSON files (`*.railnet.json` (format name kept for compatibility)). Loading re-validates every link against the physical rules. Work is also autosaved in the browser.
 - **Load demo**: a two-station STM-1 + PD-Mux + LAN example.
 
 ## Project structure
@@ -102,7 +118,11 @@ src/
   store/          Zustand store
   ui/             React components (canvas, palette, properties, dialogs)
   topologies/     topology builder + demo / preloaded topologies
-  labs/           Labs mode (Phase 7)
+  labs/           Labs framework (auto-checked labs from P2)
+  lessons/        LEARN mode: curriculum, lesson content (content/a0.ts …), progress, widget maths
+  equipment/      device detail panel data (per-kind + per-family docs, generated config/verify guides)
+  profiles/       NEON / vendor router profiles + NEON command mapping (unmapped)
+  topologies/data Jodhpur division stations and sections (M0)
 ```
 
 Engine modules for `pdh`, `sdh`, `ethernet`, `ip`, `ospf`, `mpls`, `bgp` and `qos` are added under `src/engine/` in their phases.

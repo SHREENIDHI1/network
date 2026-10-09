@@ -158,6 +158,12 @@ export const LIMITATIONS: Limitation[] = [
   },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {
+    area: 'Learning content',
+    status: 'active',
+    phase: 1,
+    text: 'Lessons and equipment detail panels are teaching-level summaries, not RDSO/CAMTECH specifications or maintenance schedules. Config guides use only commands this simulator accepts (checked by tests); real equipment syntax and procedures may differ. Bandwidth/latency and optical-budget widgets use ideal maths (no protocol overhead, queueing, ageing beyond the 3 dB margin).',
+  },
+  {
     area: 'Equipment profiles',
     status: 'active',
     phase: 1,

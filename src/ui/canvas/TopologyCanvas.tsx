@@ -1,3 +1,4 @@
+import { useDetail } from '../../store/detailStore';
 import {
   Background,
   BackgroundVariant,
@@ -155,6 +156,10 @@ export function TopologyCanvas() {
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
         onNodeClick={(_, n) => select({ type: 'device', id: n.id })}
+        onNodeDoubleClick={(_, n) => {
+          const d = useTopologyStore.getState().topology.devices.find((x) => x.id === n.id);
+          if (d) useDetail.getState().open({ kind: d.kind, deviceId: d.id });
+        }}
         onEdgeClick={(_, e) => select({ type: 'link', id: e.id })}
         onPaneClick={() => select(null)}
         onNodeDragStop={(_, _n, dragged) => dragged.forEach((n) => moveDevice(n.id, n.position))}

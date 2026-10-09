@@ -50,10 +50,12 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950 px-3">
-      <div className="mr-3 flex items-center gap-2">
+      <div className="mr-2 flex shrink-0 items-center gap-2">
         <TrainFront className="h-5 w-5 text-amber-400" />
-        <span className="font-semibold tracking-tight">RailMPLS Lab</span>
-        <span className="rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400">P1 · Foundations</span>
+        <span className="whitespace-nowrap font-semibold tracking-tight">RailMPLS Lab</span>
+        <span className="hidden whitespace-nowrap rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400 2xl:inline">
+          P1 · Foundations
+        </span>
       </div>
       <ModeSwitch />
       {mode === 'sandbox' && (
@@ -61,14 +63,22 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
           <button
             type="button"
             className="rn-btn"
+            title="New topology"
+            aria-label="New topology"
             onClick={() => {
               if (confirmDiscard()) newTopology();
             }}
           >
-            <FilePlus className="h-4 w-4" /> New
+            <FilePlus className="h-4 w-4" /> <span className="hidden xl:inline">New</span>
           </button>
-          <button type="button" className="rn-btn" onClick={() => fileInput.current?.click()}>
-            <FolderOpen className="h-4 w-4" /> Open
+          <button
+            type="button"
+            className="rn-btn"
+            title="Open topology file"
+            aria-label="Open topology file"
+            onClick={() => fileInput.current?.click()}
+          >
+            <FolderOpen className="h-4 w-4" /> <span className="hidden xl:inline">Open</span>
           </button>
           <input
             ref={fileInput}
@@ -80,21 +90,23 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
               e.target.value = '';
             }}
           />
-          <button type="button" className="rn-btn" onClick={onSave}>
-            <Save className="h-4 w-4" /> Save
+          <button type="button" className="rn-btn" title="Save topology file" aria-label="Save topology file" onClick={onSave}>
+            <Save className="h-4 w-4" /> <span className="hidden xl:inline">Save</span>
           </button>
           <button
             type="button"
             className="rn-btn"
+            title="Load demo"
+            aria-label="Load demo"
             onClick={() => {
               if (!confirmDiscard()) return;
               loadTopology(ENABLE_LEGACY_TDM ? demoTwoStation() : demoNetworking());
               fit();
             }}
           >
-            <Sparkles className="h-4 w-4" /> Load demo
+            <Sparkles className="h-4 w-4" /> <span className="hidden xl:inline">Load demo</span>
           </button>
-          <div className="ml-3 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
+          <div className="ml-2 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
             {topology.meta.name}
           </div>
           <SimControls />
@@ -102,7 +114,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
       )}
       {mode !== 'sandbox' && <div className="flex-1" />}
       <button type="button" className="rn-btn border-amber-800 text-amber-200" onClick={onShowLimitations}>
-        <Info className="h-4 w-4" /> Model Limitations
+        <Info className="h-4 w-4" /> <span className="hidden xl:inline">Model </span>Limitations
       </button>
     </header>
   );

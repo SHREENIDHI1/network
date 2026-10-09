@@ -47,7 +47,7 @@ body,
   }
 
   .rn-btn {
-    @apply inline-flex items-center gap-1.5 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-sm text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex shrink-0 items-center whitespace-nowrap gap-1.5 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-sm text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .rn-btn-primary {

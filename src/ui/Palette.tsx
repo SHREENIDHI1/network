@@ -1,5 +1,7 @@
 import { useReactFlow } from '@xyflow/react';
-import { Search } from 'lucide-react';
+import { Info, Search } from 'lucide-react';
+import { kindDoc } from '../equipment/kinds';
+import { useDetail } from '../store/detailStore';
 import { useMemo, useState } from 'react';
 import { CATEGORY_LABELS, type DeviceTemplate } from '../model/catalog';
 import { visibleDeviceTemplates } from '../model/networkingMode';
@@ -19,9 +21,7 @@ export function Palette() {
     const q = query.trim().toLowerCase();
     const templates = visibleDeviceTemplates();
     if (!q) return templates;
-    return templates.filter(
-      (t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.kind.includes(q),
-    );
+    return templates.filter((t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.kind.includes(q));
   }, [query]);
 
   /** Click-to-add: place the device at the first free grid spot near the canvas centre. */
@@ -53,12 +53,7 @@ export function Palette() {
       <div className="border-b border-slate-800 p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1.5 h-4 w-4 text-slate-500" />
-          <input
-            className="rn-input pl-7"
-            placeholder="Search devices…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <input className="rn-input pl-7" placeholder="Search devices…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <p className="mt-1.5 text-[11px] leading-snug text-slate-500">Drag onto the canvas, or click to add.</p>
       </div>
@@ -73,21 +68,31 @@ export function Palette() {
                 {items.map((t) => {
                   const Icon = DEVICE_ICONS[t.icon];
                   return (
-                    <button
-                      key={t.kind}
-                      type="button"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData(DRAG_MIME, t.kind);
-                        e.dataTransfer.effectAllowed = 'copy';
-                      }}
-                      onClick={() => addAtCentre(t)}
-                      title={t.description}
-                      className={`flex cursor-grab flex-col items-center gap-1 rounded border bg-slate-900 px-1 py-2 text-center hover:bg-slate-800 active:cursor-grabbing ${CATEGORY_ACCENT[t.category]}`}
-                    >
-                      <Icon className="h-5 w-5" strokeWidth={1.75} />
-                      <span className="text-[11px] leading-tight text-slate-200">{t.label}</span>
-                    </button>
+                    <div key={t.kind} className="relative">
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(DRAG_MIME, t.kind);
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                        onClick={() => addAtCentre(t)}
+                        title={kindDoc(t.kind)?.oneLiner.en ?? t.description}
+                        className={`flex w-full cursor-grab flex-col items-center gap-1 rounded border bg-slate-900 px-1 py-2 text-center hover:bg-slate-800 active:cursor-grabbing ${CATEGORY_ACCENT[t.category]}`}
+                      >
+                        <Icon className="h-5 w-5" strokeWidth={1.75} />
+                        <span className="text-[11px] leading-tight text-slate-200">{t.label}</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`About ${t.label}`}
+                        title={`About ${t.label}`}
+                        onClick={() => useDetail.getState().open({ kind: t.kind })}
+                        className="absolute right-0.5 top-0.5 rounded p-0.5 text-slate-500 hover:bg-slate-700 hover:text-slate-100"
+                      >
+                        <Info className="h-3 w-3" />
+                      </button>
+                    </div>
                   );
                 })}
               </div>

@@ -1,4 +1,5 @@
-import { Trash2 } from 'lucide-react';
+import { BookOpen, Trash2 } from 'lucide-react';
+import { useDetail } from '../store/detailStore';
 import { useEffect, useState, type ReactNode } from 'react';
 import { computeBudget, SYSTEM_MARGIN_DB, type OpticalStatus } from '../engine/physical/opticalBudget';
 import { getTemplate } from '../model/catalog';
@@ -104,9 +105,7 @@ function TopologyProps({ topology }: { topology: Topology }) {
   const shown = visibleTopology(topology);
   const counts = { legacy: 0, lan: 0, mpls: 0 };
   for (const d of shown.devices) counts[getTemplate(d.kind).category] += 1;
-  const opticalIssues = shown.links.filter(
-    (l) => l.kind === 'ofc' && l.optical && computeBudget(l.lengthKm, l.optical).status !== 'ok',
-  ).length;
+  const opticalIssues = shown.links.filter((l) => l.kind === 'ofc' && l.optical && computeBudget(l.lengthKm, l.optical).status !== 'ok').length;
 
   return (
     <>
@@ -190,6 +189,13 @@ function DeviceProps({ device, topology }: { device: Device; topology: Topology 
           <div>
             <div className="text-sm font-semibold">{t.label}</div>
             <p className="text-xs leading-snug text-slate-400">{t.description}</p>
+            <button
+              type="button"
+              className="rn-btn mt-1.5 py-0.5 text-xs"
+              onClick={() => useDetail.getState().open({ kind: device.kind, deviceId: device.id })}
+            >
+              <BookOpen className="h-3.5 w-3.5" /> Details
+            </button>
           </div>
         </div>
         <div className="space-y-2">
@@ -306,7 +312,13 @@ function LinkProps({ link, topology }: { link: Link; topology: Topology }) {
           ))}
         </div>
         <div className="space-y-2">
-          <TextField label="Label / circuit" value={link.label ?? ''} maxLength={200} placeholder="e.g. JU–MTD OFC" onCommit={(v) => update(link.id, { label: v.trim() || undefined })} />
+          <TextField
+            label="Label / circuit"
+            value={link.label ?? ''}
+            maxLength={200}
+            placeholder="e.g. JU–MTD OFC"
+            onCommit={(v) => update(link.id, { label: v.trim() || undefined })}
+          />
           <NumberField label="Length" unit="km" min={0} value={link.lengthKm} onCommit={(v) => setLength(v)} />
           {link.kind === 'ofc' && (
             <label className="block">
@@ -355,11 +367,17 @@ function OpticalSection({
         <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 text-xs">
           <dt className="text-slate-400">Tx power</dt>
           <dd className="text-right font-mono">{optical.txPowerDbm.toFixed(2)} dBm</dd>
-          <dt className="text-slate-400">Fibre ({link.lengthKm} km × {optical.lossDbPerKm} dB/km)</dt>
+          <dt className="text-slate-400">
+            Fibre ({link.lengthKm} km × {optical.lossDbPerKm} dB/km)
+          </dt>
           <dd className="text-right font-mono">{lossText(b.breakdown.fibreLossDb)}</dd>
-          <dt className="text-slate-400">Connectors ({optical.connectors} × {optical.connectorLossDb})</dt>
+          <dt className="text-slate-400">
+            Connectors ({optical.connectors} × {optical.connectorLossDb})
+          </dt>
           <dd className="text-right font-mono">{lossText(b.breakdown.connectorLossDb)}</dd>
-          <dt className="text-slate-400">Splices ({optical.splices} × {optical.spliceLossDb})</dt>
+          <dt className="text-slate-400">
+            Splices ({optical.splices} × {optical.spliceLossDb})
+          </dt>
           <dd className="text-right font-mono">{lossText(b.breakdown.spliceLossDb)}</dd>
           <dt className="text-slate-400">Extra (CWDM filters etc.)</dt>
           <dd className="text-right font-mono">{lossText(b.breakdown.extraLossDb)}</dd>
@@ -368,7 +386,9 @@ function OpticalSection({
           <dt className="text-slate-400">Rx sensitivity</dt>
           <dd className="text-right font-mono">{optical.rxSensitivityDbm.toFixed(2)} dBm</dd>
           <dt className="text-slate-400">Margin</dt>
-          <dd className={`text-right font-mono ${b.marginDb < 0 ? 'text-red-400' : b.marginDb < SYSTEM_MARGIN_DB ? 'text-yellow-300' : 'text-emerald-300'}`}>
+          <dd
+            className={`text-right font-mono ${b.marginDb < 0 ? 'text-red-400' : b.marginDb < SYSTEM_MARGIN_DB ? 'text-yellow-300' : 'text-emerald-300'}`}
+          >
             {b.marginDb.toFixed(2)} dB
           </dd>
           <dt className="text-slate-400">Max reach (keeping {SYSTEM_MARGIN_DB} dB spare)</dt>
@@ -401,7 +421,13 @@ function OpticalSection({
             <NumberField label="Fibre loss" unit="dB/km" min={0} value={optical.lossDbPerKm} onCommit={(v) => setOptical({ lossDbPerKm: v })} />
             <NumberField label="Extra loss" unit="dB" min={0} value={optical.extraLossDb} onCommit={(v) => setOptical({ extraLossDb: v })} />
             <NumberField label="Connectors" min={0} step={1} value={optical.connectors} onCommit={(v) => setOptical({ connectors: Math.round(v) })} />
-            <NumberField label="Loss / conn." unit="dB" min={0} value={optical.connectorLossDb} onCommit={(v) => setOptical({ connectorLossDb: v })} />
+            <NumberField
+              label="Loss / conn."
+              unit="dB"
+              min={0}
+              value={optical.connectorLossDb}
+              onCommit={(v) => setOptical({ connectorLossDb: v })}
+            />
             <NumberField label="Splices" min={0} step={1} value={optical.splices} onCommit={(v) => setOptical({ splices: Math.round(v) })} />
             <NumberField label="Loss / splice" unit="dB" min={0} value={optical.spliceLossDb} onCommit={(v) => setOptical({ spliceLossDb: v })} />
           </div>

@@ -1,6 +1,7 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { lazy, Suspense, useState } from 'react';
 import { useAppMode } from './store/appModeStore';
+import { useDetail } from './store/detailStore';
 import { TopologyCanvas } from './ui/canvas/TopologyCanvas';
 import { BottomDock } from './ui/dock/BottomDock';
 import { LimitationsPanel } from './ui/LimitationsPanel';
@@ -13,10 +14,12 @@ import { Toolbar } from './ui/Toolbar';
 
 const LearnView = lazy(() => import('./ui/learn/LearnView'));
 const LabPlaceholder = lazy(() => import('./ui/learn/LabPlaceholder'));
+const DeviceDetail = lazy(() => import('./ui/detail/DeviceDetail'));
 
 export default function App() {
   const [showLimitations, setShowLimitations] = useState(false);
   const mode = useAppMode((s) => s.mode);
+  const detailOpen = useDetail((s) => s.target !== null);
 
   return (
     <ReactFlowProvider>
@@ -41,6 +44,11 @@ export default function App() {
       </div>
       <LinkDialog />
       <Notices />
+      {detailOpen && (
+        <Suspense fallback={null}>
+          <DeviceDetail />
+        </Suspense>
+      )}
       {showLimitations && <LimitationsPanel onClose={() => setShowLimitations(false)} />}
     </ReactFlowProvider>
   );
