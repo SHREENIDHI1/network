@@ -21,7 +21,9 @@ export type WidgetId =
   | 'label-header'
   | 'lsp-walk'
   | 'ibgp-mesh'
-  | 'rt-matcher';
+  | 'rt-matcher'
+  | 'pw-mtu'
+  | 'tdm-pw';
 export type DiagramId =
   | 'circuit-vs-packet'
   | 'osi-stack'

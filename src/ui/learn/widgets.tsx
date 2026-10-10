@@ -20,6 +20,7 @@ import { MacLearning, RootElection, SubnetCalc, VlanTag, VlsmPlanner } from './w
 import { AclEvalWidget, HsrpWidget, LpmWidget, QueueSimWidget, SpfWidget } from './widgets3';
 import { LabelHeaderWidget, LspWalkWidget } from './widgets4';
 import { IbgpMeshWidget, RtMatcherWidget } from './widgets5';
+import { PwMtuWidget, TdmPwWidget } from './widgets6';
 
 export function Widget({ id }: { id: WidgetId }) {
   switch (id) {
@@ -59,6 +60,10 @@ export function Widget({ id }: { id: WidgetId }) {
       return <IbgpMeshWidget />;
     case 'rt-matcher':
       return <RtMatcherWidget />;
+    case 'pw-mtu':
+      return <PwMtuWidget />;
+    case 'tdm-pw':
+      return <TdmPwWidget />;
   }
 }
 

@@ -20,8 +20,12 @@ export type RefMode =
   | 'config-bgp'
   | 'config-bgp-vpnv4'
   | 'config-bgp-vrf'
+  | 'config-vfi'
+  | 'config-controller'
+  | 'config-cem-if'
+  | 'config-if-cem'
   | 'host';
-export type RefDevice = 'l2-switch' | 'l3-switch' | 'router' | 'pc';
+export type RefDevice = 'l2-switch' | 'l3-switch' | 'router' | 'pc' | 'neon-ler';
 
 export interface CommandRef {
   topic: string;
@@ -37,6 +41,7 @@ const sw = 'l2-switch' as const;
 const l3 = 'l3-switch' as const;
 const r = 'router' as const;
 const pc = 'pc' as const;
+const ler = 'neon-ler' as const;
 
 export const COMMANDS: CommandRef[] = [
   // Basics
@@ -1179,11 +1184,173 @@ export const COMMANDS: CommandRef[] = [
     hi: 'VRF traceroute.',
     lesson: 'B6',
   },
+  {
+    topic: 'L2VPN',
+    example: 'xconnect 10.0.1.13 1301 encapsulation mpls',
+    mode: 'config-if',
+    device: r,
+    en: 'VPWS: carry this port (or dot1Q subinterface) to the peer PE; same VC ID on both sides.',
+    hi: 'Port ko peer PE tak pseudowire se.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'no xconnect',
+    mode: 'config-if',
+    device: r,
+    en: 'Remove the pseudowire from the interface.',
+    hi: 'Pseudowire hatao.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'mtu 1600',
+    mode: 'config-if',
+    device: r,
+    en: 'Layer-2 MTU of the port; both ends of a pseudowire must match.',
+    hi: 'Port ka L2 MTU; dono taraf same.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'l2 vfi CCTV manual',
+    mode: 'config',
+    device: r,
+    en: 'Create a VPLS forwarder (virtual switch).',
+    hi: 'VPLS VFI banao.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'vpn id 104',
+    mode: 'config-vfi',
+    device: r,
+    en: 'VPLS ID: becomes the VC ID of every pseudowire of this VFI.',
+    hi: 'VFI ka ID (sab PWs ka VC ID).',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'neighbor 10.0.1.13 encapsulation mpls',
+    mode: 'config-vfi',
+    device: r,
+    en: 'Pseudowire to another PE of the VPLS (one per PE: full mesh).',
+    hi: 'Doosre PE tak PW (full mesh).',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'xconnect vfi CCTV',
+    mode: 'config-if',
+    device: r,
+    en: 'Attach this port to the VFI (simulator: port-based).',
+    hi: 'Port ko VFI se jodo.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'show mpls l2transport vc',
+    mode: 'priv',
+    device: r,
+    en: 'Pseudowires: AC, circuit type, peer, VC ID, status; reason below if DOWN.',
+    hi: 'Pseudowires ki list.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'show mpls l2transport vc detail',
+    mode: 'priv',
+    device: r,
+    en: 'Labels, MTU, output interface per pseudowire.',
+    hi: 'PW detail: labels, MTU.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'show vfi',
+    mode: 'priv',
+    device: r,
+    en: 'VFIs, attachment ports and pseudowire neighbours.',
+    hi: 'VFI aur neighbours.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'L2VPN',
+    example: 'ping mpls pseudowire 10.0.1.13 1301',
+    mode: 'priv',
+    device: r,
+    en: 'MPLS echo with the VC label: proves the pseudowire end to end.',
+    hi: 'Pseudowire ka ping.',
+    lesson: 'B7',
+  },
+  {
+    topic: 'TDM PW',
+    example: 'controller E1 0/2/0',
+    mode: 'config',
+    device: ler,
+    en: 'Configure a (logical) E1 controller of the NEON LER.',
+    hi: 'E1 controller.',
+    lesson: 'B8',
+  },
+  {
+    topic: 'TDM PW',
+    example: 'cem-group 0 unframed',
+    mode: 'config-controller',
+    device: ler,
+    en: 'Whole E1 as one circuit (SAToP).',
+    hi: 'Poora E1 (SAToP).',
+    lesson: 'B8',
+  },
+  {
+    topic: 'TDM PW',
+    example: 'cem-group 1 timeslots 1-4',
+    mode: 'config-controller',
+    device: ler,
+    en: 'Timeslots 1–4 as a circuit (CESoPSN).',
+    hi: 'Timeslots 1–4 (CESoPSN).',
+    lesson: 'B8',
+  },
+  {
+    topic: 'TDM PW',
+    example: 'interface CEM0/2/0',
+    mode: 'config',
+    device: ler,
+    en: 'Circuit-emulation interface of the controller.',
+    hi: 'CEM interface.',
+    lesson: 'B8',
+  },
+  {
+    topic: 'TDM PW',
+    example: 'cem 0',
+    mode: 'config-cem-if',
+    device: ler,
+    en: 'Select CEM group 0 to attach a pseudowire.',
+    hi: 'CEM group chuno.',
+    lesson: 'B8',
+  },
+  {
+    topic: 'TDM PW',
+    example: 'xconnect 10.0.2.2 2101 encapsulation mpls',
+    mode: 'config-if-cem',
+    device: ler,
+    en: 'Carry the CEM group to the peer PE.',
+    hi: 'CEM ko peer tak PW.',
+    lesson: 'B8',
+  },
+  {
+    topic: 'TDM PW',
+    example: 'show controllers E1 0/2/0',
+    mode: 'priv',
+    device: ler,
+    en: 'CEM groups and their xconnects (logical E1).',
+    hi: 'E1 controller status.',
+    lesson: 'B8',
+  },
 ];
 
 /** CLI lines that bring a fresh device into `mode` (used by the reference test and the "try it" hint). */
 export function preLines(mode: RefMode, device: RefDevice): string[] {
-  const port = device === 'router' ? 'gi0/0' : device === 'l3-switch' ? 'gi1/0/1' : 'gi0/1';
+  const port = device === 'router' ? 'gi0/0' : device === 'neon-ler' ? 'gi0/1/0' : device === 'l3-switch' ? 'gi1/0/1' : 'gi0/1';
   switch (mode) {
     case 'user':
     case 'host':
@@ -1214,5 +1381,13 @@ export function preLines(mode: RefMode, device: RefDevice): string[] {
       return ['enable', 'configure terminal', 'router bgp 65000', 'neighbor 10.0.1.13 remote-as 65000', 'address-family vpnv4'];
     case 'config-bgp-vrf':
       return ['enable', 'configure terminal', 'vrf definition X', 'rd 1:1', 'exit', 'router bgp 65000', 'address-family ipv4 vrf X'];
+    case 'config-vfi':
+      return ['enable', 'configure terminal', 'l2 vfi CCTV manual', 'vpn id 104'];
+    case 'config-controller':
+      return ['enable', 'configure terminal', 'controller E1 0/2/0'];
+    case 'config-cem-if':
+      return ['enable', 'configure terminal', 'controller E1 0/2/0', 'cem-group 0 unframed', 'exit', 'interface CEM0/2/0'];
+    case 'config-if-cem':
+      return ['enable', 'configure terminal', 'controller E1 0/2/0', 'cem-group 0 unframed', 'exit', 'interface CEM0/2/0', 'cem 0'];
   }
 }

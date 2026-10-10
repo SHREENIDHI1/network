@@ -194,6 +194,8 @@ export interface PseudowireState {
   vcId: number;
   type: 'vpws-eth' | 'satop' | 'cesopsn' | 'vpls';
   status: 'UP' | 'DOWN';
+  /** Why the VC is down (engine reason). */
+  reason?: string;
 }
 
 export interface SdhXconnect {

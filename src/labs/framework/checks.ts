@@ -3,7 +3,7 @@ import type { Device, DeviceKind, Link, LinkKind } from '../../model/types';
 import { getNetConfig } from '../../engine/config/netConfig';
 import { cidrsOverlap, parseCidr } from '../../engine/ip/ipv4';
 import { MODULES, type EngineModule } from './modules';
-import type { AlarmType, Check, CheckResult, RouteProtocol, SimSnapshot } from './types';
+import type { AlarmType, Check, CheckResult, PseudowireState, RouteProtocol, SimSnapshot } from './types';
 
 /**
  * Reusable checker helpers. Each helper returns a Check: a pure function of
@@ -562,6 +562,18 @@ export function lspPingSucceeds(src: string, fec: string, kind: 'ping' | 'trace'
   };
 }
 
+/** The last "ping mpls pseudowire PEER VCID" from `src` succeeded. */
+export function pwPingSucceeds(src: string, peer: string, vcId: number): Check {
+  return (snap) => {
+    const r = section(snap, 'lspResults', 'l2vpn');
+    if (isResult(r)) return r;
+    const fec = `pseudowire ${peer} ${vcId}`;
+    const last = [...r].reverse().find((x) => x.src === src && x.fec === fec);
+    if (!last) return fail(`Run "ping mpls pseudowire ${peer} ${vcId}" on ${src} to prove the circuit.`);
+    return last.success ? pass() : fail(`The last pseudowire ping from ${src} failed (codes ${last.codes}).`);
+  };
+}
+
 /** `dev` pushes / swaps a real label (not "No Label", not pop) for `fec`. */
 export function labelledPath(dev: string, fec: string): Check {
   return (snap) => {
@@ -649,13 +661,16 @@ export function vrfIsolated(dev: string, vrfA: string, vrfB: string): Check {
   };
 }
 
-export function pwUp(a: string, b: string, vcId: number): Check {
+/** Pseudowire a↔b with this VC ID is UP (optionally of a given type: vpws-eth, vpls, satop, cesopsn). */
+export function pwUp(a: string, b: string, vcId: number, type?: PseudowireState['type']): Check {
   return (snap) => {
     const pw = section(snap, 'pseudowires', 'l2vpn');
     if (isResult(pw)) return pw;
-    const p = pw.find((x) => x.vcId === vcId && ((x.a === a && x.b === b) || (x.a === b && x.b === a)));
-    if (!p) return fail(`No pseudowire with the required VC ID between ${a} and ${b}.`);
-    return p.status === 'UP' ? pass() : fail(`Pseudowire ${a}–${b} is down.`);
+    const ps = pw.filter((x) => x.vcId === vcId && ((x.a === a && x.b === b) || (x.a === b && x.b === a)));
+    if (!ps.length) return fail(`No pseudowire with the required VC ID between ${a} and ${b}.`);
+    if (type && !ps.some((p) => p.type === type)) return fail(`Pseudowire ${a}–${b} exists but is not of the required type (${type}).`);
+    const down = ps.find((p) => p.status !== 'UP');
+    return down ? fail(`Pseudowire ${a}–${b} is down — check "show mpls l2transport vc" on ${a}.`) : pass();
   };
 }
 

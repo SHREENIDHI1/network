@@ -15,8 +15,8 @@ describe('curriculum', () => {
     expect(isAvailable('A0')).toBe(true);
     expect(['A4', 'A5', 'A6', 'A7', 'A8'].every(isAvailable)).toBe(true);
     expect(['B0', 'B1', 'B2', 'B3', 'B4'].every(isAvailable)).toBe(true);
-    expect(['B5', 'B6'].every(isAvailable)).toBe(true);
-    expect(isAvailable('B7')).toBe(false);
+    expect(['B5', 'B6', 'B7', 'B8'].every(isAvailable)).toBe(true);
+    expect(isAvailable('B9')).toBe(false);
   });
 
   for (const id of Object.keys(LESSON_LOADERS)) {
@@ -321,5 +321,30 @@ describe('P5 widget maths', () => {
     if (typeof r === 'string') throw new Error(r);
     expect(r.map((x) => `${x.from}>${x.into}`).sort()).toEqual(['JU:NMS-MGMT>MTD:SCADA', 'MTD:SCADA>JU:NMS-MGMT']);
     expect(rtImports([{ pe: 'A', vrf: 'X', exports: ['bad'], imports: [] }])).toMatch(/not an RT/);
+  });
+});
+
+describe('P6 widget maths', () => {
+  it('core MTU needed by an Ethernet pseudowire', async () => {
+    const { pwCoreMtu } = await import('./widgetMath6');
+    expect(pwCoreMtu({ ipMtu: 1500, vlanTagged: false, labels: 2, controlWord: false })).toEqual({ inner: 1514, mpls: 8, total: 1522 });
+    expect(pwCoreMtu({ ipMtu: 1500, vlanTagged: true, labels: 2, controlWord: true })).toEqual({ inner: 1518, mpls: 12, total: 1530 });
+    expect(pwCoreMtu({ ipMtu: 20, vlanTagged: false, labels: 2, controlWord: false })).toMatch(/68/);
+  });
+
+  it('TDM pseudowire packetisation and bandwidth', async () => {
+    const { tdmPw } = await import('./widgetMath6');
+    expect(tdmPw({ timeslots: 4, framesPerPacket: 8 })).toEqual({
+      payloadBytes: 32,
+      packetsPerSecond: 1000,
+      packetizationMs: 1,
+      payloadKbps: 256,
+      wireKbps: 496,
+    });
+    const satop = tdmPw({ timeslots: 'unframed', framesPerPacket: 8 });
+    if (typeof satop === 'string') throw new Error(satop);
+    expect(satop.payloadKbps).toBe(2048);
+    expect(satop.wireKbps).toBeCloseTo(2288);
+    expect(tdmPw({ timeslots: 32, framesPerPacket: 8 })).toMatch(/TS0/);
   });
 });

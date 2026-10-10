@@ -585,6 +585,70 @@ const ENTRIES: Array<{ pattern: string[]; host?: boolean; ex: ShowExplain }> = [
       },
     },
   },
+  {
+    pattern: ['show', 'mpls', 'l2transport', 'vc'],
+    ex: {
+      title: 'show mpls l2transport vc',
+      fields: [
+        f('Local intf', 'Attachment circuit: port, dot1Q subinterface, "VFI NAME" or a CEM interface (CE0/2/0).', 'Customer side: port, VFI ya CEM.'),
+        f('Local circuit', 'Ethernet (port mode), Eth VLAN N, VFI, SATOP E1 or CESoPSN Basic.', 'Circuit ka type.'),
+        f('Dest address', 'Peer PE — must be its loopback / LDP router-ID.', 'Peer PE ka loopback.'),
+        f('VC ID', 'Pseudowire number; must be the same on both PEs.', 'Dono taraf same number.'),
+        f(
+          'Status',
+          'UP when both ends match and the LSP to the peer exists; otherwise DOWN with the reason below.',
+          'UP/DOWN; DOWN ki wajah neeche.',
+        ),
+      ],
+      lookFor: {
+        en: 'DOWN: read the RailMPLS Lab note — VC ID mismatch, MTU mismatch, timeslot mismatch, no LSP, or the attachment circuit is down.',
+        hi: 'DOWN ho to neeche ka note padho — wahi asli wajah hai.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'mpls', 'l2transport', 'vc', 'detail'],
+    ex: {
+      title: 'show mpls l2transport vc detail',
+      fields: [
+        f(
+          'imposed label stack {a b}',
+          'Labels pushed on each frame: transport label (to the peer loopback) then the VC label.',
+          'Upar transport, neeche VC label.',
+        ),
+        f(
+          'MPLS VC labels: local / remote',
+          'Local = label this PE gave the peer; remote = label the peer gave us (used when sending).',
+          'Local aur remote VC label.',
+        ),
+        f('MTU: local / remote', 'Attachment-circuit MTUs signalled by LDP; must match.', 'Dono MTU same hone chahiye.'),
+        f('VC statistics', 'Not simulated in RailMPLS Lab.', 'Simulator mein nahi.'),
+      ],
+      lookFor: {
+        en: 'Only one label in the stack means the peer is the next hop (implicit-null / PHP).',
+        hi: 'Ek hi label = peer seedha next hop hai.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'vfi'],
+    ex: {
+      title: 'show vfi',
+      fields: [
+        f('VPN ID', 'VC ID used by all pseudowires of the VFI.', 'Sab PWs ka VC ID.'),
+        f('Local attachment circuits', 'Ports attached with "xconnect vfi".', 'VFI se jude ports.'),
+        f(
+          'Peer Address / S',
+          'Pseudowire neighbours; S = split horizon (frames from one PW never go to another PW).',
+          'PW neighbours; S = split horizon.',
+        ),
+      ],
+      lookFor: {
+        en: 'Every PE must list every other PE (full mesh). A neighbour DOWN breaks the sites behind it.',
+        hi: 'Har PE par baaki sab PEs dikhne chahiye (full mesh).',
+      },
+    },
+  },
 ];
 
 function matches(pattern: string[], words: string[]): boolean {

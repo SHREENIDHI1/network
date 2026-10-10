@@ -1,3 +1,4 @@
+import { getTemplate } from '../../model/catalog';
 import { isSubinterface, longIfName, parentOf, roleOf } from '../config/netConfig';
 import { parseTimeslots } from '../l2vpn/pw';
 import { parseIpv4 } from '../ip/ipv4';
@@ -18,18 +19,19 @@ const CTRL: CliMode[] = ['config-controller'];
 const CEMIF: CliMode[] = ['config-cem-if'];
 const CEMXC: CliMode[] = ['config-if-cem'];
 const routerRole = (x: Exec) => roleOf(x.device.kind) === 'router';
-/** Devices with E1 interfaces for circuit emulation: station LERs and the hybrid aggregation box. */
-const TDM_KINDS = new Set(['neon-ler', 'ler', 'hybrid-agg']);
+/** E1 controllers this device kind has (from its hardware profile, e.g. NEON LER E1-0/2/0–15), even when networking-only mode hides the E1 ports. */
+function e1Slots(kind: string): string[] {
+  return (getTemplate(kind as never)?.buildPorts() ?? []).filter((p) => p.kind === 'e1' && /^E1-\d+\/\d+\/\d+$/.test(p.id)).map((p) => p.id.slice(3));
+}
 const MAX_VC = 4294967295;
 const showKw = () => kw('show', 'Show running system information');
 const encap = () => [kw('encapsulation', 'Data encapsulation method'), kw('mpls', 'Use MPLS encapsulation')];
 const vcIdTok = () => num('vc', 1, MAX_VC, '<1-4294967295> Enter VC ID value');
 
-/** "0/4/0" → canonical controller key, or null. E1 controllers on a NEON LER: slot 0/4/0 – 0/4/31 style (any x/y/0–31). */
+/** "0/2/0" → canonical controller key, or null. */
 function controllerKey(text: string): string | null {
   const m = /^(\d+)\/(\d+)\/(\d+)$/.exec(text);
-  if (!m || Number(m[3]) > 31) return null;
-  return `${Number(m[1])}/${Number(m[2])}/${Number(m[3])}`;
+  return m ? `${Number(m[1])}/${Number(m[2])}/${Number(m[3])}` : null;
 }
 
 function setXconnect(x: Exec): string | void {
@@ -39,7 +41,12 @@ function setXconnect(x: Exec): string | void {
   if (ic.ip) return '% Interface has an IP address configured — remove it first ("no ip address") before xconnect.';
   if (ic.vrf) return `% Interface is in VRF ${ic.vrf} — remove "vrf forwarding" before xconnect.`;
   if (isSubinterface(name) && !ic.encapsulation) return '% Configure "encapsulation dot1Q <vlan>" on the subinterface first.';
-  if (Object.entries(x.cfg.interfaces).some(([n, c]) => n !== name && c.xconnect && 'peer' in c.xconnect && c.xconnect.peer === String(x.args.peer) && c.xconnect.vcId === Number(x.args.vc)))
+  if (
+    Object.entries(x.cfg.interfaces).some(
+      ([n, c]) =>
+        n !== name && c.xconnect && 'peer' in c.xconnect && c.xconnect.peer === String(x.args.peer) && c.xconnect.vcId === Number(x.args.vc),
+    )
+  )
     return `% VC ID ${x.args.vc} to ${x.args.peer} is already used by another attachment circuit.`;
   if (isSubinterface(name) && x.cfg.interfaces[parentOf(name)]?.xconnect) return `% ${longIfName(parentOf(name))} already has a port-mode xconnect.`;
   ic.xconnect = { peer: String(x.args.peer), vcId: Number(x.args.vc) };
@@ -59,9 +66,10 @@ function setXconnectVfi(x: Exec): string | void {
 }
 
 function enterController(x: Exec): string | void {
-  if (!TDM_KINDS.has(x.device.kind)) return '% This device has no E1 controllers (circuit emulation needs a station LER or hybrid aggregation box).';
+  const slots = e1Slots(x.device.kind);
+  if (!slots.length) return '% This device has no E1 controllers (circuit emulation needs a router with E1 interfaces, e.g. a NEON LER/LSR).';
   const k = controllerKey(String(x.args.slot));
-  if (!k) return '% Invalid controller: use slot/subslot/port with port 0–31, e.g. 0/4/0';
+  if (!k || !slots.includes(k)) return `% Invalid controller: this device has E1 ${slots[0]} – ${slots[slots.length - 1]}`;
   x.cfg.e1Controllers[k] ??= { cemGroups: {}, xconnects: {} };
   x.dirty();
   x.setMode('config-controller', { ctxName: k });
@@ -141,7 +149,12 @@ export function l2vpnCmds(): Cmd[] {
     // ---------------------------------------------------------------- VPLS
     {
       modes: CONF,
-      toks: [kw('l2', 'Layer 2 VPN configuration'), kw('vfi', 'Configure a VFI'), word('name', 'VFI name'), kw('manual', 'Manually configure the VFI')],
+      toks: [
+        kw('l2', 'Layer 2 VPN configuration'),
+        kw('vfi', 'Configure a VFI'),
+        word('name', 'VFI name'),
+        kw('manual', 'Manually configure the VFI'),
+      ],
       run: (x) => {
         if (!routerRole(x)) return x.invalid();
         const n = String(x.args.name);
@@ -192,12 +205,16 @@ export function l2vpnCmds(): Cmd[] {
     // ------------------------------------------------------ E1 / CEM (TDM)
     {
       modes: CONF,
-      toks: [kw('controller', 'Configure controller'), kw('E1', 'E1 controller'), word('slot', 'slot/subslot/port, e.g. 0/4/0')],
+      toks: [kw('controller', 'Configure controller'), kw('E1', 'E1 controller'), word('slot', 'slot/subslot/port, e.g. 0/2/0')],
       run: enterController,
     },
     {
       modes: CTRL,
-      toks: [kw('cem-group', 'Configure a circuit emulation group'), num('g', 0, 31, '<0-31> CEM group number'), kw('unframed', 'Use the whole E1 (SAToP)')],
+      toks: [
+        kw('cem-group', 'Configure a circuit emulation group'),
+        num('g', 0, 31, '<0-31> CEM group number'),
+        kw('unframed', 'Use the whole E1 (SAToP)'),
+      ],
       run: (x) => cemGroup(x, true),
     },
     {
@@ -238,7 +255,7 @@ export function l2vpnCmds(): Cmd[] {
     },
     {
       modes: ['config', 'config-controller', 'config-cem-if', 'config-if-cem', 'config-if', 'config-subif', 'config-vfi'],
-      toks: [kw('interface', 'Select an interface to configure'), word('name', 'CEM interface, e.g. CEM0/4/0')],
+      toks: [kw('interface', 'Select an interface to configure'), word('name', 'CEM interface, e.g. CEM0/2/0')],
       run: enterCemIf,
     },
     {
@@ -280,7 +297,13 @@ export function l2vpnCmds(): Cmd[] {
     },
     {
       modes: EXEC,
-      toks: [showKw(), kw('mpls', 'MPLS information'), kw('l2transport', 'MPLS Transport information'), kw('vc', 'Show VC information'), kw('detail', 'Detailed information')],
+      toks: [
+        showKw(),
+        kw('mpls', 'MPLS information'),
+        kw('l2transport', 'MPLS Transport information'),
+        kw('vc', 'Show VC information'),
+        kw('detail', 'Detailed information'),
+      ],
       run: (x) => L.showL2transportVcDetail(x.ctx.sim, x.device),
     },
     {
@@ -289,7 +312,11 @@ export function l2vpnCmds(): Cmd[] {
       run: (x) => L.showL2transportVcDetail(x.ctx.sim, x.device, Number(x.args.vc)),
     },
     { modes: EXEC, toks: [showKw(), kw('vfi', 'VFI information')], run: (x) => L.showVfi(x.ctx.sim, x.device) },
-    { modes: EXEC, toks: [showKw(), kw('vfi', 'VFI information'), word('name', 'VFI name')], run: (x) => L.showVfi(x.ctx.sim, x.device, String(x.args.name)) },
+    {
+      modes: EXEC,
+      toks: [showKw(), kw('vfi', 'VFI information'), word('name', 'VFI name')],
+      run: (x) => L.showVfi(x.ctx.sim, x.device, String(x.args.name)),
+    },
     {
       modes: EXEC,
       toks: [showKw(), kw('controllers', 'Interface controller status'), kw('E1', 'E1 controller'), word('slot', 'slot/subslot/port')],
@@ -300,7 +327,13 @@ export function l2vpnCmds(): Cmd[] {
     },
     {
       modes: EXEC,
-      toks: [kw('ping', 'Send echo messages'), kw('mpls', 'Ping an MPLS LSP'), kw('pseudowire', 'Target is a pseudowire'), ip('peer', 'Peer address'), vcIdTok()],
+      toks: [
+        kw('ping', 'Send echo messages'),
+        kw('mpls', 'Ping an MPLS LSP'),
+        kw('pseudowire', 'Target is a pseudowire'),
+        ip('peer', 'Peer address'),
+        vcIdTok(),
+      ],
       run: pwPing,
     },
     {

@@ -125,7 +125,15 @@ describe('L2VPN: VPWS, VPLS and CEM pseudowires', () => {
 
   it('VLAN-based VPWS rewrites the tag at each end', () => {
     const lab = build();
-    lab.run('PE1', [...C, 'interface gi0/1/0', 'no shutdown', 'interface gi0/1/0.10', 'encapsulation dot1Q 10', 'xconnect 10.0.0.3 200 encapsulation mpls', 'end']);
+    lab.run('PE1', [
+      ...C,
+      'interface gi0/1/0',
+      'no shutdown',
+      'interface gi0/1/0.10',
+      'encapsulation dot1Q 10',
+      'xconnect 10.0.0.3 200 encapsulation mpls',
+      'end',
+    ]);
     lab.run('PE2', [...C, 'interface gi0/1/0', 'no shutdown', 'xconnect 10.0.0.1 200 encapsulation mpls', 'end']);
     expect(lab.cli('PE1', ['show mpls l2transport vc'])).toMatch(/Gi0\/1\/0\.10\s+Eth VLAN 10\s+10\.0\.0\.3\s+200\s+UP/);
   });
@@ -133,7 +141,17 @@ describe('L2VPN: VPWS, VPLS and CEM pseudowires', () => {
   it('VPLS: three sites in one bridge domain with MAC learning and split horizon', () => {
     const lab = build();
     const vfi = (dev: string, peers: string[]) =>
-      lab.run(dev, [...C, 'l2 vfi CCTV manual', 'vpn id 104', ...peers.map((p) => `neighbor ${p} encapsulation mpls`), 'exit', 'interface gi0/1/0', 'no shutdown', 'xconnect vfi CCTV', 'end']);
+      lab.run(dev, [
+        ...C,
+        'l2 vfi CCTV manual',
+        'vpn id 104',
+        ...peers.map((p) => `neighbor ${p} encapsulation mpls`),
+        'exit',
+        'interface gi0/1/0',
+        'no shutdown',
+        'xconnect vfi CCTV',
+        'end',
+      ]);
     vfi('PE1', ['10.0.0.3', '10.0.0.4']);
     vfi('PE2', ['10.0.0.1', '10.0.0.4']);
     vfi('PE3', ['10.0.0.1', '10.0.0.3']);
@@ -153,23 +171,44 @@ describe('L2VPN: VPWS, VPLS and CEM pseudowires', () => {
   it('CEM: SAToP and CESoPSN pseudowires on logical E1 controllers', () => {
     const lab = build();
     const cem = (dev: string, peer: string, group: string) =>
-      lab.run(dev, [...C, 'controller E1 0/4/0', group, 'exit', 'interface CEM0/4/0', 'cem 0', `xconnect ${peer} 300 encapsulation mpls`, 'end']);
+      lab.run(dev, [...C, 'controller E1 0/2/0', group, 'exit', 'interface CEM0/2/0', 'cem 0', `xconnect ${peer} 300 encapsulation mpls`, 'end']);
     cem('PE1', '10.0.0.3', 'cem-group 0 unframed');
     cem('PE2', '10.0.0.1', 'cem-group 0 unframed');
-    expect(lab.cli('PE1', ['show mpls l2transport vc'])).toMatch(/CE0\/4\/0\s+SATOP E1\s+10\.0\.0\.3\s+300\s+UP/);
+    expect(lab.cli('PE1', ['show mpls l2transport vc'])).toMatch(/CE0\/2\/0\s+SATOP E1\s+10\.0\.0\.3\s+300\s+UP/);
     expect(lab.cli('PE1', ['ping mpls pseudowire 10.0.0.3 300'])).toContain('Success rate is 100 percent');
     const rc = lab.cli('PE1', ['enable', 'show running-config']);
-    expect(rc).toContain('controller E1 0/4/0\n cem-group 0 unframed');
-    expect(rc).toContain('interface CEM0/4/0\n no ip address\n cem 0\n  xconnect 10.0.0.3 300 encapsulation mpls');
+    expect(rc).toContain('controller E1 0/2/0\n cem-group 0 unframed');
+    expect(rc).toContain('interface CEM0/2/0\n no ip address\n cem 0\n  xconnect 10.0.0.3 300 encapsulation mpls');
     // CESoPSN with different timeslots on each side → down with the reason.
-    lab.run('PE1', [...C, 'controller E1 0/4/0', 'no cem-group 0', 'cem-group 0 timeslots 1-4', 'exit', 'interface CEM0/4/0', 'cem 0', 'xconnect 10.0.0.3 300 encapsulation mpls', 'end']);
-    lab.run('PE2', [...C, 'controller E1 0/4/0', 'no cem-group 0', 'cem-group 0 timeslots 1-3', 'exit', 'interface CEM0/4/0', 'cem 0', 'xconnect 10.0.0.1 300 encapsulation mpls', 'end']);
+    lab.run('PE1', [
+      ...C,
+      'controller E1 0/2/0',
+      'no cem-group 0',
+      'cem-group 0 timeslots 1-4',
+      'exit',
+      'interface CEM0/2/0',
+      'cem 0',
+      'xconnect 10.0.0.3 300 encapsulation mpls',
+      'end',
+    ]);
+    lab.run('PE2', [
+      ...C,
+      'controller E1 0/2/0',
+      'no cem-group 0',
+      'cem-group 0 timeslots 1-3',
+      'exit',
+      'interface CEM0/2/0',
+      'cem 0',
+      'xconnect 10.0.0.1 300 encapsulation mpls',
+      'end',
+    ]);
     expect(lab.cli('PE1', ['show mpls l2transport vc'])).toMatch(/CESoPSN timeslots mismatch: local 1-4, remote 1-3/);
     expect(lab.cli('PE1', ['ping mpls pseudowire 10.0.0.3 300'])).toMatch(/QQQQQ/);
   });
 
-  it('CEM is refused on devices without E1 interfaces', () => {
+  it('E1 controllers follow the hardware profile', () => {
     const lab = build();
-    expect(lab.cli('P1', [...C, 'controller E1 0/4/0'])).toMatch(/no E1 controllers/);
+    expect(lab.cli('PE1', [...C, 'controller E1 0/2/16'])).toMatch(/this device has E1 0\/2\/0 – 0\/2\/15/);
+    expect(lab.cli('P1', [...C, 'controller E1 0/4/3'])).not.toMatch(/%/);
   });
 });

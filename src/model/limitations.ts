@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), and BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5). Pseudowires, TE and fault/NMS correlation are not simulated yet.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), and L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6). MPLS QoS, TE and fault/NMS correlation are not simulated yet.',
   },
   // ---------------- Physical ----------------
   {
@@ -260,6 +260,25 @@ export const LIMITATIONS: Limitation[] = [
     phase: 5,
     text: 'The JU firewall in the B6 labs is a router with NAT and routes, not a stateful firewall: no zones, sessions or inspection. The ISP router is a teaching stand-in. The VRF/RD/RT plan (RT 65000:100–107) is a teaching plan, not the real RailTel/NWR design.',
   },
+  // ---------------- Phase 6 ----------------
+  {
+    area: 'L2VPN',
+    status: 'active',
+    phase: 6,
+    text: "Pseudowire signalling is computed, not exchanged: a VC is UP when both PEs have a mirror xconnect / VFI neighbour (same VC ID, peer = the other PE's LDP router-ID), the router-IDs are reachable both ways, PW types match (Ethernet and Eth VLAN interwork), MTUs match (Ethernet) and timeslots match (CESoPSN), both attachment circuits are up and an LDP LSP leads to the peer. No targeted-LDP hellos, PW status TLVs, control-word or VCCV negotiation, PW redundancy or pseudowire headend. VC labels are allocated per PE after its LDP labels (from 2000 at the lowest).",
+  },
+  {
+    area: 'L2VPN',
+    status: 'active',
+    phase: 6,
+    text: 'Ethernet frames really cross the core under [transport, VC] labels; a VLAN-based AC removes its tag and the far end adds its own (VLAN rewrite). VPLS: the VFI attaches straight to a port ("xconnect vfi NAME" on the interface — IOS attaches it to an SVI, IOS-XE to a bridge-domain); MAC learning per VFI, flooding and split horizon are modelled; MAC aging, MAC limits, BPDU handling, H-VPLS and EVPN are not.',
+  },
+  {
+    area: 'TDM over MPLS',
+    status: 'active',
+    phase: 6,
+    text: 'Networking-only mode: E1 controllers are logical — they follow the hardware profile (NEON LER E1 0/2/0–15, LSR E1 0/4/0–15) but no E1 cable, framer, line coding, alarms (LOS/AIS/RAI), clock or TDM bits are simulated, and the equipment behind them (BPAC, block, control phones) is not. CEM traffic does not appear in the QoS tab; packetisation, jitter buffer and clock recovery are taught with a calculator only. "show controllers E1" and the CEM lines are simplified.',
+  },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {
     area: 'Learning content',
@@ -297,12 +316,6 @@ export const LIMITATIONS: Limitation[] = [
     status: 'planned',
     phase: 4,
     text: 'SDH frames are shown structurally (G.707 mapping hierarchy) without real byte-level scrambling or pointer justification. Synchronisation (SSM, clock quality) will be simplified.',
-  },
-  {
-    area: 'MPLS',
-    status: 'planned',
-    phase: 6,
-    text: 'CESoPSN/SAToP E1 emulation timing (adaptive/differential clock recovery, jitter buffers) is labelled as simplified.',
   },
   // ---------------- Labs ----------------
   {

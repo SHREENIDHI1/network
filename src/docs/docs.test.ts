@@ -91,3 +91,12 @@ describe('ask why: P5 BGP / VRF', () => {
     expect(explainShow('show ip route vrf UTS')?.title).toBe('show ip route vrf <name>');
   });
 });
+
+describe('ask why: P6 L2VPN', () => {
+  it('matches pseudowire show commands', async () => {
+    const { explainShow } = await import('./showExplain');
+    expect(explainShow('show mpls l2transport vc')?.title).toBe('show mpls l2transport vc');
+    expect(explainShow('sh mpls l2transport vc detail')?.title).toBe('show mpls l2transport vc detail');
+    expect(explainShow('show vfi')?.title).toBe('show vfi');
+  });
+});

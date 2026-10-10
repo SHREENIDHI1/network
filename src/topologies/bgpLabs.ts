@@ -25,14 +25,14 @@ export function vrfNet(code: string, vrf: string): string {
   return row.prefix.split('.').slice(0, 3).join('.');
 }
 
-function preconfig(t: Topology, sol: LabSolution): Topology {
+export function preconfig(t: Topology, sol: LabSolution): Topology {
   const res = applySolution(t, new Sim(t), sol);
   if (res.errors.length) throw new Error(`Topology pre-config failed:\n${res.errors.join('\n')}`);
   return res.topology;
 }
 
 /** Adds a device next to `nearName` and cables it to a free port there. */
-function attach(
+export function attach(
   t: Topology,
   o: {
     kind: DeviceKind;

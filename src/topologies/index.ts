@@ -44,6 +44,9 @@ export const TOPOLOGIES: readonly TopologyEntry[] = [
   { id: 'lab-b5-core', title: 'Lab B5: iBGP route reflector + eBGP at FL', load: () => import('./bgpLabs').then((m) => m.b5Core()) },
   { id: 'lab-b6-vpn', title: 'Lab B6: UTS and Railnet VRFs', load: () => import('./bgpLabs').then((m) => m.b6Vpn()) },
   { id: 'lab-b6-scada', title: 'Lab B6: SCADA CE on eBGP + shared NMS', load: () => import('./bgpLabs').then((m) => m.b6Scada()) },
+  { id: 'lab-b7-vpws', title: 'Lab B7: VPWS for the MTD Data Logger', load: () => import('./l2vpnLabs').then((m) => m.b7Vpws()) },
+  { id: 'lab-b7-vpls', title: 'Lab B7: VPLS for station CCTV', load: () => import('./l2vpnLabs').then((m) => m.b7Vpls()) },
+  { id: 'lab-b8-tdm', title: 'Lab B8: E1 pseudowires for BPAC and control', load: () => import('./l2vpnLabs').then((m) => m.b8Tdm()) },
 ];
 
 export const TOPOLOGY_IDS: ReadonlySet<string> = new Set(TOPOLOGIES.map((t) => t.id));

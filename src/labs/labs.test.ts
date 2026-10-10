@@ -18,7 +18,7 @@ async function start(lab: Lab) {
   return { topology, sim };
 }
 
-describe('labs A4–A15 and B1–B6', () => {
+describe('labs A4–A15 and B1–B8', () => {
   it('registry is valid and P2/P3 labs are unlocked', () => {
     expect(validateRegistry(LABS, TOPOLOGY_IDS)).toEqual([]);
     for (const l of LABS) expect(labLockReason(l), l.id).toBeNull();
@@ -43,6 +43,9 @@ describe('labs A4–A15 and B1–B6', () => {
       'B5',
       'B6',
       'B6',
+      'B7',
+      'B7',
+      'B8',
     ]);
   });
 
@@ -218,5 +221,20 @@ describe('practical quiz answers match the engine', () => {
   it('LB6.2: NMS-MGMT reaches the RTU LAN via MTD', async () => {
     const out = await solvedCli('LB6.2', 'JU-LSR', ['show ip route vrf NMS-MGMT']);
     expect(out).toMatch(/^B\s+10\.103\.13\.128\/25 \[200\/0\] via 10\.0\.1\.13/m);
+  });
+
+  it('LB7.1: the Data Logger VC is a port-mode Ethernet circuit', async () => {
+    const out = await solvedCli('LB7.1', 'MTD-LSR', ['show mpls l2transport vc']);
+    expect(out).toMatch(/^Gi0\/3\/2\s+Ethernet\s+10\.0\.1\.1\s+1301\s+UP$/m);
+  });
+
+  it('LB7.2: JU lists three VFI neighbours', async () => {
+    const out = await solvedCli('LB7.2', 'JU-LSR', ['show vfi CCTV']);
+    expect(out.split('\n').filter((l) => /^\s+\d+\.\d+\.\d+\.\d+\s+104\s+Y\s+UP$/.test(l))).toHaveLength(3);
+  });
+
+  it('LB8.1: the BPAC circuit on KQW is SATOP E1', async () => {
+    const out = await solvedCli('LB8.1', 'KQW-LER', ['show mpls l2transport vc']);
+    expect(out).toMatch(/^CE0\/2\/0\s+SATOP E1\s+\S+\s+2101\s+UP$/m);
   });
 });

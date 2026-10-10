@@ -26,9 +26,10 @@ Click any device (or the ⓘ on a palette item, or double-click a device) for it
 | P2 | Engine core, physical (duplex), Ethernet/VLAN/STP, EtherChannel/LACP, CLI (incl. interface range), consoles, packet walk, Lab mode, lessons + labs A4–A8, Glossary, Command Reference, "Ask why" | ✅ Done |
 | P3 | Loopbacks, OSPF, IS-IS (L1/L2), RIPv2 (comparison), DHCP/DNS/NAT/NTP/syslog/SNMP traps/SSH-Telnet as real packets, ACL + vty security, HSRP/VRRP, QoS tab; lessons A9–A15 and labs L9.1–L15.1 (capstone with 5 fault tickets) | ✅ Done |
 | P4 | Jodhpur generators J1–J4 + IP plan + schematic map layout; MPLS + LDP (PHP, explicit-null, LDP-IGP sync), label data plane, LSP ping/trace, MPLS LIVE panel; lessons B0–B4 and labs LB1.1–LB4.1 | ✅ Done |
-| P5 | BGP (eBGP/iBGP, route reflectors, best path), VRFs, MP-BGP VPNv4 L3VPN with two-label data plane, PE–CE static/eBGP, ping/traceroute vrf, BGP/VRF LIVE panel; lessons B5–B6 and labs LB5.1, LB6.1, LB6.2 | ✅ Done — awaiting review |
-| P6 | L2VPN (VPWS/VPLS) + TDM over MPLS (E1 pseudowire); B7–B8 | Next |
-| P7–P10 | MPLS QoS/TE, NMS/automation, grand capstone, final docs | Planned |
+| P5 | BGP (eBGP/iBGP, route reflectors, best path), VRFs, MP-BGP VPNv4 L3VPN with two-label data plane, PE–CE static/eBGP, ping/traceroute vrf, BGP/VRF LIVE panel; lessons B5–B6 and labs LB5.1, LB6.1, LB6.2 | ✅ Done |
+| P6 | Pseudowires: VPWS (port/VLAN), VPLS (VFI, MAC learning, split horizon), E1 circuit emulation SAToP/CESoPSN on logical E1 controllers, `ping mpls pseudowire`, L2VPN LIVE panel, Packet Inspector pseudowire payload; lessons B7–B8 and labs LB7.1, LB7.2, LB8.1 | ✅ Done — awaiting review |
+| P7 | MPLS QoS + Traffic Engineering (RSVP-TE, FRR); B9–B10 | Next |
+| P8–P10 | NMS/automation, grand capstone, final docs | Planned |
 
 Everything a lab checks is engine state (tables, sessions, packets) — the simulator never fakes show output. Simplifications are listed in the in-app **Model Limitations** panel.
 
@@ -48,7 +49,7 @@ Open the URL it prints (usually <http://localhost:5173>). macOS/Linux: same comm
 
 ### Localhost par purane items dikh rahe hain?
 
-1. **Status bar ke right corner** mein `v0.5.0 · <commit>` dekho. Agar commit GitHub ke latest se purana hai, to code purana hai:
+1. **Status bar ke right corner** mein `v0.6.0 · <commit>` dekho. Agar commit GitHub ke latest se purana hai, to code purana hai:
    ```powershell
    git pull origin claude/railnet-sim-simulator-le2oq2
    npm install
@@ -105,6 +106,7 @@ No server, database or API key is needed. Progress and autosave live in the visi
 - **Jodhpur division (P4)**: toolbar → *Load* → J1 core / J2 JU–FL / J3 per control board / J4 full division, with a config level (cabled, IP plan, + OSPF, + OSPF + MPLS). Learn → *Jodhpur* shows the sites, spans, OSPF areas and the generated IP plan with its overlap check. Track-map teaching design, not the real RailTel/NWR network.
 - **MPLS (P4)**: `mpls ip` on core interfaces (or `mpls ldp autoconfig` under `router ospf`), `mpls ldp router-id loopback0 force`, `mpls ldp sync`, `mpls ldp explicit-null`, `no mpls ip propagate-ttl`. Check with `show mpls ldp neighbor`, `show mpls ldp bindings`, `show mpls forwarding-table`, `ping mpls ipv4 10.0.2.6/32`, `traceroute mpls ipv4 …`. The Packet Inspector shows the label stack; a router's LIVE panel lists LDP peers and the LFIB.
 - **BGP / L3VPN (P5)**: `vrf definition UTS` → `rd 10.0.1.1:100` → `address-family ipv4` → `route-target both 65000:100`; on the interface `vrf forwarding UTS` *then* `ip address …` (IOS removes the IP when the VRF changes). `router bgp 65000` → `neighbor 10.0.1.1 remote-as 65000` / `update-source loopback0`; `address-family vpnv4` → `neighbor … activate` (+ `route-reflector-client` on the RR); `address-family ipv4 vrf UTS` → `redistribute connected` or a PE–CE `neighbor … remote-as 65201`. Check with `show ip bgp summary`, `show bgp vpnv4 unicast all [summary|labels]`, `show ip route vrf UTS`, `show vrf`, `ping vrf UTS …`, `traceroute vrf UTS …`. If a session is not Established, the summary prints the reason under the table. Labs: LB5.1 (RR + eBGP to Jaipur division), LB6.1 (UTS/RAILNET VPNs + firewall internet), LB6.2 (SCADA PE–CE eBGP + NMS shared service).
+- **L2VPN / TDM (P6)**: VPWS on a PE port: `interface gi0/3/2` → `xconnect 10.0.1.13 1301 encapsulation mpls` (peer = the other PE's loopback, same VC ID both sides; no IP on the port). VPLS: `l2 vfi CCTV manual` → `vpn id 104` → `neighbor <PE loopback> encapsulation mpls` (one per other PE), then `xconnect vfi CCTV` on the port. E1 (logical controllers from the NEON profile): `controller E1 0/2/0` → `cem-group 0 unframed` (SAToP) or `cem-group 0 timeslots 1-4` (CESoPSN) → `interface CEM0/2/0` → `cem 0` → `xconnect <peer> <vc> encapsulation mpls`. Check with `show mpls l2transport vc [detail]` (reason under the table when DOWN), `show vfi`, `show controllers E1 0/2/0`, `ping mpls pseudowire <peer> <vc>`. Labs: LB7.1 (Data Logger VPWS), LB7.2 (CCTV VPLS), LB8.1 (BPAC + control E1).
 - **QoS tab** (bottom dock): offered vs delivered rate and loss per traffic flow, and which interface is the bottleneck.
 - **Packet Inspector** (Console dock): each probe/ARP exchange as a flow; step hop by hop and see Ethernet / 802.1Q / ARP / IPv4 / ICMP headers and which table decided (MAC table, VLAN, STP, ARP cache, routing table).
 - **Realtime vs Simulation mode** (toolbar): Realtime runs commands instantly; Simulation queues events — use Step ⏭ / Play ▶ / speed and watch frames move on the canvas (yellow glow) and in the *Events* tab.

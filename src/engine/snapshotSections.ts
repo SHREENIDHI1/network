@@ -2,6 +2,7 @@ import type { EngineSections } from '../labs/framework/snapshot';
 import { analyseTraffic } from './qos/analysis';
 import type {
   BgpSessionInfo,
+  PseudowireState,
   BgpVpnv4Route,
   RouteProtocol,
   VrfDefinition,
@@ -217,7 +218,7 @@ export function engineSections(sim: Sim): EngineSections {
     .filter((x) => x.done)
     .map((x) => ({
       src: name(x.srcDeviceId),
-      fec: `${formatIpv4(x.network)}/${x.prefixLen}`,
+      fec: x.pw ? `pseudowire ${formatIpv4(x.pw.peer)} ${x.pw.vcId}` : `${formatIpv4(x.network)}/${x.prefixLen}`,
       kind: x.kind,
       codes: x.probes.map((p) => p.code).join(''),
       success: x.kind === 'ping' ? x.probes.length > 0 && x.probes.every((p) => p.code === '!') : x.probes.some((p) => p.code === '!'),
@@ -244,6 +245,16 @@ export function engineSections(sim: Sim): EngineSections {
     ibgp: p.ibgp,
     afs: [...p.afs],
   }));
+  const pwType = (t: string, vfi?: string): PseudowireState['type'] =>
+    vfi ? 'vpls' : t === 'SATOP E1' ? 'satop' : t === 'CESoPSN Basic' ? 'cesopsn' : 'vpws-eth';
+  const pseudowires: PseudowireState[] = sim.pw.endpoints.map((e) => ({
+    a: name(e.deviceId),
+    b: e.remoteDeviceId ? name(e.remoteDeviceId) : formatIpv4(e.peer),
+    vcId: e.vcId,
+    type: pwType(e.type, e.vfi),
+    status: e.status,
+    reason: e.reason,
+  }));
   const bgpVpnv4: BgpVpnv4Route[] = [];
   for (const [tk, t] of sim.bgp.tables) {
     if (!tk.endsWith('|vpnv4')) continue;
@@ -266,6 +277,7 @@ export function engineSections(sim: Sim): EngineSections {
     vrfRoutes,
     bgpVpnv4,
     bgpSessions,
+    pseudowires,
     ldpNeighbors,
     lfib,
     lspResults,
