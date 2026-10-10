@@ -120,6 +120,18 @@ export interface QosFlowInfo {
   hops?: Array<{ device: string; iface: string; exp?: number }>;
 }
 
+export interface SrSidInfo {
+  device: string;
+  prefix: string;
+  index: number;
+}
+
+export interface TiLfaInfo {
+  device: string;
+  prefix: string;
+  protected: boolean;
+}
+
 export interface NmsDeviceInfo {
   device: string;
   state: 'managed' | 'unreachable' | 'not-managed';
@@ -319,6 +331,9 @@ export interface SimSnapshot {
   readonly qosFlows?: readonly QosFlowInfo[];
   readonly teTunnels?: readonly TeTunnelInfo[];
   readonly nmsDevices?: readonly NmsDeviceInfo[];
+  readonly srSids?: readonly SrSidInfo[];
+  readonly srRouters?: readonly string[];
+  readonly tiLfa?: readonly TiLfaInfo[];
   readonly nmsAlarms?: readonly NmsAlarmInfo[];
   /** Running-config text of routers and switches (automation / compliance checks). */
   readonly runningConfigs?: ReadonlyArray<{ device: string; text: string }>;
@@ -443,5 +458,7 @@ export interface Lab {
   breakFix?: BreakFix;
   /** Several faults in sequence (capstone fault tickets); used instead of breakFix. */
   tickets?: BreakFix[];
+  /** Draw only this many tickets per run, in an order fixed by the run's seed (the rest stay in the catalog). */
+  ticketDraw?: number;
   solution?: LabSolution;
 }

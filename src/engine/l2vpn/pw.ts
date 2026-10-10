@@ -3,7 +3,7 @@ import type { NetConfig } from '../config/netConfig';
 import type { L3Interface } from '../ip/interfaces';
 import { formatIpv4, parseIpv4 } from '../ip/ipv4';
 import { resolve, type Route } from '../ip/routing';
-import { prefixKey, type LdpResult } from '../mpls/ldp';
+import { prefixKey, type LdpResult, type LfibEntry } from '../mpls/ldp';
 import { outLabel, type TeLsp } from '../te/te';
 
 /**
@@ -79,6 +79,9 @@ export function computePseudowires(
   routes: Map<string, Route[]>,
   ldp: LdpResult,
   teHead: (deviceId: string, iface: string) => TeLsp | undefined = () => undefined,
+  /** Imposition entry for a prefix (LDP, else SR); defaults to the LDP table. */
+  ftnOf: (deviceId: string, network: number, prefixLen: number, nextHop: number) => LfibEntry | undefined = (d, n, l, nh) =>
+    ldp.byFec.get(`${d}|${prefixKey(n, l)}`)?.find((x) => x.nextHop === nh) ?? ldp.byFec.get(`${d}|${prefixKey(n, l)}`)?.[0],
 ): PwResult {
   const res = emptyPw();
   const name = (id: string) => topo.devices.find((d) => d.id === id)?.name ?? id;
@@ -234,9 +237,7 @@ export function computePseudowires(
       e.reason = undefined;
       continue;
     }
-    const ftn =
-      ldp.byFec.get(`${e.deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)?.find((x) => x.nextHop === g.nextHop) ??
-      ldp.byFec.get(`${e.deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)?.[0];
+    const ftn = ftnOf(e.deviceId, g.route.network, g.route.prefixLen, g.nextHop);
     const direct = g.route.protocol === 'C' || ftn?.out === 'pop';
     if (!direct && (!ftn || typeof ftn.out !== 'number')) {
       fail(`no LSP to ${formatIpv4(e.peer)} (no LDP label for ${formatIpv4(g.route.network)}/${g.route.prefixLen})`);

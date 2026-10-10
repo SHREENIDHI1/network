@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { newSeed, pickSeeded } from '../labs/framework/tickets';
 import type { BreakFix, Lab } from '../labs/framework/types';
 import { recordLab } from '../lessons/progress';
 import { useProgress } from './progressStore';
@@ -26,8 +27,10 @@ interface LabState {
   ticket: number;
   quizScore: number | null;
   loading: boolean;
+  /** Seed of the capstone ticket draw (shown so a run can be replayed). */
+  seed: number;
 
-  start: (lab: Lab) => Promise<void>;
+  start: (lab: Lab, seed?: number) => Promise<void>;
   exit: () => void;
   revealHint: (taskId: string) => void;
   startBreakFix: () => void;
@@ -46,8 +49,9 @@ export const useLabStore = create<LabState>((set, get) => ({
   ticket: 0,
   quizScore: null,
   loading: false,
+  seed: 1,
 
-  start: async (lab) => {
+  start: async (lab, seed) => {
     const entry = getTopologyEntry(lab.topologyId);
     if (!entry) return;
     set({ loading: true });
@@ -61,6 +65,7 @@ export const useLabStore = create<LabState>((set, get) => ({
         breakFix: 'idle',
         ticket: 0,
         quizScore: null,
+        seed: seed ?? newSeed(),
       });
       record(lab.id, { completed: false, score: 0, newAttempt: true });
     } finally {
@@ -74,7 +79,7 @@ export const useLabStore = create<LabState>((set, get) => ({
 
   startBreakFix: () => {
     const lab = get().lab;
-    const challenge = lab ? challenges(lab)[get().ticket] : undefined;
+    const challenge = lab ? challenges(lab, get().seed)[get().ticket] : undefined;
     if (!challenge) return;
     const ts = useTopologyStore.getState();
     ts.loadTopology(challenge.apply(ts.topology));
@@ -87,7 +92,7 @@ export const useLabStore = create<LabState>((set, get) => ({
     const lab = get().lab;
     if (!lab || get().breakFix !== 'active') return;
     const next = get().ticket + 1;
-    const all = next >= challenges(lab).length;
+    const all = next >= challenges(lab, get().seed).length;
     set({ breakFix: all ? 'done' : 'idle', ticket: next });
     if (all) record(lab.id, { completed: true, score: 0, breakFixDone: true });
   },
@@ -108,9 +113,15 @@ export const useLabStore = create<LabState>((set, get) => ({
   },
 }));
 
-/** Break-fix challenges of a lab: capstone tickets, or the single break-fix. */
-export function challenges(lab: Lab): BreakFix[] {
+/** Break-fix challenges of a lab: capstone tickets (a seeded draw when the lab sets ticketDraw), or the single break-fix. Without a seed: the whole catalog. */
+export function challenges(lab: Lab, seed?: number): BreakFix[] {
+  if (lab.tickets && lab.ticketDraw && seed !== undefined) return pickSeeded(lab.tickets, lab.ticketDraw, seed);
   return lab.tickets ?? (lab.breakFix ? [lab.breakFix] : []);
+}
+
+/** Number of challenges a run of this lab has. */
+export function challengeCount(lab: Lab): number {
+  return lab.tickets && lab.ticketDraw ? Math.min(lab.ticketDraw, lab.tickets.length) : challenges(lab).length;
 }
 
 /** Score = points of passed tasks − hint cost, + points per solved challenge, + quiz points. */
@@ -127,5 +138,5 @@ export function labScore(
 }
 
 export function maxLabScore(lab: Lab): number {
-  return lab.tasks.reduce((a, t) => a + t.points, 0) + challenges(lab).length * BREAKFIX_POINTS + lab.quiz.length * QUIZ_POINTS_EACH;
+  return lab.tasks.reduce((a, t) => a + t.points, 0) + challengeCount(lab) * BREAKFIX_POINTS + lab.quiz.length * QUIZ_POINTS_EACH;
 }

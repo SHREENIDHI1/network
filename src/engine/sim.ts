@@ -4,6 +4,7 @@ import { EventQueue } from './core/eventQueue';
 import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet, type MplsLabel } from './core/types';
 import { classify } from './qos/analysis';
 import { computeNms, type NmsView } from './nms/nms';
+import { computeSr, emptySr, type SrEntry, type SrResult } from './sr/sr';
 import { computeTe, emptyTe, outLabel, type TeLsp, type TeMemory, type TeResult } from './te/te';
 import { computePseudowires, emptyPw, type PwEndpoint, type PwResult } from './l2vpn/pw';
 import { computeBgp, emptyBgp, type BgpResult } from './bgp/bgp';
@@ -358,6 +359,7 @@ export class Sim {
   bgp: BgpResult = emptyBgp();
   pw: PwResult = emptyPw();
   te: TeResult = emptyTe();
+  sr: SrResult = emptySr();
   /** RSVP-TE path memory: LSPs keep their path (or FRR backup) until re-optimised. */
   readonly teMemory: TeMemory = new Map();
   /** VPLS MAC tables: "deviceId|vfi" → MAC → attachment interface or pseudowire peer. */
@@ -538,8 +540,19 @@ export class Sim {
     // Autoroute announce: destinations reached through a tunnel's tail use the tunnel.
     this.applyAutoroute();
 
+    // Segment Routing (OSPF prefix SIDs) on the final global tables.
+    this.sr = computeSr(this.topology, this.configs, l3g, this.routes, this.ospf);
+
     // Pseudowires (VPWS, VPLS, CEM) over the LDP LSPs (or a TE tunnel).
-    this.pw = computePseudowires(this.topology, this.configs, this.l3, this.routes, this.ldp, (dev, tunnel) => this.teHead(dev, tunnel));
+    this.pw = computePseudowires(
+      this.topology,
+      this.configs,
+      this.l3,
+      this.routes,
+      this.ldp,
+      (dev, tunnel) => this.teHead(dev, tunnel),
+      (dev, n, l, nh) => this.ftn(dev, n, l, nh),
+    );
     for (const [k, t] of this.vfiMacs)
       for (const [mac, e] of t) {
         const dev = k.split('|')[0];
@@ -1722,7 +1735,7 @@ export class Sim {
     const pkt = frame.payload as Ipv4Packet;
     const flowId = frame.flowId;
     const labels = stack.map((l) => ({ label: l.label, exp: l.tc }));
-    if (!this.ldp.routers.get(deviceId)?.mplsIfaces.includes(iface.name)) {
+    if (!this.ldp.routers.get(deviceId)?.mplsIfaces.includes(iface.name) && !this.sr.mplsIfaces.has(`${deviceId}|${iface.name}`)) {
       this.trace(
         flowId,
         {
@@ -1754,6 +1767,11 @@ export class Sim {
       );
       const ipTtl = propagate ? Math.min(pkt.ttl, top.ttl) : pkt.ttl;
       this.l3Input(deviceId, iface, { ...frame, mpls: rest.length ? rest : undefined, payload: { ...pkt, ttl: ipTtl } }, iface.port ?? 'cpu');
+      return;
+    }
+    const srEntry = this.sr.byInLabel.get(`${deviceId}|${top.label}`);
+    if (srEntry && !this.ldp.byInLabel.has(`${deviceId}|${top.label}`)) {
+      this.srForward(deviceId, iface, frame, srEntry, ttl);
       return;
     }
     const teEntry = this.te.byInLabel.get(`${deviceId}|${top.label}`);
@@ -2051,7 +2069,7 @@ export class Sim {
     const id = this.nextSession++;
     const s: LspSession = { id, kind, srcDeviceId, network, prefixLen, probes: [], done: false, ...o };
     this.lspSessions.set(id, s);
-    if (!this.ldp.routers.has(srcDeviceId)) {
+    if (!this.ldp.routers.has(srcDeviceId) && !this.sr.routers.has(srcDeviceId)) {
       s.error = '% MPLS is not enabled on this device.';
       s.done = true;
     } else this.queue.push(this.now, { type: 'lsp-send', sessionId: id });
@@ -2064,7 +2082,6 @@ export class Sim {
     if (!s || s.done) return;
     const index = s.probes.length;
     const ttl = s.kind === 'trace' ? index + 1 : 255;
-    const fec = prefixKey(s.network, s.prefixLen);
     const fecText = `${formatIpv4(s.network)}/${s.prefixLen}`;
     const flowId = this.newFlow(
       `LSP ${s.kind === 'ping' ? 'ping' : 'trace'} ${this.name(s.srcDeviceId)} → ${fecText} #${index + 1}${s.kind === 'trace' ? ` (TTL ${ttl})` : ''}`,
@@ -2075,7 +2092,7 @@ export class Sim {
       this.pwLspSend(s, probe);
       return;
     }
-    const ftn = this.ldp.byFec.get(`${s.srcDeviceId}|${fec}`)?.[0];
+    const ftn = this.ftn(s.srcDeviceId, s.network, s.prefixLen);
     s.ingress ??= ftn ? { iface: ftn.iface, nextHop: ftn.nextHop, out: ftn.out } : undefined;
     const out = ftn ? this.interfaces(s.srcDeviceId).find((i) => i.name === ftn.iface && i.up && i.ip !== undefined) : undefined;
     if (!ftn || ftn.out === 'none' || !out) {
@@ -3034,9 +3051,7 @@ export class Sim {
     const fecRoute = !o.vrf && r.route.protocol === 'B' && r.route.nextHop !== undefined ? (lookup(table, r.route.nextHop) ?? r.route) : r.route;
     const ftn = o.vrf
       ? undefined
-      : this.ldp.byFec
-          .get(`${deviceId}|${prefixKey(fecRoute.network, fecRoute.prefixLen)}`)
-          ?.find((e) => e.nextHop === r.nextHop && e.iface === iface.name);
+      : this.ftn(deviceId, fecRoute.network, fecRoute.prefixLen, r.nextHop, iface.name);
     let mpls: MplsLabel[] | undefined;
     if (ftn && typeof ftn.out === 'number') {
       const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
@@ -3086,9 +3101,7 @@ export class Sim {
       });
       return;
     }
-    const ftn = this.ldp.byFec
-      .get(`${deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)
-      ?.find((e) => e.nextHop === g.nextHop && e.iface === iface.name);
+    const ftn = this.ftn(deviceId, g.route.network, g.route.prefixLen, g.nextHop, iface.name);
     const directPe = g.route.protocol === 'C' || ftn?.out === 'pop';
     if (!directPe && (!ftn || typeof ftn.out !== 'number')) {
       this.trace(flowId, {
@@ -3237,6 +3250,80 @@ export class Sim {
         ),
       );
     }
+  }
+
+  // ---------------------------------------------------- Segment Routing --
+
+  /**
+   * Imposition entry for a prefix: the LDP binding (preferred, IOS default) or else the SR prefix SID.
+   * Shaped like an LDP FTN so every caller can treat both the same way.
+   */
+  ftn(deviceId: string, network: number, prefixLen: number, nextHop?: number, iface?: string): LfibEntry | undefined {
+    const key = `${deviceId}|${prefixKey(network, prefixLen)}`;
+    const ldp = this.ldp.byFec.get(key);
+    const l = (nextHop !== undefined ? ldp?.find((e) => e.nextHop === nextHop && (!iface || e.iface === iface)) : undefined) ?? (nextHop === undefined ? ldp?.[0] : undefined);
+    if (l && typeof l.out === 'number') return l;
+    const sr = this.sr.byFec.get(key);
+    if (sr && sr.out !== 'none' && (nextHop === undefined || sr.nextHop === nextHop))
+      return { deviceId, inLabel: null, network, prefixLen, out: sr.out, nextHop: sr.nextHop, iface: sr.iface, nextHopDeviceId: sr.nextHopDeviceId };
+    return l;
+  }
+
+  private srForward(deviceId: string, iface: L3Interface, frame: Frame, e: SrEntry, ttl: number): void {
+    const flowId = frame.flowId;
+    const stack = frame.mpls!;
+    const top = stack[0];
+    const rest = stack.slice(1);
+    const pkt = frame.payload as Ipv4Packet;
+    const fec = `${formatIpv4(e.sid.network)}/${e.sid.prefixLen}`;
+    if (ttl <= 0) {
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Label TTL expired (SR label ${top.label}, prefix SID ${fec} index ${e.sid.index}).` }, frame);
+      if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined && !frame.l2) {
+        const err: Ipv4Packet = {
+          kind: 'ipv4',
+          src: iface.ip,
+          dst: pkt.src,
+          ttl: 255,
+          dscp: 0,
+          protocol: 'icmp',
+          icmp: { type: 'time-exceeded', id: pkt.icmp.id, seq: pkt.icmp.seq, code: 'ttl-exceeded', mplsLabels: stack.map((l) => ({ label: l.label, exp: l.tc })) },
+          sizeBytes: 56,
+        };
+        if (rest.length) this.mplsInput(deviceId, iface, { ...frame, payload: err, mpls: stack.map((l) => ({ ...l, ttl: 256 })) });
+        else this.routeAndSend(deviceId, err, flowId, { originated: true });
+      } else if (pkt.udp?.app?.kind === 'mpls-echo-request') {
+        this.lspReply(deviceId, pkt, pkt.udp.app.id, pkt.udp.app.seq, 'L', `Labels: ${e.out === 'pop' ? 'implicit-null' : e.out}`, flowId);
+      }
+      return;
+    }
+    const out = this.interfaces(deviceId).find((i) => i.name === e.iface && i.up);
+    if (!out) {
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Outgoing interface ${e.iface} is down.` }, frame);
+      return;
+    }
+    const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
+    const ipTtl = propagate ? Math.min(pkt.ttl, ttl) : pkt.ttl;
+    if (typeof e.out === 'number') {
+      this.trace(
+        flowId,
+        { deviceId, iface: iface.name, action: 'forward', table: 'LFIB', detail: `SR swap: label ${top.label} → ${e.out} (prefix SID ${fec}, index ${e.sid.index}) towards ${formatIpv4(e.nextHop)} on ${e.iface}.` },
+        frame,
+      );
+      this.sendToNextHop(deviceId, out, e.nextHop, pkt, [{ ...top, label: e.out, ttl }, ...rest], flowId, false, frame.l2);
+      return;
+    }
+    if (e.out === 'pop') {
+      this.trace(
+        flowId,
+        { deviceId, iface: iface.name, action: 'forward', table: 'LFIB', detail: `SR pop: label ${top.label} removed (prefix SID ${fec}; next hop owns the prefix — PHP).` },
+        frame,
+      );
+      this.sendToNextHop(deviceId, out, e.nextHop, { ...pkt, ttl: ipTtl }, rest.length ? rest : undefined, flowId, false, frame.l2);
+      return;
+    }
+    this.trace(flowId, { deviceId, iface: iface.name, action: 'forward', table: 'LFIB', detail: `SR label ${top.label}: next hop does not run SR — label removed, routed as IP.` }, frame);
+    if (frame.l2) return;
+    this.routeAndSend(deviceId, { ...pkt, ttl: ipTtl }, flowId, { originated: false, ingress: iface });
   }
 
   // -------------------------------------------------------- pseudowires --

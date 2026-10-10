@@ -100,14 +100,17 @@ export function showLdpBindings(sim: Sim, device: Device, only?: { network: numb
 }
 
 export function showMplsForwarding(sim: Sim, device: Device, only?: number): string {
-  if (!sim.ldp.routers.has(device.id)) return NOT_RUNNING;
+  if (!sim.ldp.routers.has(device.id) && !sim.sr.routers.has(device.id)) return NOT_RUNNING;
   const L = [
     `${pad('Local', 11)}${pad('Outgoing', 11)}${pad('Prefix', 19)}${pad('Bytes Label', 14)}${pad('Outgoing', 11)}Next Hop`,
     `${pad('Label', 11)}${pad('Label', 11)}${pad('or Tunnel Id', 19)}${pad('Switched', 14)}${pad('interface', 11)}`,
   ];
-  const rows = sim.ldp.lfib
-    .filter((e) => e.deviceId === device.id && e.inLabel !== null && (only === undefined || e.network === only))
-    .sort((a, b) => a.inLabel! - b.inLabel! || a.nextHop - b.nextHop);
+  const sr = sim.sr.entries
+    .filter((e) => e.deviceId === device.id && (only === undefined || e.sid.network === only))
+    .map((e) => ({ deviceId: e.deviceId, inLabel: e.inLabel as number | null, network: e.sid.network, prefixLen: e.sid.prefixLen, out: e.out, nextHop: e.nextHop, iface: e.iface }));
+  const rows = [...sim.ldp.lfib.filter((e) => e.deviceId === device.id && e.inLabel !== null && (only === undefined || e.network === only)), ...sr].sort(
+    (a, b) => a.inLabel! - b.inLabel! || a.nextHop - b.nextHop,
+  );
   let last: number | null = null;
   for (const e of rows) {
     const out = e.out === 'pop' ? 'Pop Label' : e.out === 'none' ? 'No Label' : labelText(e.out);

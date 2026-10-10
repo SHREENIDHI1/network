@@ -733,6 +733,44 @@ export function configLacksLines(devices: string[], patterns: string[]): Check {
   };
 }
 
+/** `dev` runs Segment Routing and advertises `prefix` with SID index `index`. */
+export function srSid(dev: string, prefix: string, index: number): Check {
+  return (snap) => {
+    const sids = section(snap, 'srSids', 'mpls');
+    if (isResult(sids)) return sids;
+    if (!(snap.srRouters ?? []).includes(dev))
+      return fail(`${dev} does not run Segment Routing ("segment-routing mpls" globally and under router ospf).`);
+    const s = sids.find((x) => x.device === dev && x.prefix === prefix);
+    if (!s) return fail(`${dev} advertises no prefix SID for ${prefix} (connected-prefix-sid-map; a SID index conflict also removes it).`);
+    return s.index === index ? pass() : fail(`${dev} uses index ${s.index} for ${prefix} (plan: ${index}).`);
+  };
+}
+
+/** No LDP session on these devices (an SR-only core). */
+export function noLdp(devices: string[]): Check {
+  return (snap) => {
+    const n = section(snap, 'ldpNeighbors', 'mpls');
+    if (isResult(n)) return n;
+    const hit = n.find((x) => devices.includes(x.device));
+    return hit ? fail(`${hit.device} still has an LDP session — LDP labels are preferred over SR while LDP runs.`) : pass();
+  };
+}
+
+/** Every SR prefix that `dev` forwards has a TI-LFA repair path. */
+export function tiLfaProtected(dev: string): Check {
+  return (snap) => {
+    const t = section(snap, 'tiLfa', 'mpls');
+    if (isResult(t)) return t;
+    const mine = t.filter((x) => x.device === dev);
+    if (!mine.length)
+      return fail(
+        `${dev} computes no TI-LFA repairs ("fast-reroute per-prefix enable prefix-priority low" and "fast-reroute per-prefix ti-lfa" under router ospf).`,
+      );
+    const bad = mine.find((x) => !x.protected);
+    return bad ? fail(`${dev} has no repair path for ${bad.prefix}.`) : pass();
+  };
+}
+
 export function serviceUp(name: string): Check {
   return (snap) => {
     const sv = section(snap, 'services', 'nms');

@@ -397,6 +397,16 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
     L.push('!');
   }
   if (cfg.mpls.teTunnels) L.push('mpls traffic-eng tunnels', '!');
+  if (cfg.sr?.enabled) {
+    L.push('segment-routing mpls');
+    if (cfg.sr.srgbBase !== 16000 || cfg.sr.srgbEnd !== 23999) L.push(` global-block ${cfg.sr.srgbBase} ${cfg.sr.srgbEnd}`);
+    if (cfg.sr.prefixSids.length) {
+      L.push(' !', ' connected-prefix-sid-map', '  address-family ipv4');
+      for (const p of cfg.sr.prefixSids) L.push(`   ${p.prefix} index ${p.index} range 1`);
+      L.push('  exit-address-family', ' !');
+    }
+    L.push('!');
+  }
   for (const [n, t] of Object.entries(cfg.teTunnels)) {
     L.push(`interface ${n}`);
     if (t.description) L.push(` description ${t.description}`);
@@ -468,6 +478,9 @@ export function globalLinesAfterInterfaces(cfg: NetConfig): string[] {
     if (o.defaultOriginate !== 'off') L.push(` default-information originate${o.defaultOriginate === 'always' ? ' always' : ''}`);
     if (o.ldpSync) L.push(' mpls ldp sync');
     if (o.ldpAutoconfig) L.push(' mpls ldp autoconfig');
+    if (o.segmentRouting) L.push(' segment-routing mpls');
+    if (o.frrPerPrefix) L.push(' fast-reroute per-prefix enable prefix-priority low');
+    if (o.tiLfa) L.push(' fast-reroute per-prefix ti-lfa');
     if (o.teRouterId) L.push(` mpls traffic-eng router-id ${longIfName(o.teRouterId)}`);
     for (const a of o.teAreas ?? []) L.push(` mpls traffic-eng area ${a}`);
     L.push('!');

@@ -26,6 +26,7 @@ import { mplsCmds } from './iosMpls';
 import { bgpCmds } from './iosBgp';
 import { l2vpnCmds } from './iosL2vpn';
 import { teCmds } from './iosTe';
+import { srCmds } from './iosSr';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -63,7 +64,10 @@ export type CliMode =
   | 'config-cem-if'
   | 'config-if-cem'
   | 'config-tunnel'
-  | 'config-expl-path';
+  | 'config-expl-path'
+  | 'config-srmpls'
+  | 'config-srmpls-conn'
+  | 'config-srmpls-conn-af';
 
 export interface CliSession {
   deviceId: string;
@@ -161,6 +165,9 @@ export const ANYCONF: CliMode[] = [
   'config-if-cem',
   'config-tunnel',
   'config-expl-path',
+  'config-srmpls',
+  'config-srmpls-conn',
+  'config-srmpls-conn-af',
 ];
 
 const INVALID = "% Invalid input detected at '^' marker.";
@@ -408,7 +415,11 @@ const CMDS: Cmd[] = [
               ? x.setMode('config-router-bgp')
               : x.session.mode === 'config-if-cem'
                 ? x.setMode('config-cem-if', { ctxName: x.session.ctxName })
-                : x.setMode('config'),
+                : x.session.mode === 'config-srmpls-conn-af'
+                  ? x.setMode('config-srmpls-conn')
+                  : x.session.mode === 'config-srmpls-conn'
+                    ? x.setMode('config-srmpls')
+                    : x.setMode('config'),
   },
   {
     modes: CONF,
@@ -867,7 +878,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds(), ...l2vpnCmds(), ...teCmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds(), ...l2vpnCmds(), ...teCmds(), ...srCmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -1154,6 +1165,12 @@ export function prompt(session: CliSession, topology: Topology): string {
       return `${name}(config-if)#`;
     case 'config-expl-path':
       return `${name}(cfg-ip-expl-path)#`;
+    case 'config-srmpls':
+      return `${name}(config-srmpls)#`;
+    case 'config-srmpls-conn':
+      return `${name}(config-srmpls-conn)#`;
+    case 'config-srmpls-conn-af':
+      return `${name}(config-srmpls-conn-af)#`;
   }
 }
 

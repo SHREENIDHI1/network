@@ -162,6 +162,11 @@ const ospfSchema = z.object({
   /** "mpls traffic-eng router-id IF" and "mpls traffic-eng area N": OSPF floods TE information. */
   teRouterId: z.string().optional(),
   teAreas: z.array(z.number().int().min(0)).optional(),
+  /** "segment-routing mpls" under router ospf: advertise and use prefix SIDs. */
+  segmentRouting: z.boolean().optional(),
+  /** "fast-reroute per-prefix enable prefix-priority low" + "fast-reroute per-prefix ti-lfa". */
+  frrPerPrefix: z.boolean().optional(),
+  tiLfa: z.boolean().optional(),
   routerId: dotted.optional(),
   networks: z.array(z.object({ address: dotted, wildcard: dotted, area: z.number().int().min(0) })).default([]),
   passive: z.array(z.string()).default([]),
@@ -372,6 +377,15 @@ const baseConfigSchema = z.object({
   vfis: z.record(vfiSchema).default({}),
   e1Controllers: z.record(e1ControllerSchema).default({}),
   explicitPaths: z.record(explicitPathSchema).default({}),
+  /** "segment-routing mpls": SRGB and connected-prefix-sid-map entries. */
+  sr: z
+    .object({
+      enabled: z.boolean().default(false),
+      srgbBase: z.number().int().min(16).max(1048575).default(16000),
+      srgbEnd: z.number().int().min(16).max(1048575).default(23999),
+      prefixSids: z.array(z.object({ prefix: z.string(), index: z.number().int().min(0).max(1048575) })).default([]),
+    })
+    .optional(),
   /** NMS server settings (device kind "nms"): SNMP polling community and monitored railway services. */
   nms: z
     .object({

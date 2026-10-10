@@ -15,7 +15,7 @@ export default function LabPanel({ lab }: { lab: Lab }) {
   const sim = useSimStore((s) => s.sim);
   const version = useSimStore((s) => s.version);
   const topology = useTopologyStore((s) => s.topology);
-  const { hints, breakFix, ticket, quizScore } = useLabStore();
+  const { hints, breakFix, ticket, quizScore, seed } = useLabStore();
   const openLesson = useAppMode((s) => s.openLesson);
 
   // Live checks: recomputed whenever the engine or the topology changes.
@@ -23,7 +23,7 @@ export default function LabPanel({ lab }: { lab: Lab }) {
   const results = useMemo(() => lab.tasks.map((t) => ({ task: t, r: t.check(snap) })), [lab, snap]);
   const passed = useMemo(() => new Set(results.filter((x) => x.r.pass).map((x) => x.task.id)), [results]);
   const allDone = passed.size === lab.tasks.length;
-  const list = challenges(lab);
+  const list = challenges(lab, seed);
   const multi = list.length > 1;
   const current = list[ticket];
   const bf = current && breakFix === 'active' ? current.check(snap) : undefined;
@@ -158,6 +158,27 @@ export default function LabPanel({ lab }: { lab: Lab }) {
               <Siren className="h-4 w-4" /> {multi ? `Fault tickets ${Math.min(ticket, list.length)}/${list.length}` : 'Break-fix challenge'} (+
               {BREAKFIX_POINTS} pts{multi ? ' each' : ''})
             </h3>
+            {lab.ticketDraw && lab.tickets && (
+              <p className="mb-1 text-[11px] text-slate-400">
+                Ticket set: seed <span className="font-mono text-slate-200">{seed}</span> ({list.length} of {lab.tickets.length} in the catalog)
+                {ticket === 0 && breakFix === 'idle' && (
+                  <>
+                    {' · '}
+                    <button
+                      type="button"
+                      className="underline hover:text-slate-200"
+                      onClick={() => {
+                        const v = window.prompt('Replay a ticket set: enter its seed (1–99999)', String(seed));
+                        const n = v ? Number(v) : NaN;
+                        if (Number.isInteger(n) && n >= 1 && n <= 99999) useLabStore.setState({ seed: n });
+                      }}
+                    >
+                      use another seed
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
             {breakFix === 'idle' && current && (
               <>
                 <p className="text-xs text-slate-300">

@@ -18,6 +18,8 @@ import type {
   QosFlowInfo,
   TeTunnelInfo,
   NmsDeviceInfo,
+  SrSidInfo,
+  TiLfaInfo,
   NmsAlarmInfo,
   ServiceState,
   EtherChannelInfo,
@@ -196,6 +198,9 @@ export function engineSections(sim: Sim): EngineSections {
     lossPct: f.lossPct,
     hops: f.hops.map((h) => ({ device: name(h.deviceId), iface: h.iface, exp: h.exp })),
   }));
+  const srSids: SrSidInfo[] = sim.sr.sids.map((x) => ({ device: name(x.owner), prefix: `${formatIpv4(x.network)}/${x.prefixLen}`, index: x.index }));
+  const srRouters = [...sim.sr.routers.keys()].map(name);
+  const tiLfa: TiLfaInfo[] = sim.sr.tiLfa.map((x) => ({ device: name(x.deviceId), prefix: x.prefix, protected: x.path.length > 0 }));
   const nv = sim.nmsView();
   const nmsDevices: NmsDeviceInfo[] = nv.devices.map((d) => ({ device: name(d.deviceId), state: d.state }));
   const nmsAlarms: NmsAlarmInfo[] = nv.alarms.map((a) => ({ device: name(a.deviceId), object: a.object, type: a.type, severity: a.severity, layer: a.layer }));
@@ -327,6 +332,9 @@ export function engineSections(sim: Sim): EngineSections {
     qosFlows,
     teTunnels,
     nmsDevices,
+    srSids,
+    srRouters,
+    tiLfa,
     nmsAlarms,
     services,
     runningConfigs,
