@@ -2,6 +2,7 @@ import type { Device, Topology } from '../model/types';
 import { effectivePort, getNetConfig, isBridgeRole, longIfName, roleOf, type DeviceRole, type NetConfig } from './config/netConfig';
 import { EventQueue } from './core/eventQueue';
 import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet, type MplsLabel } from './core/types';
+import { computeBgp, emptyBgp, type BgpResult } from './bgp/bgp';
 import { computeLdp, emptyLdp, ldpSyncHolddown, OSPF_MAX_METRIC, prefixKey, type LdpResult, type LfibEntry } from './mpls/ldp';
 import { computeSegments, type Segment } from './ethernet/segments';
 import { computeStp, type StpState } from './ethernet/stp';
@@ -15,7 +16,7 @@ import type { AppMessage, DhcpMessage } from './core/types';
 import { broadcastOf, maskToPrefix, networkOf, parseIpv4, prefixToMask } from './ip/ipv4';
 import { deriveL3Interfaces, portCarriesVlan, vlanExists, type L3Interface } from './ip/interfaces';
 import { formatIpv4, inSubnet } from './ip/ipv4';
-import { buildRoutingTable, resolve, routesPackets, type Route } from './ip/routing';
+import { buildRoutingTable, lookup, resolve, routesPackets, type Route } from './ip/routing';
 import { computePhysical, portKey, type PhysicalState } from './physical/linkState';
 
 /**
@@ -82,6 +83,8 @@ export interface ProbeSession {
   done: boolean;
   /** Why the session could not start (e.g. no IP address). */
   error?: string;
+  /** "ping vrf NAME" / "traceroute vrf NAME". */
+  vrf?: string;
 }
 
 export interface FrameView {
@@ -344,6 +347,9 @@ export class Sim {
   };
 
   ldp: LdpResult = emptyLdp();
+  bgp: BgpResult = emptyBgp();
+  /** Per device: VRF name → routing table. */
+  readonly vrfRoutes = new Map<string, Map<string, Route[]>>();
   /** Interfaces whose OSPF cost is held at max by "mpls ldp sync" (no LDP session yet). */
   ldpSyncHeld: Array<{ deviceId: string; iface: string }> = [];
   readonly lspSessions = new Map<number, LspSession>();
@@ -452,9 +458,11 @@ export class Sim {
     this.segments = computeSegments(this.topology, this.configs, this.phys, this.stp, this.l3);
     const base = new Map<string, Route[]>();
     for (const d of this.topology.devices) base.set(d.id, buildRoutingTable(d.kind, this.configs.get(d.id)!, this.l3.get(d.id)!));
-    this.ospf = computeOspf(this.topology, this.configs, this.l3, this.phys, this.segments, base);
-    this.isis = computeIsis(this.topology, this.configs, this.l3, this.segments);
-    this.rip = computeRip(this.topology, this.configs, this.l3, this.segments);
+    // The IGPs and LDP run in the global table only: VRF interfaces belong to their VRF.
+    const l3g = new Map([...this.l3].map(([id, ifs]) => [id, ifs.filter((i) => !i.vrf)]));
+    this.ospf = computeOspf(this.topology, this.configs, l3g, this.phys, this.segments, base);
+    this.isis = computeIsis(this.topology, this.configs, l3g, this.segments);
+    this.rip = computeRip(this.topology, this.configs, l3g, this.segments);
     const buildTables = () => {
       for (const d of this.topology.devices) {
         const dynamic = [...(this.ospf.routes.get(d.id) ?? []), ...(this.isis.routes.get(d.id) ?? []), ...(this.rip.routes.get(d.id) ?? [])];
@@ -465,7 +473,7 @@ export class Sim {
 
     // MPLS / LDP on top of the IGP. "mpls ldp sync": a link whose LDP session is not up is
     // advertised with max OSPF cost, so traffic avoids it until labels are exchanged.
-    this.ldp = computeLdp(this.topology, this.configs, this.l3, this.segments, this.routes, this.ospf);
+    this.ldp = computeLdp(this.topology, this.configs, l3g, this.segments, this.routes, this.ospf);
     this.ldpSyncHeld = ldpSyncHolddown(this.ldp, this.configs);
     if (this.ldpSyncHeld.length) {
       const held = new Map(this.configs);
@@ -474,9 +482,38 @@ export class Sim {
         c.interfaces[h.iface] = { ...(c.interfaces[h.iface] ?? {}), ospfCost: OSPF_MAX_METRIC };
         held.set(h.deviceId, c);
       }
-      this.ospf = computeOspf(this.topology, held, this.l3, this.phys, this.segments, base);
+      this.ospf = computeOspf(this.topology, held, l3g, this.phys, this.segments, base);
       buildTables();
-      this.ldp = computeLdp(this.topology, this.configs, this.l3, this.segments, this.routes, this.ospf);
+      this.ldp = computeLdp(this.topology, this.configs, l3g, this.segments, this.routes, this.ospf);
+    }
+
+    // VRF tables (connected + static), then BGP / MP-BGP VPNv4 on top of the IGP tables.
+    const vrfBase = new Map<string, Map<string, Route[]>>();
+    for (const d of this.topology.devices) {
+      const cfg = this.configs.get(d.id)!;
+      const names = new Set([...Object.keys(cfg.vrfs), ...(this.l3.get(d.id) ?? []).map((i) => i.vrf).filter((v): v is string => !!v)]);
+      if (!names.size) continue;
+      vrfBase.set(d.id, new Map([...names].map((v) => [v, buildRoutingTable(d.kind, cfg, this.l3.get(d.id)!, [], v)])));
+    }
+    this.bgp = computeBgp(this.topology, this.configs, this.l3, this.routes, vrfBase);
+    this.vrfRoutes.clear();
+    for (const d of this.topology.devices) {
+      const cfg = this.configs.get(d.id)!;
+      const bgpGlobal = this.bgp.global.get(d.id);
+      if (bgpGlobal?.length) {
+        const dynamic = [
+          ...(this.ospf.routes.get(d.id) ?? []),
+          ...(this.isis.routes.get(d.id) ?? []),
+          ...(this.rip.routes.get(d.id) ?? []),
+          ...bgpGlobal,
+        ];
+        this.routes.set(d.id, buildRoutingTable(d.kind, cfg, this.l3.get(d.id)!, dynamic));
+      }
+      const vb = vrfBase.get(d.id);
+      if (!vb) continue;
+      const m = new Map<string, Route[]>();
+      for (const v of vb.keys()) m.set(v, buildRoutingTable(d.kind, cfg, this.l3.get(d.id)!, this.bgp.vrf.get(d.id)?.get(v) ?? [], v));
+      this.vrfRoutes.set(d.id, m);
     }
 
     // First-hop redundancy. A change of active router is announced by its hellos
@@ -592,8 +629,13 @@ export class Sim {
     return this.l3.get(id) ?? [];
   }
 
-  routingTable(id: string): Route[] {
-    return this.routes.get(id) ?? [];
+  routingTable(id: string, vrf?: string): Route[] {
+    return vrf ? (this.vrfRoutes.get(id)?.get(vrf) ?? []) : (this.routes.get(id) ?? []);
+  }
+
+  /** VRF names known on a device (configured or used by an interface). */
+  vrfNames(id: string): string[] {
+    return [...(this.vrfRoutes.get(id)?.keys() ?? [])];
   }
 
   macTable(id: string): MacEntry[] {
@@ -757,8 +799,9 @@ export class Sim {
   }
 
   /** Starts a ping. Returns the session id (results fill in as events run). */
-  ping(srcDeviceId: string, dst: number, opts: { count?: number; timeoutMs?: number; sizeBytes?: number } = {}): number {
+  ping(srcDeviceId: string, dst: number, opts: { count?: number; timeoutMs?: number; sizeBytes?: number; vrf?: string } = {}): number {
     return this.startSession('ping', srcDeviceId, dst, {
+      vrf: opts.vrf,
       count: opts.count ?? 5,
       timeoutMs: opts.timeoutMs ?? PING_TIMEOUT_MS,
       sizeBytes: opts.sizeBytes ?? 100,
@@ -768,8 +811,9 @@ export class Sim {
   }
 
   /** Starts an ICMP-echo based traceroute (3 probes per hop, like IOS output). */
-  traceroute(srcDeviceId: string, dst: number, opts: { maxTtl?: number; timeoutMs?: number; probesPerHop?: number } = {}): number {
+  traceroute(srcDeviceId: string, dst: number, opts: { maxTtl?: number; timeoutMs?: number; probesPerHop?: number; vrf?: string } = {}): number {
     return this.startSession('traceroute', srcDeviceId, dst, {
+      vrf: opts.vrf,
       count: 0,
       timeoutMs: opts.timeoutMs ?? TRACE_TIMEOUT_MS,
       sizeBytes: 60,
@@ -786,7 +830,7 @@ export class Sim {
     kind: ProbeSession['kind'],
     srcDeviceId: string,
     dst: number,
-    o: { count: number; timeoutMs: number; sizeBytes: number; maxTtl: number; probesPerHop: number },
+    o: { count: number; timeoutMs: number; sizeBytes: number; maxTtl: number; probesPerHop: number; vrf?: string },
   ): number {
     const id = this.nextSession++;
     const s: ProbeSession = { id, kind, srcDeviceId, dst, probes: [], done: false, ...o };
@@ -794,6 +838,9 @@ export class Sim {
     const dev = this.devices.get(srcDeviceId);
     if (!dev || roleOf(dev.kind) === 'opaque') {
       s.error = 'Device cannot originate IP traffic.';
+      s.done = true;
+    } else if (o.vrf && !this.vrfRoutes.get(srcDeviceId)?.has(o.vrf)) {
+      s.error = `% VRF ${o.vrf} does not exist on this device.`;
       s.done = true;
     } else if (!this.interfaces(srcDeviceId).some((i) => i.ip !== undefined)) {
       s.error = 'No IP address configured on this device.';
@@ -904,7 +951,7 @@ export class Sim {
     const probe: Probe = { seq: index, ttl, flowId, sentAt: this.now, outcome: 'pending' };
     s.probes.push(probe);
 
-    const egress = this.egressFor(s.srcDeviceId, s.dst);
+    const egress = this.egressFor(s.srcDeviceId, s.dst, s.vrf);
     if (!egress) {
       probe.outcome = 'no-route';
       this.trace(flowId, { deviceId: s.srcDeviceId, action: 'drop', table: 'Routing table', detail: `No route to ${formatIpv4(s.dst)}.` });
@@ -938,7 +985,7 @@ export class Sim {
       this.afterProbe(s);
       return;
     }
-    this.routeAndSend(s.srcDeviceId, pkt, flowId, { originated: true });
+    this.routeAndSend(s.srcDeviceId, pkt, flowId, { originated: true, vrf: s.vrf });
   }
 
   private afterProbe(s: ProbeSession): void {
@@ -1024,8 +1071,15 @@ export class Sim {
     return this.interfaces(deviceId).some((i) => i.up && (i.ip === ip || this.ownedVips(deviceId, i.name).some((v) => v.vip === ip)));
   }
 
-  private egressFor(deviceId: string, dst: number): { iface: L3Interface; nextHop: number; srcIp: number } | undefined {
-    const r = resolve(this.routingTable(deviceId), dst);
+  private egressFor(deviceId: string, dst: number, vrf?: string): { iface: L3Interface; nextHop: number; srcIp: number } | undefined {
+    const table = this.routingTable(deviceId, vrf);
+    const hit = lookup(table, dst);
+    if (vrf && hit?.vpnLabel !== undefined && hit.nextHop !== undefined) {
+      // VPN route: the packet leaves on a core interface, sourced from an interface of the VRF.
+      const own = this.interfaces(deviceId).find((i) => i.vrf === vrf && i.up && i.ip !== undefined);
+      return own ? { iface: own, nextHop: hit.nextHop, srcIp: own.ip! } : undefined;
+    }
+    const r = resolve(table, dst);
     if (!r) return undefined;
     const iface = this.interfaces(deviceId).find((i) => i.name === r.iface);
     if (!iface?.up || iface.ip === undefined) return undefined;
@@ -1583,7 +1637,7 @@ export class Sim {
       if (pkt.tcp) this.localTcp(deviceId, iface, pkt, frame.flowId);
       else if (pkt.udp?.app) this.localApp(deviceId, iface, pkt, frame.flowId);
       else if (pkt.udp) this.localUdp(deviceId, iface, pkt, frame.flowId);
-      else this.localIcmp(deviceId, pkt, frame.flowId);
+      else this.localIcmp(deviceId, pkt, frame.flowId, iface.vrf);
       return;
     }
 
@@ -1603,11 +1657,11 @@ export class Sim {
         frame,
       );
       if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined)
-        this.sendIcmpError(deviceId, iface.ip, pkt, 'time-exceeded', 'ttl-exceeded', frame.flowId);
+        this.sendIcmpError(deviceId, iface.ip, pkt, 'time-exceeded', 'ttl-exceeded', frame.flowId, iface.vrf);
       return;
     }
     const fwd: Ipv4Packet = { ...pkt, ttl: pkt.ttl - 1 };
-    this.routeAndSend(deviceId, fwd, frame.flowId, { originated: false, ingress: iface });
+    this.routeAndSend(deviceId, fwd, frame.flowId, { originated: false, ingress: iface, vrf: iface.vrf });
   }
 
   // --------------------------------------------------------------- MPLS --
@@ -1654,6 +1708,48 @@ export class Sim {
       return;
     }
     const entry = this.ldp.byInLabel.get(`${deviceId}|${top.label}`);
+    const vpnEntry = entry ? undefined : this.bgp.vpnLabels.get(`${deviceId}|${top.label}`);
+    if (vpnEntry) {
+      // VPN label (bottom of stack at the egress PE): pop it and route the IP packet in its VRF.
+      const fecText = `${formatIpv4(vpnEntry.network)}/${vpnEntry.prefixLen}`;
+      if (ttl <= 0) {
+        this.trace(
+          flowId,
+          { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `VPN label TTL expired (label ${top.label}, VRF ${vpnEntry.vrf}).` },
+          frame,
+        );
+        const own = this.interfaces(deviceId).find((i) => i.vrf === vpnEntry.vrf && i.up && i.ip !== undefined);
+        if (pkt.icmp?.type === 'echo-request' && own)
+          this.sendIcmpError(deviceId, own.ip!, pkt, 'time-exceeded', 'ttl-exceeded', flowId, vpnEntry.vrf);
+        return;
+      }
+      this.trace(
+        flowId,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'forward',
+          table: 'LFIB',
+          detail: `VPN label ${top.label}: pop — VRF ${vpnEntry.vrf} (BGP VPNv4 prefix ${fecText}); IP lookup in the VRF table.`,
+        },
+        frame,
+      );
+      const ipTtl = propagate ? Math.min(pkt.ttl, ttl) : pkt.ttl;
+      const vrfIf = this.interfaces(deviceId).find((i) => i.vrf === vpnEntry.vrf && i.up && i.ip === pkt.dst);
+      if (vrfIf) {
+        this.trace(flowId, {
+          deviceId,
+          iface: vrfIf.name,
+          action: 'deliver',
+          table: 'Host stack',
+          detail: `Packet for ${formatIpv4(pkt.dst)} is for this device (VRF ${vpnEntry.vrf}).`,
+        });
+        if (pkt.icmp) this.localIcmp(deviceId, pkt, flowId, vpnEntry.vrf);
+        return;
+      }
+      this.routeAndSend(deviceId, { ...pkt, ttl: ipTtl }, flowId, { originated: false, ingress: iface, vrf: vpnEntry.vrf });
+      return;
+    }
     if (!entry) {
       this.trace(
         flowId,
@@ -1676,6 +1772,27 @@ export class Sim {
         const code = entry.out === 'none' ? 'B' : 'L';
         const info = entry.out === 'none' ? 'no label towards next hop' : `Labels: ${entry.out === 'pop' ? 'implicit-null' : entry.out}`;
         this.lspReply(deviceId, pkt, app.id, app.seq, code, info, flowId);
+      } else if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined && stack.length > 1) {
+        // VPN packet: this LSR has no route back to the customer, so the time-exceeded message
+        // continues along the LSP to the egress PE, which routes it back in the VRF (RFC 3032 §2.3.2).
+        const err: Ipv4Packet = {
+          kind: 'ipv4',
+          src: iface.ip,
+          dst: pkt.src,
+          ttl: 255,
+          dscp: 0,
+          protocol: 'icmp',
+          icmp: { type: 'time-exceeded', id: pkt.icmp.id, seq: pkt.icmp.seq, code: 'ttl-exceeded', mplsLabels: labels },
+          sizeBytes: 56,
+        };
+        this.trace(flowId, {
+          deviceId,
+          iface: iface.name,
+          action: 'reply',
+          table: 'LFIB',
+          detail: 'ICMP time exceeded sent onward along the LSP (customer address unknown here).',
+        });
+        this.mplsInput(deviceId, iface, { ...frame, payload: err, mpls: stack.map((l) => ({ ...l, ttl: 256 })) });
       } else if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined) {
         // RFC 4950: the time-exceeded message quotes the label stack.
         const err: Ipv4Packet = {
@@ -2665,7 +2782,7 @@ export class Sim {
     return true;
   }
 
-  private localIcmp(deviceId: string, pkt: Ipv4Packet, flowId: number): void {
+  private localIcmp(deviceId: string, pkt: Ipv4Packet, flowId: number, vrf?: string): void {
     const icmp = pkt.icmp;
     if (!icmp) return;
     if (icmp.type === 'echo-request') {
@@ -2682,8 +2799,13 @@ export class Sim {
         icmp: { type: 'echo-reply', id: icmp.id, seq: icmp.seq },
         sizeBytes: pkt.sizeBytes,
       };
-      this.trace(flowId, { deviceId, action: 'reply', table: 'ICMP', detail: `ICMP echo reply to ${formatIpv4(pkt.src)}.` });
-      this.routeAndSend(deviceId, reply, flowId, { originated: true });
+      this.trace(flowId, {
+        deviceId,
+        action: 'reply',
+        table: 'ICMP',
+        detail: `ICMP echo reply to ${formatIpv4(pkt.src)}${vrf ? ` (VRF ${vrf})` : ''}.`,
+      });
+      this.routeAndSend(deviceId, reply, flowId, { originated: true, vrf });
       return;
     }
     const m = this.matchProbe(icmp);
@@ -2718,6 +2840,7 @@ export class Sim {
     type: 'time-exceeded' | 'dest-unreachable',
     code: string,
     flowId: number,
+    vrf?: string,
   ): void {
     const err: Ipv4Packet = {
       kind: 'ipv4',
@@ -2730,18 +2853,23 @@ export class Sim {
       icmp: { type, id: orig.icmp!.id, seq: orig.icmp!.seq, code },
       sizeBytes: 56,
     };
-    this.routeAndSend(deviceId, err, flowId, { originated: true });
+    this.routeAndSend(deviceId, err, flowId, { originated: true, vrf });
   }
 
-  private routeAndSend(deviceId: string, pktIn: Ipv4Packet, flowId: number, o: { originated: boolean; ingress?: L3Interface }): void {
+  private routeAndSend(deviceId: string, pktIn: Ipv4Packet, flowId: number, o: { originated: boolean; ingress?: L3Interface; vrf?: string }): void {
     let pkt = pktIn;
-    const table = this.routingTable(deviceId);
+    const table = this.routingTable(deviceId, o.vrf);
+    const vpn = o.vrf ? lookup(table, pkt.dst) : undefined;
+    if (vpn?.vpnLabel !== undefined) {
+      this.sendVpn(deviceId, pkt, vpn, o.vrf!, flowId, o.originated);
+      return;
+    }
     const r = resolve(table, pkt.dst);
     const iface = r ? this.interfaces(deviceId).find((i) => i.name === r.iface) : undefined;
     if (!r || !iface?.up || iface.ip === undefined) {
       this.trace(flowId, { deviceId, action: 'drop', table: 'Routing table', detail: `No route to ${formatIpv4(pkt.dst)}.` });
       if (!o.originated && pkt.icmp?.type === 'echo-request' && o.ingress?.ip !== undefined) {
-        this.sendIcmpError(deviceId, o.ingress.ip, pkt, 'dest-unreachable', 'net-unreachable', flowId);
+        this.sendIcmpError(deviceId, o.ingress.ip, pkt, 'dest-unreachable', 'net-unreachable', flowId, o.vrf);
       }
       return;
     }
@@ -2773,10 +2901,14 @@ export class Sim {
       }
     }
 
-    // MPLS imposition (FTN): push the label learned from the next hop's LSR for this prefix.
-    const ftn = this.ldp.byFec
-      .get(`${deviceId}|${prefixKey(r.route.network, r.route.prefixLen)}`)
-      ?.find((e) => e.nextHop === r.nextHop && e.iface === iface.name);
+    // MPLS imposition (FTN): push the label learned from the next hop's LSR for this prefix
+    // (for a BGP route: the label of its BGP next hop — the "BGP-free core").
+    const fecRoute = !o.vrf && r.route.protocol === 'B' && r.route.nextHop !== undefined ? (lookup(table, r.route.nextHop) ?? r.route) : r.route;
+    const ftn = o.vrf
+      ? undefined
+      : this.ldp.byFec
+          .get(`${deviceId}|${prefixKey(fecRoute.network, fecRoute.prefixLen)}`)
+          ?.find((e) => e.nextHop === r.nextHop && e.iface === iface.name);
     let mpls: MplsLabel[] | undefined;
     if (ftn && typeof ftn.out === 'number') {
       const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
@@ -2790,6 +2922,48 @@ export class Sim {
       });
     }
     this.sendToNextHop(deviceId, iface, r.nextHop, pkt, mpls, flowId, o.originated);
+  }
+
+  /** VPN route in a VRF: push VPN label + transport label to the remote PE (BGP next hop). */
+  private sendVpn(deviceId: string, pkt: Ipv4Packet, route: Route, vrf: string, flowId: number, originated: boolean): void {
+    const pe = route.nextHop!;
+    const g = resolve(this.routingTable(deviceId), pe);
+    const iface = g ? this.interfaces(deviceId).find((i) => i.name === g.iface && i.up && i.ip !== undefined) : undefined;
+    const fec = `${formatIpv4(route.network)}/${route.prefixLen}`;
+    if (!g || !iface) {
+      this.trace(flowId, {
+        deviceId,
+        action: 'drop',
+        table: 'Routing table',
+        detail: `VRF ${vrf}: ${fec} via PE ${formatIpv4(pe)}, but the PE is not reachable in the global table.`,
+      });
+      return;
+    }
+    const ftn = this.ldp.byFec
+      .get(`${deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)
+      ?.find((e) => e.nextHop === g.nextHop && e.iface === iface.name);
+    const directPe = g.route.protocol === 'C' || ftn?.out === 'pop';
+    if (!directPe && (!ftn || typeof ftn.out !== 'number')) {
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'drop',
+        table: 'LFIB',
+        detail: `VRF ${vrf}: no LDP label towards PE ${formatIpv4(pe)} — the VPN packet cannot be sent (LSP broken).`,
+      });
+      return;
+    }
+    const ttl = this.configs.get(deviceId)!.mpls.propagateTtl ? pkt.ttl : 255;
+    const tc = pkt.dscp >> 3;
+    const stack: MplsLabel[] = [...(directPe ? [] : [{ label: ftn!.out as number, tc, ttl }]), { label: route.vpnLabel!, tc, ttl }];
+    this.trace(flowId, {
+      deviceId,
+      iface: iface.name,
+      action: originated ? 'send' : 'forward',
+      table: 'LFIB',
+      detail: `VRF ${vrf}: ${fec} is a VPNv4 route via PE ${formatIpv4(pe)} — push VPN label ${route.vpnLabel}${directPe ? '' : ` and transport label ${ftn!.out}`}.`,
+    });
+    this.sendToNextHop(deviceId, iface, g.nextHop, pkt, stack, flowId, originated);
   }
 
   /** ARP resolution + transmission towards a next hop (shared by IP routing and label switching). */

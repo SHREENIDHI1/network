@@ -28,6 +28,8 @@ export interface L3Interface {
   /** Line protocol up. */
   up: boolean;
   reason?: string;
+  /** VRF this interface belongs to ("vrf forwarding"); undefined = global table. */
+  vrf?: string;
 }
 
 /** Is VLAN `vlan` carried by switchport `portId` (membership only, no STP/oper check)? */
@@ -42,12 +44,13 @@ export function vlanExists(cfg: NetConfig, vlan: number): boolean {
   return Object.prototype.hasOwnProperty.call(cfg.vlans, String(vlan));
 }
 
-function addr(ifCfg: { ip?: { address: string; mask: string } } | undefined) {
-  if (!ifCfg?.ip) return {};
+function addr(ifCfg: { ip?: { address: string; mask: string }; vrf?: string } | undefined) {
+  const vrf = ifCfg?.vrf ? { vrf: ifCfg.vrf } : {};
+  if (!ifCfg?.ip) return vrf;
   const ip = parseIpv4(ifCfg.ip.address);
   const len = maskToPrefix(ifCfg.ip.mask);
-  if (ip === null || len === null) return {};
-  return { ip, prefixLen: len, network: networkOf(ip, len) };
+  if (ip === null || len === null) return vrf;
+  return { ip, prefixLen: len, network: networkOf(ip, len), ...vrf };
 }
 
 export function deriveL3Interfaces(device: Device, cfg: NetConfig, phys: PhysicalState, stp: StpState): L3Interface[] {
@@ -95,7 +98,15 @@ export function deriveL3Interfaces(device: Device, cfg: NetConfig, phys: Physica
     }
     if (loopbackId(name) !== null && (role === 'router' || role === 'l3switch')) {
       const adminUp = !(ic.shutdown ?? false);
-      out.push({ name, kind: 'loop', mac: baseMac(device.id), adminUp, up: adminUp, reason: adminUp ? undefined : 'administratively down', ...addr(ic) });
+      out.push({
+        name,
+        kind: 'loop',
+        mac: baseMac(device.id),
+        adminUp,
+        up: adminUp,
+        reason: adminUp ? undefined : 'administratively down',
+        ...addr(ic),
+      });
       continue;
     }
     const vlan = sviVlan(name);

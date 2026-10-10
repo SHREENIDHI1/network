@@ -109,6 +109,7 @@ export function runningConfig(device: Device, cfg: NetConfig, header = 'Current 
     L.push(`interface ${longIfName(name)}`);
     if (ic?.description) L.push(` description ${ic.description}`);
     if (isSub && ic?.encapsulation) L.push(` encapsulation dot1Q ${ic.encapsulation.vlan}${ic.encapsulation.native ? ' native' : ''}`);
+    if (ic?.vrf) L.push(` vrf forwarding ${ic.vrf}`);
     if (isBridgeRole(role) && !isSvi && !isLoop) {
       if (!eff.switchport) L.push(' no switchport');
       else {
@@ -136,7 +137,7 @@ export function runningConfig(device: Device, cfg: NetConfig, header = 'Current 
   L.push(...globalLinesAfterInterfaces(cfg));
   for (const r of cfg.staticRoutes) {
     L.push(
-      `ip route ${r.prefix} ${r.mask}${r.exitInterface ? ` ${longIfName(r.exitInterface)}` : ''}${r.nextHop ? ` ${r.nextHop}` : ''}${r.distance ? ` ${r.distance}` : ''}`,
+      `ip route ${r.vrf ? `vrf ${r.vrf} ` : ''}${r.prefix} ${r.mask}${r.exitInterface ? ` ${longIfName(r.exitInterface)}` : ''}${r.nextHop ? ` ${r.nextHop}` : ''}${r.distance ? ` ${r.distance}` : ''}`,
     );
   }
   if (cfg.defaultGateway) L.push(`ip default-gateway ${cfg.defaultGateway}`);
@@ -422,9 +423,10 @@ function classfulLen(net: number): number {
   return first < 128 ? 8 : first < 192 ? 16 : 24;
 }
 
-export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: string }) => boolean): string {
+export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: string }) => boolean, vrf?: string): string {
   const cfg = sim.config(device.id)!;
-  const table = sim.routingTable(device.id).filter((r) => !only || only(r));
+  if (vrf && !sim.vrfNames(device.id).includes(vrf)) return `% Invalid input: VRF ${vrf} does not exist`;
+  const table = sim.routingTable(device.id, vrf).filter((r) => !only || only(r));
   if (!routesPackets(device.kind, cfg)) {
     const gw = table.find((r) => r.isGateway);
     return [
@@ -435,6 +437,7 @@ export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: str
     ].join('\n');
   }
   const L = [
+    ...(vrf ? [`Routing Table: ${vrf}`] : []),
     'Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP',
     '       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area',
     '       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2',

@@ -8,7 +8,7 @@ import { inSubnet, maskToPrefix, networkOf, parseIpv4 } from './ipv4';
  * routes, longest-prefix-match lookup. OSPF, IS-IS and RIP add dynamic routes.
  */
 
-export type RouteProtocol = 'C' | 'L' | 'S' | 'O' | 'O IA' | 'O E2' | 'i L1' | 'i L2' | 'R';
+export type RouteProtocol = 'C' | 'L' | 'S' | 'O' | 'O IA' | 'O E2' | 'i L1' | 'i L2' | 'R' | 'B';
 
 export interface Route {
   network: number;
@@ -23,6 +23,10 @@ export interface Route {
   isGateway?: boolean;
   /** Equal-cost paths (OSPF); forwarding uses the first. */
   paths?: Array<{ nextHop: number; iface: string }>;
+  /** VPN route in a VRF: next hop is a remote PE reached through the global table, with this VPN label. */
+  vpnLabel?: number;
+  /** BGP route attributes for "show ip route" ("[20/0] via …"). */
+  bgp?: { ibgp: boolean };
 }
 
 /** Does this device forward packets between interfaces? */
@@ -37,7 +41,10 @@ export function routesPackets(kind: DeviceKind, cfg: NetConfig): boolean {
  * Builds the routing table. `dynamic` = routes from routing protocols (OSPF);
  * for the same prefix the lowest administrative distance wins.
  */
-export function buildRoutingTable(kind: DeviceKind, cfg: NetConfig, ifs: L3Interface[], dynamic: Route[] = []): Route[] {
+export function buildRoutingTable(kind: DeviceKind, cfg: NetConfig, allIfs: L3Interface[], dynamic: Route[] = [], vrf?: string): Route[] {
+  // Each VRF (and the global table) only sees its own interfaces and static routes.
+  const ifs = allIfs.filter((i) => i.vrf === vrf);
+  const statics = cfg.staticRoutes.filter((r) => r.vrf === vrf);
   const routes: Route[] = [];
   for (const i of ifs) {
     if (!i.up || i.ip === undefined || i.prefixLen === undefined || i.network === undefined) continue;
@@ -49,7 +56,7 @@ export function buildRoutingTable(kind: DeviceKind, cfg: NetConfig, ifs: L3Inter
   if (routesPackets(kind, cfg)) {
     // Static routes: valid when the next hop resolves recursively to a connected route,
     // or when an up exit interface is given.
-    const candidates = cfg.staticRoutes
+    const candidates = statics
       .map((s) => {
         const net = parseIpv4(s.prefix);
         const len = maskToPrefix(s.mask);
@@ -60,7 +67,7 @@ export function buildRoutingTable(kind: DeviceKind, cfg: NetConfig, ifs: L3Inter
           protocol: 'S' as const,
           ad: s.distance ?? 1,
           metric: 0,
-          nextHop: s.nextHop ? parseIpv4(s.nextHop) ?? undefined : undefined,
+          nextHop: s.nextHop ? (parseIpv4(s.nextHop) ?? undefined) : undefined,
           iface: s.exitInterface,
         };
       })

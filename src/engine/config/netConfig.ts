@@ -107,6 +107,8 @@ const interfaceSchema = z.object({
   servicePolicyOut: z.string().optional(),
   /** "mpls ip": label switching + LDP link hellos on this interface. */
   mplsIp: z.boolean().optional(),
+  /** "vrf forwarding NAME": interface belongs to this VRF (removes it from the global table). */
+  vrf: z.string().optional(),
 });
 
 const ospfSchema = z.object({
@@ -207,6 +209,55 @@ const staticRouteSchema = z.object({
   nextHop: dotted.optional(),
   exitInterface: z.string().optional(),
   distance: z.number().int().min(1).max(255).optional(),
+  /** "ip route vrf NAME …": route in a VRF table instead of the global table. */
+  vrf: z.string().optional(),
+});
+
+/** "vrf definition NAME" / "ip vrf NAME". */
+const vrfSchema = z.object({
+  /** Route distinguisher, "ASN:nn" or "A.B.C.D:nn". */
+  rd: z.string().optional(),
+  importRts: z.array(z.string()).default([]),
+  exportRts: z.array(z.string()).default([]),
+  description: z.string().optional(),
+});
+
+const bgpNeighborSchema = z.object({
+  remoteAs: z.number().int().min(1).max(4294967295),
+  updateSource: z.string().optional(),
+  description: z.string().optional(),
+  ebgpMultihop: z.number().int().min(1).max(255).optional(),
+  shutdown: z.boolean().optional(),
+  /** IPv4 unicast activation; undefined = "bgp default ipv4-unicast" decides. */
+  ipv4: z.boolean().optional(),
+  /** "address-family vpnv4 / neighbor X activate". */
+  vpnv4: z.boolean().optional(),
+  nextHopSelf: z.boolean().optional(),
+  /** "neighbor X route-reflector-client" in address-family ipv4 / vpnv4. */
+  rrClient: z.boolean().optional(),
+  rrClientVpnv4: z.boolean().optional(),
+});
+
+const bgpNetworkSchema = z.object({ prefix: dotted, mask: dotted });
+
+/** "address-family ipv4 vrf NAME" under router bgp: PE–CE routing and what the VRF exports. */
+const bgpVrfSchema = z.object({
+  neighbors: z.record(z.object({ remoteAs: z.number().int().min(1).max(4294967295), activate: z.boolean().default(true) })).default({}),
+  networks: z.array(bgpNetworkSchema).default([]),
+  redistributeConnected: z.boolean().default(false),
+  redistributeStatic: z.boolean().default(false),
+});
+
+const bgpSchema = z.object({
+  asn: z.number().int().min(1).max(4294967295),
+  routerId: dotted.optional(),
+  /** "no bgp default ipv4-unicast". */
+  noDefaultIpv4: z.boolean().default(false),
+  neighbors: z.record(bgpNeighborSchema).default({}),
+  networks: z.array(bgpNetworkSchema).default([]),
+  redistributeConnected: z.boolean().default(false),
+  redistributeStatic: z.boolean().default(false),
+  vrfs: z.record(bgpVrfSchema).default({}),
 });
 
 const vtySchema = z.object({
@@ -253,6 +304,8 @@ const baseConfigSchema = z.object({
   rip: ripSchema.optional(),
   mgmt: mgmtSchema.default({}),
   mpls: mplsSchema.default({}),
+  vrfs: z.record(vrfSchema).default({}),
+  bgp: bgpSchema.optional(),
   acls: z.record(aclSchema).default({}),
   nat: natSchema.default({}),
   dhcp: dhcpSchema.default({}),
@@ -275,6 +328,10 @@ export type IsisConfig = z.infer<typeof isisSchema>;
 export type RipConfig = z.infer<typeof ripSchema>;
 export type MgmtConfig = z.infer<typeof mgmtSchema>;
 export type MplsConfig = z.infer<typeof mplsSchema>;
+export type VrfConfig = z.infer<typeof vrfSchema>;
+export type BgpConfig = z.infer<typeof bgpSchema>;
+export type BgpNeighborConfig = z.infer<typeof bgpNeighborSchema>;
+export type BgpVrfConfig = z.infer<typeof bgpVrfSchema>;
 export type AclConfig = z.infer<typeof aclSchema>;
 export type AclEntry = z.infer<typeof aclEntrySchema>;
 export type FhrpConfig = z.infer<typeof fhrpSchema>;
@@ -301,6 +358,7 @@ export function defaultNetConfig(kind: DeviceKind): NetConfig {
     traffic: [],
     mgmt: mgmtSchema.parse({}),
     mpls: mplsSchema.parse({}),
+    vrfs: {},
   };
 }
 

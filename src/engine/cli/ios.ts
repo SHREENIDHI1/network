@@ -23,6 +23,7 @@ import { phase3Cmds } from './ios3';
 import { igpCmds } from './iosIgp';
 import { mgmtCmds } from './iosMgmt';
 import { mplsCmds } from './iosMpls';
+import { bgpCmds } from './iosBgp';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -50,7 +51,11 @@ export type CliMode =
   | 'dhcp-config'
   | 'config-cmap'
   | 'config-pmap'
-  | 'config-pmap-c';
+  | 'config-pmap-c'
+  | 'config-vrf'
+  | 'config-vrf-af'
+  | 'config-router-bgp'
+  | 'config-router-af';
 
 export interface CliSession {
   deviceId: string;
@@ -63,6 +68,8 @@ export interface CliSession {
   ctxName?: string;
   /** Class being edited inside a policy-map. */
   pmapClass?: string;
+  /** BGP address family being edited: 'ipv4', 'vpnv4' or 'vrf:NAME'. */
+  bgpAf?: string;
 }
 
 export interface CliContext {
@@ -134,6 +141,10 @@ export const ANYCONF: CliMode[] = [
   'config-cmap',
   'config-pmap',
   'config-pmap-c',
+  'config-vrf',
+  'config-vrf-af',
+  'config-router-bgp',
+  'config-router-af',
 ];
 
 const INVALID = "% Invalid input detected at '^' marker.";
@@ -157,12 +168,12 @@ export function needSwitchport(x: Exec): string | undefined {
   return undefined;
 }
 
-function pingCmd(x: Exec, kind: 'ping' | 'traceroute'): string {
+export function pingCmd(x: Exec, kind: 'ping' | 'traceroute', vrf?: string): string {
   const dst = parseIpv4(String(x.args.dst));
   if (dst === null) return '% Unrecognized host or address, or protocol not running.';
   const sim = x.ctx.sim;
   const repeat = typeof x.args.repeat === 'number' ? x.args.repeat : undefined;
-  const sid = kind === 'ping' ? sim.ping(x.device.id, dst, { count: repeat }) : sim.traceroute(x.device.id, dst);
+  const sid = kind === 'ping' ? sim.ping(x.device.id, dst, { count: repeat, vrf }) : sim.traceroute(x.device.id, dst, { vrf });
   if (x.ctx.simulationMode)
     return `${kind === 'ping' ? 'Ping' : 'Traceroute'} queued (Simulation mode): press Step or Play, then read the Packet Inspector.`;
   sim.runUntilIdle();
@@ -375,7 +386,11 @@ const CMDS: Cmd[] = [
         ? x.setMode('priv')
         : x.session.mode === 'config-pmap-c'
           ? x.setMode('config-pmap', { ctxName: x.session.ctxName })
-          : x.setMode('config'),
+          : x.session.mode === 'config-vrf-af'
+            ? x.setMode('config-vrf', { ctxName: x.session.ctxName })
+            : x.session.mode === 'config-router-af'
+              ? x.setMode('config-router-bgp')
+              : x.setMode('config'),
   },
   {
     modes: CONF,
@@ -834,7 +849,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -1101,6 +1116,14 @@ export function prompt(session: CliSession, topology: Topology): string {
       return `${name}(config-pmap)#`;
     case 'config-pmap-c':
       return `${name}(config-pmap-c)#`;
+    case 'config-vrf':
+      return `${name}(config-vrf)#`;
+    case 'config-vrf-af':
+      return `${name}(config-vrf-af)#`;
+    case 'config-router-bgp':
+      return `${name}(config-router)#`;
+    case 'config-router-af':
+      return `${name}(config-router-af)#`;
   }
 }
 

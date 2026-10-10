@@ -355,6 +355,15 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
   if (m.dnsServer) L.push('ip dns server');
   if (m.sshVersion) L.push(`ip ssh version ${m.sshVersion}`);
   if (L.length) L.push('!');
+  for (const [n, v] of Object.entries(cfg.vrfs)) {
+    L.push(`vrf definition ${n}`);
+    if (v.description) L.push(` description ${v.description}`);
+    if (v.rd) L.push(` rd ${v.rd}`);
+    L.push(' !', ' address-family ipv4');
+    for (const rt of v.exportRts) L.push(`  route-target export ${rt}`);
+    for (const rt of v.importRts) L.push(`  route-target import ${rt}`);
+    L.push(' exit-address-family', '!');
+  }
   const mp = cfg.mpls;
   if (mp.ldpRouterId || mp.explicitNull || !mp.propagateTtl) {
     if (!mp.propagateTtl) L.push('no mpls ip propagate-ttl');
@@ -404,6 +413,54 @@ export function globalLinesAfterInterfaces(cfg: NetConfig): string[] {
     if (o.defaultOriginate !== 'off') L.push(` default-information originate${o.defaultOriginate === 'always' ? ' always' : ''}`);
     if (o.ldpSync) L.push(' mpls ldp sync');
     if (o.ldpAutoconfig) L.push(' mpls ldp autoconfig');
+    L.push('!');
+  }
+  const b = cfg.bgp;
+  if (b) {
+    L.push(`router bgp ${b.asn}`);
+    if (b.routerId) L.push(` bgp router-id ${b.routerId}`);
+    L.push(' bgp log-neighbor-changes');
+    if (b.noDefaultIpv4) L.push(' no bgp default ipv4-unicast');
+    for (const [ip, n] of Object.entries(b.neighbors)) {
+      L.push(` neighbor ${ip} remote-as ${n.remoteAs}`);
+      if (n.description) L.push(` neighbor ${ip} description ${n.description}`);
+      if (n.updateSource) L.push(` neighbor ${ip} update-source ${longIfName(n.updateSource)}`);
+      if (n.ebgpMultihop) L.push(` neighbor ${ip} ebgp-multihop ${n.ebgpMultihop}`);
+      if (n.shutdown) L.push(` neighbor ${ip} shutdown`);
+    }
+    const v4 = Object.entries(b.neighbors).filter(([, n]) => n.ipv4 !== undefined || n.rrClient || n.nextHopSelf);
+    if (b.networks.length || b.redistributeConnected || b.redistributeStatic || v4.length) {
+      L.push(' !', ' address-family ipv4');
+      for (const n of b.networks) L.push(`  network ${n.prefix} mask ${n.mask}`);
+      if (b.redistributeConnected) L.push('  redistribute connected');
+      if (b.redistributeStatic) L.push('  redistribute static');
+      for (const [ip, n] of v4) {
+        if (n.ipv4 ?? !b.noDefaultIpv4) L.push(`  neighbor ${ip} activate`);
+        if (n.rrClient) L.push(`  neighbor ${ip} route-reflector-client`);
+        if (n.nextHopSelf) L.push(`  neighbor ${ip} next-hop-self`);
+      }
+      L.push(' exit-address-family');
+    }
+    const vpn = Object.entries(b.neighbors).filter(([, n]) => n.vpnv4);
+    if (vpn.length) {
+      L.push(' !', ' address-family vpnv4');
+      for (const [ip, n] of vpn) {
+        L.push(`  neighbor ${ip} activate`, `  neighbor ${ip} send-community extended`);
+        if (n.rrClientVpnv4) L.push(`  neighbor ${ip} route-reflector-client`);
+      }
+      L.push(' exit-address-family');
+    }
+    for (const [v, c] of Object.entries(b.vrfs)) {
+      L.push(' !', ` address-family ipv4 vrf ${v}`);
+      for (const n of c.networks) L.push(`  network ${n.prefix} mask ${n.mask}`);
+      if (c.redistributeConnected) L.push('  redistribute connected');
+      if (c.redistributeStatic) L.push('  redistribute static');
+      for (const [ip, n] of Object.entries(c.neighbors)) {
+        L.push(`  neighbor ${ip} remote-as ${n.remoteAs}`);
+        if (n.activate) L.push(`  neighbor ${ip} activate`);
+      }
+      L.push(' exit-address-family');
+    }
     L.push('!');
   }
   const i = cfg.isis;
