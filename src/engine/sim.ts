@@ -540,7 +540,8 @@ export class Sim {
     for (const [k, t] of this.vfiMacs)
       for (const [mac, e] of t) {
         const dev = k.split('|')[0];
-        if (e.peer !== undefined && !this.pw.endpoints.some((x) => x.deviceId === dev && x.vfi && x.peer === e.peer && x.status === 'UP')) t.delete(mac);
+        if (e.peer !== undefined && !this.pw.endpoints.some((x) => x.deviceId === dev && x.vfi && x.peer === e.peer && x.status === 'UP'))
+          t.delete(mac);
         if (e.iface && !this.l3.get(dev)?.some((i) => i.name === e.iface && i.up)) t.delete(mac);
       }
 
@@ -1757,7 +1758,13 @@ export class Sim {
       if (ttl <= 0) {
         this.trace(
           flowId,
-          { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Label TTL expired (TE label ${top.label}, ${this.name(teEntry.lsp.head)} ${teEntry.lsp.tunnel}).` },
+          {
+            deviceId,
+            iface: iface.name,
+            action: 'drop',
+            table: 'LFIB',
+            detail: `Label TTL expired (TE label ${top.label}, ${this.name(teEntry.lsp.head)} ${teEntry.lsp.tunnel}).`,
+          },
           frame,
         );
         if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined && !frame.l2) {
@@ -1778,7 +1785,16 @@ export class Sim {
       }
       const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
       const ipTtl = propagate ? Math.min(pkt.ttl, ttl) : pkt.ttl;
-      this.teForward(deviceId, teEntry.lsp, teEntry.index, stack.slice(1), { ...pkt, ttl: ipTtl }, flowId, { tc: top.tc, ttl, inLabel: top.label }, frame.l2);
+      this.teForward(
+        deviceId,
+        teEntry.lsp,
+        teEntry.index,
+        stack.slice(1),
+        { ...pkt, ttl: ipTtl },
+        flowId,
+        { tc: top.tc, ttl, inLabel: top.label },
+        frame.l2,
+      );
       return;
     }
     const entry = this.ldp.byInLabel.get(`${deviceId}|${top.label}`);
@@ -1928,7 +1944,13 @@ export class Sim {
     if (frame.l2) {
       this.trace(
         flowId,
-        { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Label ${top.label} (FEC ${fec}) has no outgoing label — a pseudowire packet cannot be routed as IP; dropped.` },
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'drop',
+          table: 'LFIB',
+          detail: `Label ${top.label} (FEC ${fec}) has no outgoing label — a pseudowire packet cannot be routed as IP; dropped.`,
+        },
         frame,
       );
       return;
@@ -3192,7 +3214,10 @@ export class Sim {
       this.routes.set(
         lsp.head,
         table.map((r) =>
-          ['O', 'O IA', 'O E1', 'O E2', 'O*E2', 'O*E1', 'i L1', 'i L2', 'R'].includes(r.protocol) && r.iface !== lsp.tunnel && !/^Tunnel/.test(r.iface ?? '') && passesTail(r)
+          ['O', 'O IA', 'O E1', 'O E2', 'O*E2', 'O*E1', 'i L1', 'i L2', 'R'].includes(r.protocol) &&
+          r.iface !== lsp.tunnel &&
+          !/^Tunnel/.test(r.iface ?? '') &&
+          passesTail(r)
             ? { ...r, iface: lsp.tunnel, nextHop: lsp.destination, paths: r.paths ? [{ nextHop: lsp.destination!, iface: lsp.tunnel }] : undefined }
             : r,
         ),
@@ -3215,7 +3240,11 @@ export class Sim {
     const xc = this.configs.get(deviceId)!.interfaces[ifName]!.xconnect!;
     const li = this.interfaces(deviceId).find((i) => i.name === ifName);
     if (!li?.up) {
-      this.trace(frame.flowId, { deviceId, iface: ifName, action: 'drop', table: 'Interface', detail: `Attachment circuit ${ifName} is down.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, iface: ifName, action: 'drop', table: 'Interface', detail: `Attachment circuit ${ifName} is down.` },
+        frame,
+      );
       return;
     }
     if ('vfi' in xc) {
@@ -3246,7 +3275,12 @@ export class Sim {
     const t = e.transport!;
     const out = this.interfaces(deviceId).find((i) => i.name === t.iface && i.up && i.ip !== undefined);
     if (!out || !e.remote) {
-      this.trace(inner.flowId, { deviceId, action: 'drop', table: 'LFIB', detail: `Pseudowire to ${formatIpv4(e.peer)}: outgoing interface ${t.iface} is down.` });
+      this.trace(inner.flowId, {
+        deviceId,
+        action: 'drop',
+        table: 'LFIB',
+        detail: `Pseudowire to ${formatIpv4(e.peer)}: outgoing interface ${t.iface} is down.`,
+      });
       return;
     }
     const vc = e.remote.localLabel;
@@ -3254,7 +3288,16 @@ export class Sim {
     const l2: Frame = { ...inner, mpls: undefined, l2: undefined };
     const teLsp = t.tunnel ? this.teHead(deviceId, t.tunnel) : undefined;
     if (teLsp) {
-      this.trace(inner.flowId, { deviceId, action: 'forward', table: 'LFIB', detail: `${from}: frame carried on pseudowire VC ${e.vcId} to ${formatIpv4(e.peer)} — push VC label ${vc}; peer reached through ${t.tunnel} (TE).` }, inner);
+      this.trace(
+        inner.flowId,
+        {
+          deviceId,
+          action: 'forward',
+          table: 'LFIB',
+          detail: `${from}: frame carried on pseudowire VC ${e.vcId} to ${formatIpv4(e.peer)} — push VC label ${vc}; peer reached through ${t.tunnel} (TE).`,
+        },
+        inner,
+      );
       this.teForward(deviceId, teLsp, 0, [{ label: vc, tc: 0, ttl: 2 }], l2.payload as Ipv4Packet, inner.flowId, { tc: 0, ttl: 255 }, l2);
       return;
     }
@@ -3290,11 +3333,25 @@ export class Sim {
         this.lspReply(deviceId, pkt, app.id, app.seq, ok ? '!' : 'f', ok ? '' : 'pseudowire down', flowId);
         return;
       }
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `VC label ${e.localLabel} with no Ethernet payload — dropped.` }, frame);
+      this.trace(
+        flowId,
+        { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `VC label ${e.localLabel} with no Ethernet payload — dropped.` },
+        frame,
+      );
       return;
     }
     if (e.status !== 'UP') {
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `VC label ${e.localLabel}: pseudowire VC ${e.vcId} is DOWN here (${e.reason}).` }, frame);
+      this.trace(
+        flowId,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'drop',
+          table: 'LFIB',
+          detail: `VC label ${e.localLabel}: pseudowire VC ${e.vcId} is DOWN here (${e.reason}).`,
+        },
+        frame,
+      );
       return;
     }
     const inner = { ...frame.l2, flowId };
@@ -3339,7 +3396,12 @@ export class Sim {
       const where = known.iface ?? `pseudowire to ${formatIpv4(known.peer!)}`;
       this.trace(
         frame.flowId,
-        { deviceId, action: 'forward', table: 'MAC table', detail: `VFI ${vfi}: learned ${frame.srcMac} on ${fromText}; ${frame.dstMac} is known on ${where}.` },
+        {
+          deviceId,
+          action: 'forward',
+          table: 'MAC table',
+          detail: `VFI ${vfi}: learned ${frame.srcMac} on ${fromText}; ${frame.dstMac} is known on ${where}.`,
+        },
         frame,
       );
       if (known.iface) toAc(known.iface);
@@ -3352,7 +3414,12 @@ export class Sim {
     if (known && known.peer !== undefined && from.peer !== undefined) {
       this.trace(
         frame.flowId,
-        { deviceId, action: 'drop', table: 'MAC table', detail: `VFI ${vfi}: ${frame.dstMac} is behind another pseudowire — split horizon: never forwarded pseudowire to pseudowire.` },
+        {
+          deviceId,
+          action: 'drop',
+          table: 'MAC table',
+          detail: `VFI ${vfi}: ${frame.dstMac} is behind another pseudowire — split horizon: never forwarded pseudowire to pseudowire.`,
+        },
         frame,
       );
       return;
@@ -3404,11 +3471,18 @@ export class Sim {
       ttl: 1,
       dscp: 0,
       protocol: 'udp',
-      udp: { srcPort: 3503, dstPort: 3503, app: { kind: 'mpls-echo-request', id: s.id, seq: probe.seq, fec: `pseudowire ${formatIpv4(e.peer)} VC ${e.vcId}` } },
+      udp: {
+        srcPort: 3503,
+        dstPort: 3503,
+        app: { kind: 'mpls-echo-request', id: s.id, seq: probe.seq, fec: `pseudowire ${formatIpv4(e.peer)} VC ${e.vcId}` },
+      },
       sizeBytes: 100,
     };
     const t = e.transport!;
-    const stack: MplsLabel[] = [...(t.label !== undefined ? [{ label: t.label, tc: 0, ttl: 255 }] : []), { label: e.remote.localLabel, tc: 0, ttl: 1 }];
+    const stack: MplsLabel[] = [
+      ...(t.label !== undefined ? [{ label: t.label, tc: 0, ttl: 255 }] : []),
+      { label: e.remote.localLabel, tc: 0, ttl: 1 },
+    ];
     this.queue.push(this.now + s.timeoutMs, { type: 'lsp-timeout', sessionId: s.id, index: probe.seq });
     const teLsp = t.tunnel ? this.teHead(s.srcDeviceId, t.tunnel) : undefined;
     if (teLsp) {

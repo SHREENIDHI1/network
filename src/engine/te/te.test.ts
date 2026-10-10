@@ -61,10 +61,22 @@ class Lab {
 const C = ['enable', 'configure terminal'];
 // Link addresses: R1–R2 10.254.0.0/31, R2–R3 .2/31, R3–R4 .4/31, R4–R1 .6/31.
 const ADDR: Record<string, Array<[string, string, number?]>> = {
-  R1: [['te0/0/0', '10.254.0.0'], ['te0/0/1', '10.254.0.7', 20]],
-  R2: [['te0/0/0', '10.254.0.1'], ['te0/0/1', '10.254.0.2']],
-  R3: [['te0/0/0', '10.254.0.3'], ['te0/0/1', '10.254.0.4']],
-  R4: [['te0/0/0', '10.254.0.5'], ['te0/0/1', '10.254.0.6', 20]],
+  R1: [
+    ['te0/0/0', '10.254.0.0'],
+    ['te0/0/1', '10.254.0.7', 20],
+  ],
+  R2: [
+    ['te0/0/0', '10.254.0.1'],
+    ['te0/0/1', '10.254.0.2'],
+  ],
+  R3: [
+    ['te0/0/0', '10.254.0.3'],
+    ['te0/0/1', '10.254.0.4'],
+  ],
+  R4: [
+    ['te0/0/0', '10.254.0.5'],
+    ['te0/0/1', '10.254.0.6', 20],
+  ],
 };
 
 function build(rsvp: Record<string, string> = {}): Lab {
@@ -96,7 +108,16 @@ function build(rsvp: Record<string, string> = {}): Lab {
   return lab;
 }
 
-const tunnel = (extra: string[]) => [...C, 'interface tunnel1', 'ip unnumbered loopback0', 'tunnel mode mpls traffic-eng', 'tunnel destination 10.0.0.3', 'tunnel mpls traffic-eng autoroute announce', ...extra, 'end'];
+const tunnel = (extra: string[]) => [
+  ...C,
+  'interface tunnel1',
+  'ip unnumbered loopback0',
+  'tunnel mode mpls traffic-eng',
+  'tunnel destination 10.0.0.3',
+  'tunnel mpls traffic-eng autoroute announce',
+  ...extra,
+  'end',
+];
 const names = (lab: Lab, key: string) => {
   const [dev, tun] = key.split('|');
   const l = lab.sim.te.lsps.find((x) => x.tunnel === tun && lab.sim.device(x.head)!.name === dev)!;
@@ -222,8 +243,25 @@ describe('MPLS QoS: EXP in the core', () => {
         'mpls traffic-eng tunnels',
         'interface loopback0',
         `ip address 10.0.0.${n} 255.255.255.255`,
-        ...ifs.flatMap(([i, a, cost]) => [`interface ${i}`, `ip address ${a} 255.255.255.254`, 'no shutdown', 'mpls ip', 'mpls traffic-eng tunnels', 'ip rsvp bandwidth', ...(cost ? [`ip ospf cost ${cost}`] : [])]),
-        ...(dev === 'R1' ? ['interface gi0/3/0', 'ip address 10.10.1.1 255.255.255.0', 'no shutdown', 'interface gi0/3/1', 'ip address 10.10.2.1 255.255.255.0', 'no shutdown'] : []),
+        ...ifs.flatMap(([i, a, cost]) => [
+          `interface ${i}`,
+          `ip address ${a} 255.255.255.254`,
+          'no shutdown',
+          'mpls ip',
+          'mpls traffic-eng tunnels',
+          'ip rsvp bandwidth',
+          ...(cost ? [`ip ospf cost ${cost}`] : []),
+        ]),
+        ...(dev === 'R1'
+          ? [
+              'interface gi0/3/0',
+              'ip address 10.10.1.1 255.255.255.0',
+              'no shutdown',
+              'interface gi0/3/1',
+              'ip address 10.10.2.1 255.255.255.0',
+              'no shutdown',
+            ]
+          : []),
         ...(dev === 'R3' ? ['interface gi0/3/0', 'ip address 10.30.1.1 255.255.255.0', 'no shutdown'] : []),
         'exit',
         'router ospf 1',
@@ -247,16 +285,52 @@ describe('MPLS QoS: EXP in the core', () => {
     lab.run('R1', [...C, 'interface te0/0/0', 'speed 100', 'end']);
     lab.run('R2', [...C, 'interface te0/0/0', 'speed 100', 'end']);
     expect(flow(lab, 'voip').lossPct).toBeGreaterThan(50);
-    lab.run('R1', [...C, 'class-map match-any VOICE-IP', 'match dscp ef', 'exit', 'policy-map CORE', 'class VOICE-IP', 'priority percent 60', 'exit', 'exit', 'interface te0/0/0', 'service-policy output CORE', 'end']);
+    lab.run('R1', [
+      ...C,
+      'class-map match-any VOICE-IP',
+      'match dscp ef',
+      'exit',
+      'policy-map CORE',
+      'class VOICE-IP',
+      'priority percent 60',
+      'exit',
+      'exit',
+      'interface te0/0/0',
+      'service-policy output CORE',
+      'end',
+    ]);
     expect(flow(lab, 'voip').lossPct).toBeGreaterThan(10);
-    lab.run('R1', [...C, 'class-map match-any VOICE-EXP', 'match mpls experimental topmost 5', 'exit', 'policy-map CORE', 'no class VOICE-IP', 'class VOICE-EXP', 'priority percent 60', 'end']);
+    lab.run('R1', [
+      ...C,
+      'class-map match-any VOICE-EXP',
+      'match mpls experimental topmost 5',
+      'exit',
+      'policy-map CORE',
+      'no class VOICE-IP',
+      'class VOICE-EXP',
+      'priority percent 60',
+      'end',
+    ]);
     expect(flow(lab, 'voip').lossPct).toBeCloseTo(0);
     expect(lab.cli('R1', ['enable', 'show running-config'])).toContain('class-map match-any VOICE-EXP\n match mpls experimental topmost 5');
   });
 
   it('set mpls experimental imposition re-marks at the PE; TE tunnels steer the flow', () => {
     const lab = withHosts();
-    lab.run('R1', [...C, 'class-map match-any ALL', 'match dscp af41', 'exit', 'policy-map MARK', 'class ALL', 'set mpls experimental imposition 1', 'exit', 'exit', 'interface gi0/3/1', 'service-policy input MARK', 'end']);
+    lab.run('R1', [
+      ...C,
+      'class-map match-any ALL',
+      'match dscp af41',
+      'exit',
+      'policy-map MARK',
+      'class ALL',
+      'set mpls experimental imposition 1',
+      'exit',
+      'exit',
+      'interface gi0/3/1',
+      'service-policy input MARK',
+      'end',
+    ]);
     const c = flow(lab, 'cctv');
     expect(c.hops.find((h) => h.iface === 'Te0/0/0')?.exp).toBe(1);
     lab.run('R1', [...C, 'ip explicit-path name VIA_R4 enable', 'next-address 10.254.0.6', 'next-address 10.254.0.4', 'exit']);

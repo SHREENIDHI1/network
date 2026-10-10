@@ -48,8 +48,16 @@ export const TOPOLOGIES: readonly TopologyEntry[] = [
   { id: 'lab-b7-vpls', title: 'Lab B7: VPLS for station CCTV', load: () => import('./l2vpnLabs').then((m) => m.b7Vpls()) },
   { id: 'lab-b8-tdm', title: 'Lab B8: E1 pseudowires for BPAC and control', load: () => import('./l2vpnLabs').then((m) => m.b8Tdm()) },
   { id: 'lab-b9-qos', title: 'Lab B9: MPLS QoS on the MTD–PPR span', load: () => import('./teLabs').then((m) => m.b9Qos()) },
-  { id: 'lab-b10-te', title: 'Lab B10: TE around a busy span', load: () => import('./teLabs').then((m) => m.b10Ring({ congested: true, teOnMtd: false })) },
-  { id: 'lab-b10-frr', title: 'Lab B10: fast reroute on the ring', load: () => import('./teLabs').then((m) => m.b10Ring({ congested: false, teOnMtd: true })) },
+  {
+    id: 'lab-b10-te',
+    title: 'Lab B10: TE around a busy span',
+    load: () => import('./teLabs').then((m) => m.b10Ring({ congested: true, teOnMtd: false })),
+  },
+  {
+    id: 'lab-b10-frr',
+    title: 'Lab B10: fast reroute on the ring',
+    load: () => import('./teLabs').then((m) => m.b10Ring({ congested: false, teOnMtd: true })),
+  },
 ];
 
 export const TOPOLOGY_IDS: ReadonlySet<string> = new Set(TOPOLOGIES.map((t) => t.id));

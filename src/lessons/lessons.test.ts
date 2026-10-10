@@ -15,8 +15,8 @@ describe('curriculum', () => {
     expect(isAvailable('A0')).toBe(true);
     expect(['A4', 'A5', 'A6', 'A7', 'A8'].every(isAvailable)).toBe(true);
     expect(['B0', 'B1', 'B2', 'B3', 'B4'].every(isAvailable)).toBe(true);
-    expect(['B5', 'B6', 'B7', 'B8'].every(isAvailable)).toBe(true);
-    expect(isAvailable('B9')).toBe(false);
+    expect(['B5', 'B6', 'B7', 'B8', 'B9', 'B10'].every(isAvailable)).toBe(true);
+    expect(isAvailable('B11')).toBe(false);
   });
 
   for (const id of Object.keys(LESSON_LOADERS)) {
@@ -346,5 +346,29 @@ describe('P6 widget maths', () => {
     expect(satop.payloadKbps).toBe(2048);
     expect(satop.wireKbps).toBeCloseTo(2288);
     expect(tdmPw({ timeslots: 32, framesPerPacket: 8 })).toMatch(/TS0/);
+  });
+});
+
+describe('P7 widget maths', () => {
+  it('DSCP → EXP is IP precedence', async () => {
+    const { dscpToExp, expBits } = await import('./widgetMath7');
+    expect(dscpToExp(46)).toBe(5);
+    expect(dscpToExp(40)).toBe(5);
+    expect(dscpToExp(34)).toBe(4);
+    expect(expBits(46)).toEqual({ dscp: '101110', exp: '101' });
+    expect(dscpToExp(64)).toMatch(/0 – 63/);
+  });
+
+  it('CSPF prunes links without enough bandwidth', async () => {
+    const { cspf } = await import('./widgetMath7');
+    const ring = [
+      { a: 'MTD', b: 'PPR', cost: 10, freeMbps: 10000 },
+      { a: 'PPR', b: 'JU', cost: 10, freeMbps: 400 },
+      { a: 'MTD', b: 'DNA', cost: 10, freeMbps: 10000 },
+      { a: 'DNA', b: 'JU', cost: 50, freeMbps: 7500 },
+    ];
+    expect(cspf(ring, 'MTD', 'JU', 100)?.path).toEqual(['MTD', 'PPR', 'JU']);
+    expect(cspf(ring, 'MTD', 'JU', 1000)).toEqual({ path: ['MTD', 'DNA', 'JU'], cost: 60, pruned: ['PPR–JU'] });
+    expect(cspf(ring, 'MTD', 'JU', 20000)).toBeNull();
   });
 });

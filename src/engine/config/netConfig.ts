@@ -135,7 +135,9 @@ const teTunnelSchema = z.object({
   destination: dotted.optional(),
   /** "tunnel mpls traffic-eng bandwidth N" in kbit/s. */
   bandwidthKbps: z.number().int().min(0).max(100_000_000).default(0),
-  pathOptions: z.array(z.object({ pref: z.number().int().min(1).max(1000), kind: z.enum(['explicit', 'dynamic']), name: z.string().optional() })).default([]),
+  pathOptions: z
+    .array(z.object({ pref: z.number().int().min(1).max(1000), kind: z.enum(['explicit', 'dynamic']), name: z.string().optional() }))
+    .default([]),
   autoroute: z.boolean().default(false),
   frr: z.boolean().default(false),
 });
@@ -245,7 +247,13 @@ const qosClassSchema = z.object({
 
 const qosSchema = z.object({
   classMaps: z
-    .record(z.object({ matchAll: z.boolean().default(false), dscp: z.array(z.number().int().min(0).max(63)).default([]), exp: z.array(z.number().int().min(0).max(7)).optional() }))
+    .record(
+      z.object({
+        matchAll: z.boolean().default(false),
+        dscp: z.array(z.number().int().min(0).max(63)).default([]),
+        exp: z.array(z.number().int().min(0).max(7)).optional(),
+      }),
+    )
     .default({}),
   policyMaps: z.record(z.object({ classes: z.array(qosClassSchema).default([]) })).default({}),
 });

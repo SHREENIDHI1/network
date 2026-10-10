@@ -111,7 +111,10 @@ const b9: Lab = {
         }
       }),
     check: C.all(C.qosFlowOk('MTD-RTU', APP.sig, 0.1), C.qosFlowOk('MTD-PHONE', APP.voip, 0.1)),
-    hints: ['"show class-map" on MTD-LSR: what does CORE-RT match? Packets on te0/0/0 are labelled.', 'class-map match-any CORE-RT → no match dscp cs5 ef → match mpls experimental topmost 5 6'],
+    hints: [
+      '"show class-map" on MTD-LSR: what does CORE-RT match? Packets on te0/0/0 are labelled.',
+      'class-map match-any CORE-RT → no match dscp cs5 ef → match mpls experimental topmost 5 6',
+    ],
     fix: { cli: { [MTD]: [...CONF, 'class-map match-any CORE-RT', 'no match dscp cs5 ef', 'match mpls experimental topmost 5 6', 'end'] } },
   },
   quiz: [
@@ -223,7 +226,10 @@ const b10: Lab = {
     rows: [
       ['TE already on', 'JU-LSR, PPR-LSR, DNA-LSR (router-id Loopback0, area 0, ip rsvp bandwidth = 75%)'],
       ['IGP', 'OSPF cost of the 1G JU–PPR span is pinned to 10 by the plan, so OSPF keeps MTD → JU on it'],
-      ['Ring links', `JU–PPR 10.254.0.0/31 (1G!), PPR–MTD 10.254.0.2/31, MTD–DNA 10.254.0.4/31, DNA–JU lease ${LEASE.dna}/${LEASE.ju} (OSPF cost 50)`],
+      [
+        'Ring links',
+        `JU–PPR 10.254.0.0/31 (1G!), PPR–MTD 10.254.0.2/31, MTD–DNA 10.254.0.4/31, DNA–JU lease ${LEASE.dna}/${LEASE.ju} (OSPF cost 50)`,
+      ],
       ['Tunnel1 on MTD-LSR', `destination ${lo('JU')} (JU loopback), bandwidth 1100000 kbps, explicit path VIA_DNA`],
       ['Explicit path VIA_DNA', `next-address 10.254.0.5 (DNA), next-address ${LEASE.ju} (JU)`],
     ],
@@ -234,7 +240,11 @@ const b10: Lab = {
     {
       id: 't3',
       text: 'MTD CCTV and Railnet reach JU without loss, avoiding PPR.',
-      check: C.all(C.qosFlowOk('MTD-CAM1', APP.cctv, 0.1), C.qosFlowOk('MTD-RAILNET-PC', APP.rnet, 0.1), C.qosFlowVia('MTD-CAM1', APP.cctv, PPR, true)),
+      check: C.all(
+        C.qosFlowOk('MTD-CAM1', APP.cctv, 0.1),
+        C.qosFlowOk('MTD-RAILNET-PC', APP.rnet, 0.1),
+        C.qosFlowVia('MTD-CAM1', APP.cctv, PPR, true),
+      ),
       points: 25,
     },
   ],
@@ -254,7 +264,10 @@ const b10: Lab = {
         c.interfaces['Te0/0/1'] = { ...(c.interfaces['Te0/0/1'] ?? {}), rsvpBandwidth: 100000 };
       }),
     check: C.teTunnelUp(MTD, 'Tunnel1', { via: DNA, minKbps: 1_000_000 }),
-    hints: ['"show mpls traffic-eng tunnels brief" on MTD-LSR — read the note; then "show ip rsvp interface" on DNA-LSR.', 'On DNA-LSR: interface te0/0/1 → ip rsvp bandwidth'],
+    hints: [
+      '"show mpls traffic-eng tunnels brief" on MTD-LSR — read the note; then "show ip rsvp interface" on DNA-LSR.',
+      'On DNA-LSR: interface te0/0/1 → ip rsvp bandwidth',
+    ],
     fix: { cli: { [DNA]: [...CONF, 'interface te0/0/1', 'ip rsvp bandwidth', 'end'] } },
   },
   quiz: [
@@ -278,7 +291,12 @@ const b10: Lab = {
       id: 'q3',
       kind: 'mcq',
       prompt: 'What does "autoroute announce" do?',
-      options: ['Advertises the tunnel to BGP', 'Lets the head end use the tunnel as a direct link to the tail in its routing', 'Creates a backup tunnel', 'Reserves bandwidth'],
+      options: [
+        'Advertises the tunnel to BGP',
+        'Lets the head end use the tunnel as a direct link to the tail in its routing',
+        'Creates a backup tunnel',
+        'Reserves bandwidth',
+      ],
       correctIndex: 1,
       explanation: 'Destinations at or behind the tail are routed into the tunnel.',
     },
@@ -342,7 +360,11 @@ const b10b: Lab = {
     'Link kate to PLR turant (asli network mein < 50 ms) primary label ke upar backup ka label laga deta hai — head end ko pata chalne se pehle hi traffic bach jaata hai. Phir head end aaram se naya path signal karta hai (re-optimise / make-before-break).\n' +
     'Backup tunnel bandwidth reserve nahi karta (zero-bandwidth), sirf raasta pehle se tayyar.\n' +
     'Railway analogy: FRR = har block section ke liye pehle se tay "diversion route"; line block hote hi station master turant train ko diversion par bhejta hai, control office ka order baad mein aata hai.',
-  objectives: ['Primary Tunnel1 MTD → JU with fast-reroute', 'Backup Tunnel2 on PPR avoiding the PPR–JU span', 'Fibre cut drill: traffic keeps flowing on the backup'],
+  objectives: [
+    'Primary Tunnel1 MTD → JU with fast-reroute',
+    'Backup Tunnel2 on PPR avoiding the PPR–JU span',
+    'Fibre cut drill: traffic keeps flowing on the backup',
+  ],
   topologyId: 'lab-b10-frr',
   requiredModules: ['topology', 'physical', 'sim', 'ip', 'ospf', 'mpls', 'te'],
   plan: {
@@ -362,7 +384,12 @@ const b10b: Lab = {
       check: C.teTunnelUp(MTD, 'Tunnel1', { frr: ['ready', 'active'] }),
       points: 25,
     },
-    { id: 't2', text: 'Backup Tunnel2 on PPR-LSR is up and avoids the PPR–JU span (goes via DNA).', check: C.teTunnelUp(PPR, 'Tunnel2', { via: DNA }), points: 20 },
+    {
+      id: 't2',
+      text: 'Backup Tunnel2 on PPR-LSR is up and avoids the PPR–JU span (goes via DNA).',
+      check: C.teTunnelUp(PPR, 'Tunnel2', { via: DNA }),
+      points: 20,
+    },
     {
       id: 't3',
       text: `Drill: with the PPR–JU fibre cut, Tunnel1 stays up on the backup (FRR active) and MTD-CAM1 still reaches JU-NVR (${NET.nvr}.10).`,
@@ -393,8 +420,15 @@ const b10b: Lab = {
         if (p) p.entries = [{ kind: 'exclude', address: '10.254.0.3' }];
       }),
     check: C.teTunnelUp(PPR, 'Tunnel2', { via: DNA }),
-    hints: ['"show ip explicit-paths" on PPR-LSR: which link does it exclude now?', 'no ip explicit-path name AVOID_PPR_JU, then ip explicit-path name AVOID_PPR_JU enable → exclude-address 10.254.0.0'],
-    fix: { cli: { [PPR]: [...CONF, 'no ip explicit-path name AVOID_PPR_JU', 'ip explicit-path name AVOID_PPR_JU enable', 'exclude-address 10.254.0.0', 'end'] } },
+    hints: [
+      '"show ip explicit-paths" on PPR-LSR: which link does it exclude now?',
+      'no ip explicit-path name AVOID_PPR_JU, then ip explicit-path name AVOID_PPR_JU enable → exclude-address 10.254.0.0',
+    ],
+    fix: {
+      cli: {
+        [PPR]: [...CONF, 'no ip explicit-path name AVOID_PPR_JU', 'ip explicit-path name AVOID_PPR_JU enable', 'exclude-address 10.254.0.0', 'end'],
+      },
+    },
   },
   quiz: [
     {
@@ -432,7 +466,8 @@ const b10b: Lab = {
     {
       id: 'q5',
       kind: 'practical',
-      prompt: 'After the drill, run "mpls traffic-eng reoptimize" on MTD-LSR, then "show mpls traffic-eng tunnels tunnel1". Which path does Tunnel1 take?',
+      prompt:
+        'After the drill, run "mpls traffic-eng reoptimize" on MTD-LSR, then "show mpls traffic-eng tunnels tunnel1". Which path does Tunnel1 take?',
       options: ['MTD → PPR → JU', 'MTD → DNA → JU', 'MTD → PPR → MTD → DNA → JU', 'Down'],
       correctIndex: 1,
       explanation: 'With PPR–JU cut, CSPF finds MTD–DNA–JU (over the lease).',

@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), and L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6). MPLS QoS, TE and fault/NMS correlation are not simulated yet.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6), and MPLS QoS (EXP marking and core classes) with RSVP-TE tunnels and fast reroute (Phase 7). Fault/NMS correlation and automation are not simulated yet.',
   },
   // ---------------- Physical ----------------
   {
@@ -215,7 +215,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'MPLS',
     status: 'active',
     phase: 4,
-    text: 'Local labels are allocated from 16 upwards on each router in route-install order (connected first, then nearest IGP routes) — real routers allocate in learning order, so exact numbers differ; only their meaning matters. The data plane does real push/swap/pop with label TTL (uniform with propagate-ttl, pipe without) and RFC 4950 labels in traceroute; with a single label an expired label TTL answers ICMP directly; with a label stack (L3VPN) the ICMP error is forwarded along the LSP to the egress PE, which returns it in the VRF (RFC 3032 §2.3.2). EXP/TC is copied from DSCP at imposition but no MPLS QoS queuing is applied yet (Phase 7).',
+    text: 'Local labels are allocated from 16 upwards on each router in route-install order (connected first, then nearest IGP routes) — real routers allocate in learning order, so exact numbers differ; only their meaning matters. The data plane does real push/swap/pop with label TTL (uniform with propagate-ttl, pipe without) and RFC 4950 labels in traceroute; with a single label an expired label TTL answers ICMP directly; with a label stack (L3VPN) the ICMP error is forwarded along the LSP to the egress PE, which returns it in the VRF (RFC 3032 §2.3.2). EXP/TC is copied from IP precedence at imposition unless an input policy sets it (Phase 7); queuing is evaluated by the QoS analysis, not packet by packet.',
   },
   {
     area: 'MPLS',
@@ -278,6 +278,25 @@ export const LIMITATIONS: Limitation[] = [
     status: 'active',
     phase: 6,
     text: 'Networking-only mode: E1 controllers are logical — they follow the hardware profile (NEON LER E1 0/2/0–15, LSR E1 0/4/0–15) but no E1 cable, framer, line coding, alarms (LOS/AIS/RAI), clock or TDM bits are simulated, and the equipment behind them (BPAC, block, control phones) is not. CEM traffic does not appear in the QoS tab; packetisation, jitter buffer and clock recovery are taught with a calculator only. "show controllers E1" and the CEM lines are simplified.',
+  },
+  // ---------------- Phase 7 ----------------
+  {
+    area: 'MPLS QoS',
+    status: 'active',
+    phase: 7,
+    text: 'The QoS tab follows each configured traffic flow through VRFs, VPN labels, LDP (with PHP), TE tunnels (incl. FRR backups) and pseudowires, and computes steady-state loss per queue (LLQ, bandwidth guarantees, FIFO). A labelled packet only matches "match mpls experimental topmost"; an unlabelled one only "match dscp". EXP at imposition = IP precedence, or "set mpls experimental imposition"; "set mpls experimental topmost" re-marks in the core. Not modelled: bursts, queue depth, WRED, policers other than LLQ, shaping, uniform/pipe/short-pipe mode commands (taught in the lesson), EXP-to-DSCP copy at egress, EoMPLS EXP from 802.1p (pseudowire traffic uses EXP 0 unless re-marked).',
+  },
+  {
+    area: 'MPLS TE',
+    status: 'active',
+    phase: 7,
+    text: 'RSVP-TE is computed, not signalled: TE links need OSPF FULL adjacency, "mpls traffic-eng tunnels" on both routers and interfaces, OSPF "mpls traffic-eng router-id/area" and "ip rsvp bandwidth" (no value = 75% of the link). CSPF uses the OSPF cost as TE metric with a bandwidth constraint; explicit paths support strict "next-address" and "exclude-address"; bandwidth is admitted tunnel by tunnel in head-name order. Not modelled: setup/hold priorities and pre-emption, affinities/attribute flags, SRLGs, loose hops, auto-bandwidth, forwarding adjacency, LDP over TE, static routes into tunnels, IS-IS TE, Path/Resv messages and refresh. TE labels are allocated per router after its LDP labels (from 3000 at the lowest).',
+  },
+  {
+    area: 'MPLS TE',
+    status: 'active',
+    phase: 7,
+    text: 'Autoroute announce moves the head end\'s IGP routes whose path passes through the tail into the tunnel. FRR is facility backup with link protection (merge at the next hop or next-next hop); the switchover is immediate in the model, and an LSP stays on its backup until "mpls traffic-eng reoptimize" is run on the head end so the FRR state can be studied — real head ends re-signal on their own within seconds (make-before-break). Established LSPs keep their path while it stays valid (no periodic re-optimisation). The JU–DNA lease in the B10 labs is a teaching assumption: the J1 core is a tree.',
   },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {

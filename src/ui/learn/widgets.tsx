@@ -21,6 +21,7 @@ import { AclEvalWidget, HsrpWidget, LpmWidget, QueueSimWidget, SpfWidget } from 
 import { LabelHeaderWidget, LspWalkWidget } from './widgets4';
 import { IbgpMeshWidget, RtMatcherWidget } from './widgets5';
 import { PwMtuWidget, TdmPwWidget } from './widgets6';
+import { CspfWidget, DscpExpWidget } from './widgets7';
 
 export function Widget({ id }: { id: WidgetId }) {
   switch (id) {
@@ -64,6 +65,10 @@ export function Widget({ id }: { id: WidgetId }) {
       return <PwMtuWidget />;
     case 'tdm-pw':
       return <TdmPwWidget />;
+    case 'dscp-exp':
+      return <DscpExpWidget />;
+    case 'cspf':
+      return <CspfWidget />;
   }
 }
 

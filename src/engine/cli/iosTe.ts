@@ -66,7 +66,11 @@ export function teCmds(): Cmd[] {
     ),
     {
       modes: IFM,
-      toks: [kw('ip', 'Interface Internet Protocol config commands'), kw('rsvp', 'RSVP Interface Commands'), kw('bandwidth', 'RSVP reservable bandwidth (kbps)')],
+      toks: [
+        kw('ip', 'Interface Internet Protocol config commands'),
+        kw('rsvp', 'RSVP Interface Commands'),
+        kw('bandwidth', 'RSVP reservable bandwidth (kbps)'),
+      ],
       run: (x) => {
         if (!routerRole(x)) return x.invalid();
         ifCfg(x).rsvpBandwidth = 'default';
@@ -89,7 +93,12 @@ export function teCmds(): Cmd[] {
     },
     {
       modes: IFM,
-      toks: [NO(), kw('ip', 'Interface Internet Protocol config commands'), kw('rsvp', 'RSVP Interface Commands'), kw('bandwidth', 'RSVP reservable bandwidth')],
+      toks: [
+        NO(),
+        kw('ip', 'Interface Internet Protocol config commands'),
+        kw('rsvp', 'RSVP Interface Commands'),
+        kw('bandwidth', 'RSVP reservable bandwidth'),
+      ],
       run: (x) => {
         delete ifCfg(x).rsvpBandwidth;
         x.dirty();
@@ -124,7 +133,12 @@ export function teCmds(): Cmd[] {
     },
     {
       modes: ROUTER,
-      toks: [mplsKw(), teKw(), kw('area', 'Configure an OSPF area to run MPLS Traffic Engineering'), num('a', 0, 4294967295, '<0-4294967295> OSPF area ID')],
+      toks: [
+        mplsKw(),
+        teKw(),
+        kw('area', 'Configure an OSPF area to run MPLS Traffic Engineering'),
+        num('a', 0, 4294967295, '<0-4294967295> OSPF area ID'),
+      ],
       run: (x) => {
         const a = Number(x.args.a);
         const o = x.cfg.ospf!;
@@ -134,7 +148,13 @@ export function teCmds(): Cmd[] {
     },
     {
       modes: ROUTER,
-      toks: [NO(), mplsKw(), teKw(), kw('area', 'Configure an OSPF area to run MPLS Traffic Engineering'), num('a', 0, 4294967295, '<0-4294967295> OSPF area ID')],
+      toks: [
+        NO(),
+        mplsKw(),
+        teKw(),
+        kw('area', 'Configure an OSPF area to run MPLS Traffic Engineering'),
+        num('a', 0, 4294967295, '<0-4294967295> OSPF area ID'),
+      ],
       run: (x) => {
         const o = x.cfg.ospf!;
         o.teAreas = (o.teAreas ?? []).filter((a) => a !== Number(x.args.a));
@@ -152,7 +172,13 @@ export function teCmds(): Cmd[] {
     // ------------------------------------------------------ explicit path
     {
       modes: CONF,
-      toks: [kw('ip', 'Global IP configuration subcommands'), kw('explicit-path', 'Configure explicit-path'), kw('name', 'Specify explicit-path by name'), word('name', 'Explicit-path name'), kw('enable', 'Enable this path')],
+      toks: [
+        kw('ip', 'Global IP configuration subcommands'),
+        kw('explicit-path', 'Configure explicit-path'),
+        kw('name', 'Specify explicit-path by name'),
+        word('name', 'Explicit-path name'),
+        kw('enable', 'Enable this path'),
+      ],
       run: (x) => {
         if (!routerRole(x)) return x.invalid();
         const n = String(x.args.name);
@@ -163,7 +189,13 @@ export function teCmds(): Cmd[] {
     },
     {
       modes: CONF,
-      toks: [NO(), kw('ip', 'Global IP configuration subcommands'), kw('explicit-path', 'Configure explicit-path'), kw('name', 'Specify explicit-path by name'), word('name', 'Explicit-path name')],
+      toks: [
+        NO(),
+        kw('ip', 'Global IP configuration subcommands'),
+        kw('explicit-path', 'Configure explicit-path'),
+        kw('name', 'Specify explicit-path by name'),
+        word('name', 'Explicit-path name'),
+      ],
       run: (x) => {
         delete x.cfg.explicitPaths[String(x.args.name)];
         x.dirty();
@@ -179,8 +211,17 @@ export function teCmds(): Cmd[] {
         return `Explicit Path name ${x.session.ctxName}:\n${T.explicitPathLines(p).join('\n')}`;
       };
       return [
-        { modes: EXPL, toks: [kw(k, k === 'next-address' ? 'Specify the next address in the path' : 'Exclude an address from subsequent partial path segments'), ip('a', 'IP address')], run: add },
-        ...(k === 'next-address' ? [{ modes: EXPL, toks: [kw(k, 'Specify the next address in the path'), kw('strict', 'Strict hop'), ip('a', 'IP address')], run: add }] : []),
+        {
+          modes: EXPL,
+          toks: [
+            kw(k, k === 'next-address' ? 'Specify the next address in the path' : 'Exclude an address from subsequent partial path segments'),
+            ip('a', 'IP address'),
+          ],
+          run: add,
+        },
+        ...(k === 'next-address'
+          ? [{ modes: EXPL, toks: [kw(k, 'Specify the next address in the path'), kw('strict', 'Strict hop'), ip('a', 'IP address')], run: add }]
+          : []),
       ];
     }),
     {
@@ -195,19 +236,44 @@ export function teCmds(): Cmd[] {
       },
     },
     // -------------------------------------------------- tunnel interface
-    { modes: TUN, toks: [kw('ip', 'Interface Internet Protocol config commands'), kw('unnumbered', 'Enable IP processing without an explicit address'), iface()], run: (x) => setTun(x, (t) => void (t.unnumbered = String(x.args.if))) },
-    { modes: TUN, toks: [tunKw(), kw('mode', 'tunnel encapsulation method'), mplsKw(), teKw()], run: (x) => setTun(x, (t) => void (t.mode = 'mpls-te')) },
+    {
+      modes: TUN,
+      toks: [kw('ip', 'Interface Internet Protocol config commands'), kw('unnumbered', 'Enable IP processing without an explicit address'), iface()],
+      run: (x) => setTun(x, (t) => void (t.unnumbered = String(x.args.if))),
+    },
+    {
+      modes: TUN,
+      toks: [tunKw(), kw('mode', 'tunnel encapsulation method'), mplsKw(), teKw()],
+      run: (x) => setTun(x, (t) => void (t.mode = 'mpls-te')),
+    },
     { modes: TUN, toks: [NO(), tunKw(), kw('mode', 'tunnel encapsulation method')], run: (x) => setTun(x, (t) => void (t.mode = 'gre')) },
-    { modes: TUN, toks: [tunKw(), kw('destination', 'destination of tunnel'), ip('d', 'IP address of the tunnel tail')], run: (x) => setTun(x, (t) => void (t.destination = String(x.args.d))) },
+    {
+      modes: TUN,
+      toks: [tunKw(), kw('destination', 'destination of tunnel'), ip('d', 'IP address of the tunnel tail')],
+      run: (x) => setTun(x, (t) => void (t.destination = String(x.args.d))),
+    },
     { modes: TUN, toks: [NO(), tunKw(), kw('destination', 'destination of tunnel')], run: (x) => setTun(x, (t) => void delete t.destination) },
     {
       modes: TUN,
-      toks: [tunKw(), mplsKw(), teKw(), kw('bandwidth', 'Specify tunnel bandwidth requirement'), num('kbps', 0, 100_000_000, '<0-100000000> bandwidth requirement in kbps')],
+      toks: [
+        tunKw(),
+        mplsKw(),
+        teKw(),
+        kw('bandwidth', 'Specify tunnel bandwidth requirement'),
+        num('kbps', 0, 100_000_000, '<0-100000000> bandwidth requirement in kbps'),
+      ],
       run: (x) => setTun(x, (t) => void (t.bandwidthKbps = Number(x.args.kbps))),
     },
     {
       modes: TUN,
-      toks: [tunKw(), mplsKw(), teKw(), kw('path-option', 'Primary or fallback path setup option'), num('pref', 1, 1000, '<1-1000> preference'), kw('dynamic', 'setup based on dynamically calculated path')],
+      toks: [
+        tunKw(),
+        mplsKw(),
+        teKw(),
+        kw('path-option', 'Primary or fallback path setup option'),
+        num('pref', 1, 1000, '<1-1000> preference'),
+        kw('dynamic', 'setup based on dynamically calculated path'),
+      ],
       run: (x) =>
         setTun(x, (t) => {
           t.pathOptions = [...t.pathOptions.filter((o) => o.pref !== Number(x.args.pref)), { pref: Number(x.args.pref), kind: 'dynamic' }];
@@ -227,18 +293,35 @@ export function teCmds(): Cmd[] {
       ],
       run: (x) =>
         setTun(x, (t) => {
-          t.pathOptions = [...t.pathOptions.filter((o) => o.pref !== Number(x.args.pref)), { pref: Number(x.args.pref), kind: 'explicit', name: String(x.args.name) }];
+          t.pathOptions = [
+            ...t.pathOptions.filter((o) => o.pref !== Number(x.args.pref)),
+            { pref: Number(x.args.pref), kind: 'explicit', name: String(x.args.name) },
+          ];
         }),
     },
     {
       modes: TUN,
-      toks: [NO(), tunKw(), mplsKw(), teKw(), kw('path-option', 'Primary or fallback path setup option'), num('pref', 1, 1000, '<1-1000> preference')],
+      toks: [
+        NO(),
+        tunKw(),
+        mplsKw(),
+        teKw(),
+        kw('path-option', 'Primary or fallback path setup option'),
+        num('pref', 1, 1000, '<1-1000> preference'),
+      ],
       run: (x) => setTun(x, (t) => void (t.pathOptions = t.pathOptions.filter((o) => o.pref !== Number(x.args.pref)))),
     },
     ...[true, false].flatMap((on): Cmd[] => [
       {
         modes: TUN,
-        toks: [...(on ? [] : [NO()]), tunKw(), mplsKw(), teKw(), kw('autoroute', 'define parameters for automatic routing'), kw('announce', 'announce tunnel to IGP')],
+        toks: [
+          ...(on ? [] : [NO()]),
+          tunKw(),
+          mplsKw(),
+          teKw(),
+          kw('autoroute', 'define parameters for automatic routing'),
+          kw('announce', 'announce tunnel to IGP'),
+        ],
         run: (x) => setTun(x, (t) => void (t.autoroute = on)),
       },
       {
@@ -252,7 +335,11 @@ export function teCmds(): Cmd[] {
         run: (x) => setTun(x, (t) => void (on ? (t.shutdown = true) : delete t.shutdown)),
       },
     ]),
-    { modes: TUN, toks: [kw('description', 'Interface specific description'), line('d', 'Up to 240 characters')], run: (x) => setTun(x, (t) => void (t.description = String(x.args.d))) },
+    {
+      modes: TUN,
+      toks: [kw('description', 'Interface specific description'), line('d', 'Up to 240 characters')],
+      run: (x) => setTun(x, (t) => void (t.description = String(x.args.d))),
+    },
     {
       modes: CONF,
       toks: [NO(), kw('interface', 'Select an interface to configure'), word('name', 'Tunnel interface, e.g. Tunnel1')],
@@ -291,8 +378,15 @@ export function teCmds(): Cmd[] {
       toks: [showKw(), mplsKw(), teKw(), kw('fast-reroute', 'FRR information'), kw('database', 'FRR database')],
       run: (x) => T.showFrrDatabase(x.ctx.sim, x.device),
     },
-    { modes: EXEC, toks: [showKw(), kw('ip', 'IP information'), kw('rsvp', 'RSVP information'), kw('interface', 'RSVP interface information')], run: (x) => T.showRsvpInterface(x.ctx.sim, x.device) },
-    { modes: EXEC, toks: [showKw(), kw('ip', 'IP information'), kw('explicit-paths', 'Show IP explicit paths')], run: (x) => T.showExplicitPaths(x.cfg) },
+    {
+      modes: EXEC,
+      toks: [showKw(), kw('ip', 'IP information'), kw('rsvp', 'RSVP information'), kw('interface', 'RSVP interface information')],
+      run: (x) => T.showRsvpInterface(x.ctx.sim, x.device),
+    },
+    {
+      modes: EXEC,
+      toks: [showKw(), kw('ip', 'IP information'), kw('explicit-paths', 'Show IP explicit paths')],
+      run: (x) => T.showExplicitPaths(x.cfg),
+    },
   ];
 }
-

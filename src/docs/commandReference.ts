@@ -24,6 +24,10 @@ export type RefMode =
   | 'config-controller'
   | 'config-cem-if'
   | 'config-if-cem'
+  | 'config-cmap'
+  | 'config-pmap-c'
+  | 'config-tunnel'
+  | 'config-expl-path'
   | 'host';
 export type RefDevice = 'l2-switch' | 'l3-switch' | 'router' | 'pc' | 'neon-ler';
 
@@ -1346,6 +1350,222 @@ export const COMMANDS: CommandRef[] = [
     hi: 'E1 controller status.',
     lesson: 'B8',
   },
+  {
+    topic: 'MPLS QoS',
+    example: 'match mpls experimental topmost 5 6',
+    mode: 'config-cmap',
+    device: r,
+    en: 'Classify labelled packets by the EXP of the top label (core classes).',
+    hi: 'Label ke EXP se class.',
+    lesson: 'B9',
+  },
+  {
+    topic: 'MPLS QoS',
+    example: 'set mpls experimental imposition 6',
+    mode: 'config-pmap-c',
+    device: r,
+    en: '(input policy on the PE) EXP for the labels pushed here.',
+    hi: 'PE par label ka EXP set.',
+    lesson: 'B9',
+  },
+  {
+    topic: 'MPLS QoS',
+    example: 'set mpls experimental topmost 3',
+    mode: 'config-pmap-c',
+    device: r,
+    en: 'Re-mark the EXP of the top label.',
+    hi: 'Upar wale label ka EXP badlo.',
+    lesson: 'B9',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'mpls traffic-eng tunnels',
+    mode: 'config',
+    device: r,
+    en: 'Enable MPLS TE / RSVP-TE on the router (also on each TE interface).',
+    hi: 'Router par TE chalu.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'ip rsvp bandwidth 1000000',
+    mode: 'config-if',
+    device: r,
+    en: 'Reservable bandwidth on this link in kbit/s (no value = 75% of the link).',
+    hi: 'Link par reserve hone wali bandwidth.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'mpls traffic-eng router-id loopback0',
+    mode: 'config-router',
+    device: r,
+    en: '(router ospf) TE router-ID flooded by OSPF.',
+    hi: 'OSPF TE router-ID.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'mpls traffic-eng area 0',
+    mode: 'config-router',
+    device: r,
+    en: '(router ospf) Flood TE link information in area 0.',
+    hi: 'Area 0 mein TE info.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'ip explicit-path name VIA_DNA enable',
+    mode: 'config',
+    device: r,
+    en: 'Create an explicit path.',
+    hi: 'Explicit path banao.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'next-address 10.254.0.5',
+    mode: 'config-expl-path',
+    device: r,
+    en: 'Strict next hop of the explicit path.',
+    hi: 'Agla hop (strict).',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'exclude-address 10.254.0.0',
+    mode: 'config-expl-path',
+    device: r,
+    en: 'CSPF must avoid this link / router (backup tunnels).',
+    hi: 'Is link ko avoid karo.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'tunnel mode mpls traffic-eng',
+    mode: 'config-tunnel',
+    device: r,
+    en: '(interface TunnelN) Make the tunnel an RSVP-TE LSP.',
+    hi: 'Tunnel ko TE banao.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'tunnel destination 10.0.1.1',
+    mode: 'config-tunnel',
+    device: r,
+    en: 'Tail end: its TE router-ID (loopback).',
+    hi: 'Tail ka loopback.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'tunnel mpls traffic-eng bandwidth 400000',
+    mode: 'config-tunnel',
+    device: r,
+    en: 'Bandwidth to reserve, kbit/s.',
+    hi: 'Kitni bandwidth reserve.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'tunnel mpls traffic-eng path-option 1 dynamic',
+    mode: 'config-tunnel',
+    device: r,
+    en: 'Path by CSPF (fallback options get higher numbers).',
+    hi: 'CSPF se path.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'tunnel mpls traffic-eng path-option 1 explicit name VIA_DNA',
+    mode: 'config-tunnel',
+    device: r,
+    en: 'Path from an explicit path.',
+    hi: 'Explicit path se.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'tunnel mpls traffic-eng autoroute announce',
+    mode: 'config-tunnel',
+    device: r,
+    en: 'Route destinations behind the tail into the tunnel.',
+    hi: 'Traffic tunnel mein.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'tunnel mpls traffic-eng fast-reroute',
+    mode: 'config-tunnel',
+    device: r,
+    en: 'Ask PLRs on the path to protect this LSP (FRR).',
+    hi: 'FRR protection maango.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'mpls traffic-eng backup-path tunnel2',
+    mode: 'config-if',
+    device: r,
+    en: '(on the PLR) Protect this link with backup tunnel 2.',
+    hi: 'Is link ka backup tunnel.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'mpls traffic-eng reoptimize',
+    mode: 'priv',
+    device: r,
+    en: 'Re-run CSPF for tunnels headed here (leaves an FRR backup).',
+    hi: 'Tunnels ka naya path.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'show mpls traffic-eng tunnels brief',
+    mode: 'priv',
+    device: r,
+    en: 'Heads, midpoints and tails with state; reason below if down.',
+    hi: 'TE tunnels ki list.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'show mpls traffic-eng tunnels',
+    mode: 'priv',
+    device: r,
+    en: 'Tunnel detail: path option, bandwidth, FRR, labels, route.',
+    hi: 'Tunnel detail.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'show mpls traffic-eng fast-reroute database',
+    mode: 'priv',
+    device: r,
+    en: 'LSPs protected on this router and their backup tunnels.',
+    hi: 'FRR database.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'show ip rsvp interface',
+    mode: 'priv',
+    device: r,
+    en: 'Allocated and reservable RSVP bandwidth per interface.',
+    hi: 'RSVP bandwidth.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'MPLS TE',
+    example: 'show ip explicit-paths',
+    mode: 'priv',
+    device: r,
+    en: 'Configured explicit paths.',
+    hi: 'Explicit paths.',
+    lesson: 'B10',
+  },
 ];
 
 /** CLI lines that bring a fresh device into `mode` (used by the reference test and the "try it" hint). */
@@ -1389,5 +1609,13 @@ export function preLines(mode: RefMode, device: RefDevice): string[] {
       return ['enable', 'configure terminal', 'controller E1 0/2/0', 'cem-group 0 unframed', 'exit', 'interface CEM0/2/0'];
     case 'config-if-cem':
       return ['enable', 'configure terminal', 'controller E1 0/2/0', 'cem-group 0 unframed', 'exit', 'interface CEM0/2/0', 'cem 0'];
+    case 'config-cmap':
+      return ['enable', 'configure terminal', 'class-map match-any CORE-RT'];
+    case 'config-pmap-c':
+      return ['enable', 'configure terminal', 'class-map match-any SIG', 'exit', 'policy-map PE-IN', 'class SIG'];
+    case 'config-tunnel':
+      return ['enable', 'configure terminal', 'interface tunnel1'];
+    case 'config-expl-path':
+      return ['enable', 'configure terminal', 'ip explicit-path name VIA_DNA enable'];
   }
 }

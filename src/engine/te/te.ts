@@ -134,7 +134,9 @@ export function computeTe(
     if (n.state !== 'FULL') continue;
     if (!res.routers.has(n.deviceId) || !res.routers.has(n.neighborDeviceId)) continue;
     if (!teArea(n.deviceId, n.area) || !teArea(n.neighborDeviceId, n.area)) continue;
-    const back = ospf.neighbors.find((m) => m.deviceId === n.neighborDeviceId && m.neighborDeviceId === n.deviceId && m.state === 'FULL' && m.area === n.area);
+    const back = ospf.neighbors.find(
+      (m) => m.deviceId === n.neighborDeviceId && m.neighborDeviceId === n.deviceId && m.state === 'FULL' && m.area === n.area,
+    );
     if (!back) continue;
     const ic = configs.get(n.deviceId)!.interfaces[n.iface];
     const pc = configs.get(n.neighborDeviceId)!.interfaces[back.iface];
@@ -257,7 +259,11 @@ export function computeTe(
     lsp.tail = tail;
     if (!tail) {
       const o = addrOwner(dest);
-      fail(o ? `${formatIpv4(dest)} is on ${name(o)}, but it is not that router's TE router-ID` : `destination ${formatIpv4(dest)} is not in the TE topology`);
+      fail(
+        o
+          ? `${formatIpv4(dest)} is on ${name(o)}, but it is not that router's TE router-ID`
+          : `destination ${formatIpv4(dest)} is not in the TE topology`,
+      );
       continue;
     }
     if (!t.pathOptions.length) {
@@ -300,7 +306,8 @@ export function computeTe(
           const nexts = ep.entries.filter((e) => e.kind === 'next');
           if (!nexts.length) {
             p = cspf(dev, tail, t.bandwidthKbps, new Set(ep.entries.map((e) => parseIpv4(e.address)!)));
-            if (!p) reasons.push(`path-option ${o.pref} (${o.name}): no path avoiding the excluded addresses with ${t.bandwidthKbps} kbit/s available`);
+            if (!p)
+              reasons.push(`path-option ${o.pref} (${o.name}): no path avoiding the excluded addresses with ${t.bandwidthKbps} kbit/s available`);
           } else {
             p = [{ dev }];
             let cur = dev;
@@ -313,7 +320,9 @@ export function computeTe(
                 break;
               }
               if (l.reservableKbps - l.reservedKbps < t.bandwidthKbps) {
-                reasons.push(`path-option ${o.pref} (${o.name}): ${name(l.dev)} ${l.iface} has only ${l.reservableKbps - l.reservedKbps} kbit/s unreserved`);
+                reasons.push(
+                  `path-option ${o.pref} (${o.name}): ${name(l.dev)} ${l.iface} has only ${l.reservableKbps - l.reservedKbps} kbit/s unreserved`,
+                );
                 p = null;
                 break;
               }
@@ -345,7 +354,11 @@ export function computeTe(
     }
     reserve(lsp.frr.active ? [] : path, t.bandwidthKbps);
     lsp.state = 'up';
-    lsp.hops = path.map((h, i) => ({ dev: h.dev, outIface: h.outIface, nextIp: i < path!.length - 1 ? linkOf(h.dev, h.outIface)?.peerIp : undefined }));
+    lsp.hops = path.map((h, i) => ({
+      dev: h.dev,
+      outIface: h.outIface,
+      nextIp: i < path!.length - 1 ? linkOf(h.dev, h.outIface)?.peerIp : undefined,
+    }));
     lsp.weight = path.slice(0, -1).reduce((a, h) => a + (linkOf(h.dev, h.outIface)?.cost ?? 0), 0);
     memory.set(key, { sig, hops: path.map((h) => ({ dev: h.dev, outIface: h.outIface })), option: lsp.pathOption });
   }

@@ -52,7 +52,12 @@ export interface PwEndpoint {
   status: 'UP' | 'DOWN';
   reason?: string;
   /** Outgoing transport label towards the peer (undefined = directly connected / implicit-null). */
-  transport?: { label?: number; nextHop: number; iface: string; /** Carried in this TE tunnel (autoroute) instead of the LDP LSP. */ tunnel?: string };
+  transport?: {
+    label?: number;
+    nextHop: number;
+    iface: string;
+    /** Carried in this TE tunnel (autoroute) instead of the LDP LSP. */ tunnel?: string;
+  };
 }
 
 export interface PwResult {
@@ -229,7 +234,8 @@ export function computePseudowires(
       e.reason = undefined;
       continue;
     }
-    const ftn = ldp.byFec.get(`${e.deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)?.find((x) => x.nextHop === g.nextHop) ??
+    const ftn =
+      ldp.byFec.get(`${e.deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)?.find((x) => x.nextHop === g.nextHop) ??
       ldp.byFec.get(`${e.deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)?.[0];
     const direct = g.route.protocol === 'C' || ftn?.out === 'pop';
     if (!direct && (!ftn || typeof ftn.out !== 'number')) {

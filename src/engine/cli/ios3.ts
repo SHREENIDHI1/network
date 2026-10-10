@@ -895,7 +895,13 @@ export function phase3Cmds(): Cmd[] {
       },
       {
         modes: ['config-pmap-c'],
-        toks: [NO(), kw('set', 'Set QoS values'), kw('mpls', 'Set MPLS specific values'), kw('experimental', 'Set MPLS experimental value'), kw(k, 'EXP set point')],
+        toks: [
+          NO(),
+          kw('set', 'Set QoS values'),
+          kw('mpls', 'Set MPLS specific values'),
+          kw('experimental', 'Set MPLS experimental value'),
+          kw(k, 'EXP set point'),
+        ],
         run: (x) => {
           delete pmapClass(x)[k === 'imposition' ? 'setExpImposition' : 'setExpTopmost'];
           x.dirty();

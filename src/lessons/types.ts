@@ -23,7 +23,9 @@ export type WidgetId =
   | 'ibgp-mesh'
   | 'rt-matcher'
   | 'pw-mtu'
-  | 'tdm-pw';
+  | 'tdm-pw'
+  | 'dscp-exp'
+  | 'cspf';
 export type DiagramId =
   | 'circuit-vs-packet'
   | 'osi-stack'

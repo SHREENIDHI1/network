@@ -649,6 +649,67 @@ const ENTRIES: Array<{ pattern: string[]; host?: boolean; ex: ShowExplain }> = [
       },
     },
   },
+  {
+    pattern: ['show', 'mpls', 'traffic-eng', 'tunnels', 'brief'],
+    ex: {
+      title: 'show mpls traffic-eng tunnels brief',
+      fields: [
+        f('TUNNEL NAME', '<head router>_t<tunnel number> — the same name on every router of the LSP.', 'Head ka naam + tunnel number.'),
+        f(
+          'UP IF / DOWN IF',
+          'Incoming / outgoing interface here: head has UP IF "-", tail has DOWN IF "-", a midpoint has both.',
+          'Head / midpoint / tail pehchaano.',
+        ),
+        f('STATE/PROT', 'up/up = LSP signalled; up/down = no path (reason below).', 'up/up = LSP chalu.'),
+      ],
+      lookFor: {
+        en: 'up/down: read the RailMPLS Lab note — no path with the bandwidth, a strict hop that is not a TE neighbour, or TE/RSVP missing on a link.',
+        hi: 'up/down ho to neeche ka note padho.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'mpls', 'traffic-eng', 'tunnels'],
+    ex: {
+      title: 'show mpls traffic-eng tunnels',
+      fields: [
+        f('path option N, type …', 'Which path-option set the LSP up, and its path weight (sum of TE metrics).', 'Kaunsa path-option chala.'),
+        f('Bandwidth', 'Reserved on every link of the path.', 'Reserve bandwidth.'),
+        f('Fast Reroute / Protection', 'ready = a backup protects a link on the path; active = traffic is on the backup now.', 'ready / active.'),
+        f('OutLabel / Explicit Route', 'First label pushed, and the hop addresses of the LSP.', 'Pehla label aur raasta.'),
+      ],
+      lookFor: {
+        en: 'Protection "active": a link failed and the PLR is using the backup — re-optimise on the head end.',
+        hi: 'Protection active = backup par; head par reoptimize karo.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'mpls', 'traffic-eng', 'fast-reroute', 'database'],
+    ex: {
+      title: 'show mpls traffic-eng fast-reroute database',
+      fields: [
+        f('Out intf/label', 'Protected interface and the label normally sent on it (Pop = next hop is the tail).', 'Protected link aur label.'),
+        f('FRR intf/label', 'Backup tunnel and its first label, pushed on top when the link fails.', 'Backup tunnel ka label.'),
+        f('Status', 'Ready (armed) or Active (in use).', 'Ready / Active.'),
+      ],
+      lookFor: { en: "No row for an LSP: this router has no usable backup for that LSP's outgoing link.", hi: 'Row nahi = yahan backup nahi.' },
+    },
+  },
+  {
+    pattern: ['show', 'ip', 'rsvp', 'interface'],
+    ex: {
+      title: 'show ip rsvp interface',
+      fields: [
+        f('allocated', 'Bandwidth reserved by TE LSPs leaving on this interface (kbit/s).', 'Reserve ho chuki bandwidth.'),
+        f('i/f max', 'Reservable bandwidth ("ip rsvp bandwidth"; no value = 75% of the link).', 'Maximum reserve.'),
+      ],
+      lookFor: {
+        en: 'A tunnel that needs more than i/f max − allocated cannot use this link.',
+        hi: 'Bachi bandwidth kam ho to tunnel yahan se nahi.',
+      },
+    },
+  },
 ];
 
 function matches(pattern: string[], words: string[]): boolean {

@@ -852,7 +852,11 @@ export function qosFlowVia(src: string, app: string, device: string, avoid = fal
 }
 
 /** TE tunnel `tunnel` headed on `head` is up (optionally through `via`, with ≥ minKbps, FRR state in `frr`). */
-export function teTunnelUp(head: string, tunnel: string, o: { via?: string; avoid?: string; minKbps?: number; frr?: Array<'none' | 'ready' | 'active'> } = {}): Check {
+export function teTunnelUp(
+  head: string,
+  tunnel: string,
+  o: { via?: string; avoid?: string; minKbps?: number; frr?: Array<'none' | 'ready' | 'active'> } = {},
+): Check {
   return (snap) => {
     const te = section(snap, 'teTunnels', 'te');
     if (isResult(te)) return te;
@@ -861,7 +865,8 @@ export function teTunnelUp(head: string, tunnel: string, o: { via?: string; avoi
     if (t.state !== 'up') return fail(`${head} ${tunnel} is down — "show mpls traffic-eng tunnels brief" shows why.`);
     if (o.via && !t.path.includes(o.via)) return fail(`${head} ${tunnel} is up but does not go through ${o.via}.`);
     if (o.avoid && t.path.includes(o.avoid)) return fail(`${head} ${tunnel} still goes through ${o.avoid}.`);
-    if (o.minKbps !== undefined && t.bandwidthKbps < o.minKbps) return fail(`${head} ${tunnel} reserves ${t.bandwidthKbps} kbit/s (needs at least ${o.minKbps}).`);
+    if (o.minKbps !== undefined && t.bandwidthKbps < o.minKbps)
+      return fail(`${head} ${tunnel} reserves ${t.bandwidthKbps} kbit/s (needs at least ${o.minKbps}).`);
     if (o.frr && !o.frr.includes(t.frr)) return fail(`${head} ${tunnel}: fast-reroute protection is "${t.frr}" (needs ${o.frr.join(' or ')}).`);
     return pass();
   };

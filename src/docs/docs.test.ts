@@ -100,3 +100,12 @@ describe('ask why: P6 L2VPN', () => {
     expect(explainShow('show vfi')?.title).toBe('show vfi');
   });
 });
+
+describe('ask why: P7 TE', () => {
+  it('matches TE show commands', async () => {
+    const { explainShow } = await import('./showExplain');
+    expect(explainShow('show mpls traffic-eng tunnels brief')?.title).toBe('show mpls traffic-eng tunnels brief');
+    expect(explainShow('show mpls traffic-eng tunnels')?.title).toBe('show mpls traffic-eng tunnels');
+    expect(explainShow('show ip rsvp interface')?.title).toBe('show ip rsvp interface');
+  });
+});

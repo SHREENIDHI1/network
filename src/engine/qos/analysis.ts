@@ -85,12 +85,20 @@ interface Item {
 }
 
 /** Allocates capacity among items at one queue; returns delivered rate per item and class stats. */
-export function allocate(capacity: number, items: Item[], cfg: NetConfig | undefined, policy: string | undefined): { delivered: number[]; classes: QueueClassStat[] } {
+export function allocate(
+  capacity: number,
+  items: Item[],
+  cfg: NetConfig | undefined,
+  policy: string | undefined,
+): { delivered: number[]; classes: QueueClassStat[] } {
   const total = items.reduce((a, b) => a + b.rate, 0);
   const pm = policy && cfg ? cfg.qos.policyMaps[policy] : undefined;
   if (!pm || !cfg) {
     const k = total > capacity ? capacity / total : 1;
-    return { delivered: items.map((i) => i.rate * k), classes: [{ name: 'FIFO', kind: 'fifo', offeredMbps: total, deliveredMbps: Math.min(total, capacity) }] };
+    return {
+      delivered: items.map((i) => i.rate * k),
+      classes: [{ name: 'FIFO', kind: 'fifo', offeredMbps: total, deliveredMbps: Math.min(total, capacity) }],
+    };
   }
   // Group items by class.
   const groups = new Map<string, { cls?: QosClass; idx: number[]; offered: number }>();
@@ -145,7 +153,12 @@ export function allocate(capacity: number, items: Item[], cfg: NetConfig | undef
     const v = give.get(n) ?? 0;
     const k = g.offered > 0 ? v / g.offered : 0;
     for (const i of g.idx) delivered[i] = items[i].rate * k;
-    classes.push({ name: n, kind: g.cls?.priorityPercent ? 'priority' : n === 'class-default' ? 'default' : 'bandwidth', offeredMbps: g.offered, deliveredMbps: v });
+    classes.push({
+      name: n,
+      kind: g.cls?.priorityPercent ? 'priority' : n === 'class-default' ? 'default' : 'bandwidth',
+      offeredMbps: g.offered,
+      deliveredMbps: v,
+    });
   }
   return { delivered, classes };
 }
@@ -155,7 +168,17 @@ export function analyseTraffic(sim: Sim): QosReport {
   for (const d of sim.topology.devices) {
     const cfg = sim.config(d.id);
     for (const f of cfg?.traffic ?? []) {
-      const stat: FlowStat = { id: f.id, srcDeviceId: d.id, dst: f.dst, app: appClass(f.app)?.label ?? f.app, dscp: f.dscp, offeredMbps: f.rateMbps, deliveredMbps: 0, lossPct: 100, hops: [] };
+      const stat: FlowStat = {
+        id: f.id,
+        srcDeviceId: d.id,
+        dst: f.dst,
+        app: appClass(f.app)?.label ?? f.app,
+        dscp: f.dscp,
+        offeredMbps: f.rateMbps,
+        deliveredMbps: 0,
+        lossPct: 100,
+        hops: [],
+      };
       const dst = parseIpv4(f.dst);
       if (dst === null) {
         stat.error = 'Invalid destination';
@@ -317,7 +340,9 @@ export function walkFlow(sim: Sim, src: string, dst: number, dscp0: number): { h
       if (typeof c === 'string') return { hops, error: c };
       const rem = e.remote;
       const acIf = rem.vfi
-        ? (sim.pw.vfiAcs.get(`${rem.deviceId}|${rem.vfi}`) ?? []).find((a) => sim.phys.ports.get(portKey(rem.deviceId, a))?.peer?.deviceId === o?.deviceId)
+        ? (sim.pw.vfiAcs.get(`${rem.deviceId}|${rem.vfi}`) ?? []).find(
+            (a) => sim.phys.ports.get(portKey(rem.deviceId, a))?.peer?.deviceId === o?.deviceId,
+          )
         : rem.iface;
       if (!acIf) return { hops, error: `No attachment circuit towards ${formatIpv4(dst)} on ${name(rem.deviceId)}` };
       hops.push({ deviceId: rem.deviceId, iface: acIf, dscp });
@@ -359,7 +384,9 @@ export function walkFlow(sim: Sim, src: string, dst: number, dscp0: number): { h
     let exp: number | undefined;
     if (!vrf) {
       const fecRoute = r.route.protocol === 'B' && r.route.nextHop !== undefined ? (lookup(table, r.route.nextHop) ?? r.route) : r.route;
-      const ftn = sim.ldp.byFec.get(`${dev}|${prefixKey(fecRoute.network, fecRoute.prefixLen)}`)?.find((x) => x.nextHop === r.nextHop && x.iface === r.iface);
+      const ftn = sim.ldp.byFec
+        .get(`${dev}|${prefixKey(fecRoute.network, fecRoute.prefixLen)}`)
+        ?.find((x) => x.nextHop === r.nextHop && x.iface === r.iface);
       if (ftn && typeof ftn.out === 'number') exp = impExp ?? dscp >> 3;
     }
     hops.push({ deviceId: dev, iface: r.iface, dscp, exp });

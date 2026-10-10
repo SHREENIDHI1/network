@@ -11,7 +11,11 @@ import { outLabel, type TeLsp } from '../te/te';
  */
 
 const pad = (s: string | number, n: number) => String(s).padEnd(n);
-const short = (n?: string) => (n ?? '-').replace(/^TenGigabitEthernet/, 'Te').replace(/^GigabitEthernet/, 'Gi').replace(/^Tunnel/, 'Tu');
+const short = (n?: string) =>
+  (n ?? '-')
+    .replace(/^TenGigabitEthernet/, 'Te')
+    .replace(/^GigabitEthernet/, 'Gi')
+    .replace(/^Tunnel/, 'Tu');
 const lspName = (sim: Sim, l: TeLsp) => `${sim.device(l.head)?.name ?? l.head}_t${l.number}`;
 const lbl = (v: number | 'pop') => (v === 'pop' ? 'Pop' : String(v));
 
@@ -70,12 +74,16 @@ export function showTeTunnels(sim: Sim, device: Device, only?: string): string {
   for (const l of ls) {
     const cfg = sim.config(device.id)!.teTunnels[l.tunnel];
     const opt = l.pathOption;
-    const frr = l.frr.requested ? `enabled, Protection: ${l.frr.state === 'active' ? 'active (traffic on the backup tunnel)' : l.frr.state === 'ready' ? 'ready' : 'none'}` : 'disabled';
+    const frr = l.frr.requested
+      ? `enabled, Protection: ${l.frr.state === 'active' ? 'active (traffic on the backup tunnel)' : l.frr.state === 'ready' ? 'ready' : 'none'}`
+      : 'disabled';
     out.push(
       `Name: ${lspName(sim, l)}  (${l.tunnel}) Destination: ${l.destination !== undefined ? formatIpv4(l.destination) : '-'}`,
       '  Status:',
       `    Admin: ${cfg.shutdown ? 'admin-down' : 'up'}   Oper: ${l.state}   Path: ${l.state === 'up' ? 'valid' : 'not valid'}   Signalling: ${l.state === 'up' ? 'connected' : 'down'}`,
-      ...(opt && l.state === 'up' ? [`    path option ${opt.pref}, type ${opt.kind}${opt.name ? ` ${opt.name}` : ''} (Basis for Setup, path weight ${l.weight})`] : []),
+      ...(opt && l.state === 'up'
+        ? [`    path option ${opt.pref}, type ${opt.kind}${opt.name ? ` ${opt.name}` : ''} (Basis for Setup, path weight ${l.weight})`]
+        : []),
       '',
       '  Config Parameters:',
       `    Bandwidth: ${l.bandwidthKbps} kbps`,
@@ -95,7 +103,9 @@ export function showTeTunnels(sim: Sim, device: Device, only?: string): string {
       );
       if (l.frr.active) {
         const plr = l.hops[l.frr.active.plr];
-        out.push(`  RailMPLS Lab note: link ${sim.device(plr.dev)?.name} ${plr.outIface} is down; ${sim.device(plr.dev)?.name} switched the LSP to backup ${l.frr.active.backup.split('|')[1]} (FRR). Run "mpls traffic-eng reoptimize" on the head end to re-signal a new path.`);
+        out.push(
+          `  RailMPLS Lab note: link ${sim.device(plr.dev)?.name} ${plr.outIface} is down; ${sim.device(plr.dev)?.name} switched the LSP to backup ${l.frr.active.backup.split('|')[1]} (FRR). Run "mpls traffic-eng reoptimize" on the head end to re-signal a new path.`,
+        );
       }
     } else out.push(`  RailMPLS Lab note: ${l.reason}`);
     out.push('');
@@ -119,7 +129,17 @@ export function showFrrDatabase(sim: Sim, device: Device): string {
     (i === 0 ? head : mid).push(row);
   }
   const hdr = `${pad('LSP / tunnel', 31)}${pad('In-label', 9)}${pad('Out intf/label', 17)}${pad('FRR intf/label', 17)}Status`;
-  return ['P2P Headend FRR information:', hdr, ...head, '', 'P2P LSP midpoint frr information:', hdr, ...mid, '', '(RailMPLS Lab: simplified layout.)'].join('\n');
+  return [
+    'P2P Headend FRR information:',
+    hdr,
+    ...head,
+    '',
+    'P2P LSP midpoint frr information:',
+    hdr,
+    ...mid,
+    '',
+    '(RailMPLS Lab: simplified layout.)',
+  ].join('\n');
 }
 
 export function showRsvpInterface(sim: Sim, device: Device): string {

@@ -334,7 +334,8 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
   if (ic.teBackupPath) L.push(` mpls traffic-eng backup-path ${ic.teBackupPath}`);
   if (ic.rsvpBandwidth !== undefined) L.push(` ip rsvp bandwidth${ic.rsvpBandwidth === 'default' ? '' : ` ${ic.rsvpBandwidth}`}`);
   if (ic.l2Mtu) L.push(` mtu ${ic.l2Mtu}`);
-  if (ic.xconnect) L.push('vfi' in ic.xconnect ? ` xconnect vfi ${ic.xconnect.vfi}` : ` xconnect ${ic.xconnect.peer} ${ic.xconnect.vcId} encapsulation mpls`);
+  if (ic.xconnect)
+    L.push('vfi' in ic.xconnect ? ` xconnect vfi ${ic.xconnect.vfi}` : ` xconnect ${ic.xconnect.peer} ${ic.xconnect.vcId} encapsulation mpls`);
   if (ic.isisMetric) L.push(` isis metric ${ic.isisMetric}`);
   if (ic.isisCircuitType && ic.isisCircuitType !== 'level-1-2') L.push(` isis circuit-type ${ic.isisCircuitType}`);
   if (ic.ospfCost) L.push(` ip ospf cost ${ic.ospfCost}`);

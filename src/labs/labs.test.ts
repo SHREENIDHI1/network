@@ -246,7 +246,9 @@ describe('practical quiz answers match the engine', () => {
     const lab = LABS.find((l) => l.id === 'LB9.1')!;
     const { topology, sim } = await start(lab);
     applySolution(topology, sim, lab.solution!);
-    const lossy = analyseTraffic(sim).flows.filter((f) => f.lossPct > 0.1).map((f) => f.app);
+    const lossy = analyseTraffic(sim)
+      .flows.filter((f) => f.lossPct > 0.1)
+      .map((f) => f.app);
     expect(lossy).toEqual(['Railnet / Internet']);
   });
 
