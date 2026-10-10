@@ -146,7 +146,7 @@ const LSP_CODES = [
 ];
 
 export function lspPingOutput(s: LspSession): string {
-  const fec = `${formatIpv4(s.network)}/${s.prefixLen}`;
+  const fec = s.pw ? formatIpv4(s.pw.peer) : `${formatIpv4(s.network)}/${s.prefixLen}`;
   const L = [
     `Sending ${s.count}, 100-byte MPLS Echos to ${fec},`,
     `     timeout is ${s.timeoutMs / 1000} seconds, send interval is 0 msec:`,

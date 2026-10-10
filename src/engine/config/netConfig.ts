@@ -109,6 +109,25 @@ const interfaceSchema = z.object({
   mplsIp: z.boolean().optional(),
   /** "vrf forwarding NAME": interface belongs to this VRF (removes it from the global table). */
   vrf: z.string().optional(),
+  /** Layer-2 interface MTU ("mtu N"); default 1500. Used as the pseudowire MTU of an xconnect. */
+  l2Mtu: z.number().int().min(64).max(9216).optional(),
+  /** "xconnect PEER VCID encapsulation mpls" (VPWS) or "xconnect vfi NAME" (VPLS attachment). */
+  xconnect: z.union([z.object({ peer: dotted, vcId: z.number().int().min(1).max(4294967295) }), z.object({ vfi: z.string() })]).optional(),
+});
+
+/** "l2 vfi NAME manual": VPLS forwarder with its "vpn id" and pseudowire "neighbor"s. */
+const vfiSchema = z.object({
+  vpnId: z.number().int().min(1).max(4294967295).optional(),
+  neighbors: z.array(dotted).default([]),
+});
+
+/** "controller E1 x/y/z": logical E1 with its CEM groups and the CEM interface's xconnects. */
+const e1ControllerSchema = z.object({
+  shutdown: z.boolean().optional(),
+  /** cem-group N unframed (SAToP, whole E1) or cem-group N timeslots a-b (CESoPSN). */
+  cemGroups: z.record(z.object({ unframed: z.boolean(), timeslots: z.array(z.number().int().min(1).max(31)).default([]) })).default({}),
+  /** "interface CEMx/y/z" → "cem N" → "xconnect PEER VCID encapsulation mpls". */
+  xconnects: z.record(z.object({ peer: dotted, vcId: z.number().int().min(1).max(4294967295) })).default({}),
 });
 
 const ospfSchema = z.object({
@@ -306,6 +325,8 @@ const baseConfigSchema = z.object({
   mpls: mplsSchema.default({}),
   vrfs: z.record(vrfSchema).default({}),
   bgp: bgpSchema.optional(),
+  vfis: z.record(vfiSchema).default({}),
+  e1Controllers: z.record(e1ControllerSchema).default({}),
   acls: z.record(aclSchema).default({}),
   nat: natSchema.default({}),
   dhcp: dhcpSchema.default({}),
@@ -332,6 +353,8 @@ export type VrfConfig = z.infer<typeof vrfSchema>;
 export type BgpConfig = z.infer<typeof bgpSchema>;
 export type BgpNeighborConfig = z.infer<typeof bgpNeighborSchema>;
 export type BgpVrfConfig = z.infer<typeof bgpVrfSchema>;
+export type VfiConfig = z.infer<typeof vfiSchema>;
+export type E1ControllerConfig = z.infer<typeof e1ControllerSchema>;
 export type AclConfig = z.infer<typeof aclSchema>;
 export type AclEntry = z.infer<typeof aclEntrySchema>;
 export type FhrpConfig = z.infer<typeof fhrpSchema>;
@@ -359,6 +382,8 @@ export function defaultNetConfig(kind: DeviceKind): NetConfig {
     mgmt: mgmtSchema.parse({}),
     mpls: mplsSchema.parse({}),
     vrfs: {},
+    vfis: {},
+    e1Controllers: {},
   };
 }
 

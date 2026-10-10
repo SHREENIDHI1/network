@@ -112,6 +112,8 @@ export interface Frame {
   /** MPLS label stack (top first) between the Ethernet header and the IP packet. */
   mpls?: MplsLabel[];
   payload: ArpPacket | Ipv4Packet;
+  /** Pseudowire: the whole customer Ethernet frame carried under the MPLS labels (payload mirrors its payload). */
+  l2?: Frame;
   /** Packet-inspector flow this frame belongs to. */
   flowId: number;
 }

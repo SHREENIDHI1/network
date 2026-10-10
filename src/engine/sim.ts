@@ -2,6 +2,7 @@ import type { Device, Topology } from '../model/types';
 import { effectivePort, getNetConfig, isBridgeRole, longIfName, roleOf, type DeviceRole, type NetConfig } from './config/netConfig';
 import { EventQueue } from './core/eventQueue';
 import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet, type MplsLabel } from './core/types';
+import { computePseudowires, emptyPw, type PwEndpoint, type PwResult } from './l2vpn/pw';
 import { computeBgp, emptyBgp, type BgpResult } from './bgp/bgp';
 import { computeLdp, emptyLdp, ldpSyncHolddown, OSPF_MAX_METRIC, prefixKey, type LdpResult, type LfibEntry } from './mpls/ldp';
 import { computeSegments, type Segment } from './ethernet/segments';
@@ -97,6 +98,8 @@ export interface FrameView {
   summary: string;
   arp?: { op: string; senderMac: string; senderIp: string; targetMac: string; targetIp: string };
   ip?: { src: string; dst: string; ttl: number; dscp: number; protocol: string; /** ICMP or UDP/DHCP summary */ icmp: string; sizeBytes: number };
+  /** Pseudowire: the customer's Ethernet header carried under the labels. */
+  pw?: { srcMac: string; dstMac: string; vlanTag?: number; etherType: string };
 }
 
 export type TraceAction = 'send' | 'receive' | 'forward' | 'flood' | 'drop' | 'deliver' | 'learn' | 'reply' | 'queue';
@@ -225,6 +228,8 @@ export interface LspSession {
   /** Ingress label (hop 0 line of traceroute mpls). */
   ingress?: { iface: string; nextHop: number; out: LfibEntry['out'] };
   error?: string;
+  /** "ping mpls pseudowire PEER VCID": echo carried with the VC label. */
+  pw?: { peer: number; vcId: number };
 }
 
 /** DNS lookup, NTP poll or SSH/Telnet connection attempt started from a device. */
@@ -348,6 +353,9 @@ export class Sim {
 
   ldp: LdpResult = emptyLdp();
   bgp: BgpResult = emptyBgp();
+  pw: PwResult = emptyPw();
+  /** VPLS MAC tables: "deviceId|vfi" → MAC → attachment interface or pseudowire peer. */
+  readonly vfiMacs = new Map<string, Map<string, { iface?: string; peer?: number; at: number }>>();
   /** Per device: VRF name → routing table. */
   readonly vrfRoutes = new Map<string, Map<string, Route[]>>();
   /** Interfaces whose OSPF cost is held at max by "mpls ldp sync" (no LDP session yet). */
@@ -516,6 +524,15 @@ export class Sim {
       this.vrfRoutes.set(d.id, m);
     }
 
+    // Pseudowires (VPWS, VPLS, CEM) over the LDP LSPs.
+    this.pw = computePseudowires(this.topology, this.configs, this.l3, this.routes, this.ldp);
+    for (const [k, t] of this.vfiMacs)
+      for (const [mac, e] of t) {
+        const dev = k.split('|')[0];
+        if (e.peer !== undefined && !this.pw.endpoints.some((x) => x.deviceId === dev && x.vfi && x.peer === e.peer && x.status === 'UP')) t.delete(mac);
+        if (e.iface && !this.l3.get(dev)?.some((i) => i.name === e.iface && i.up)) t.delete(mac);
+      }
+
     // First-hop redundancy. A change of active router is announced by its hellos
     // from the virtual MAC, which moves that MAC in every switch's table.
     this.fhrp = computeFhrp(this.topology, this.configs, this.l3, this.phys, this.segments, this.fhrpActive);
@@ -593,6 +610,7 @@ export class Sim {
     this.inbox.clear();
     this.lspSessions.clear();
     this.lfibBytes.clear();
+    this.vfiMacs.clear();
     this.now = 0;
     this.lastEvent = undefined;
     this.recompute();
@@ -1168,6 +1186,12 @@ export class Sim {
     }
     if (isBridgeRole(role) && effectivePort(role, cfg.interfaces[portId]).switchport) {
       this.bridgeReceive(deviceId, portId, frame);
+      return;
+    }
+    // Pseudowire attachment circuit (xconnect): the frame is carried as-is, not routed.
+    const ac = role === 'router' ? this.acFor(deviceId, portId, frame.vlanTag) : undefined;
+    if (ac) {
+      this.acInput(deviceId, ac, frame);
       return;
     }
     // Routed port / host NIC: pick the logical interface by 802.1Q tag.
@@ -1750,6 +1774,11 @@ export class Sim {
       this.routeAndSend(deviceId, { ...pkt, ttl: ipTtl }, flowId, { originated: false, ingress: iface, vrf: vpnEntry.vrf });
       return;
     }
+    const pwEntry = entry ? undefined : this.pw.byLabel.get(`${deviceId}|${top.label}`);
+    if (pwEntry) {
+      this.pwEgress(deviceId, iface, pwEntry, frame);
+      return;
+    }
     if (!entry) {
       this.trace(
         flowId,
@@ -1760,7 +1789,7 @@ export class Sim {
     }
     const fec = `${formatIpv4(entry.network)}/${entry.prefixLen}`;
     const bytesKey = `${deviceId}|${top.label}`;
-    this.lfibBytes.set(bytesKey, (this.lfibBytes.get(bytesKey) ?? 0) + pkt.sizeBytes + 4 * stack.length);
+    this.lfibBytes.set(bytesKey, (this.lfibBytes.get(bytesKey) ?? 0) + (frame.l2 ? 64 : pkt.sizeBytes) + 4 * stack.length);
     if (ttl <= 0) {
       this.trace(
         flowId,
@@ -1827,7 +1856,7 @@ export class Sim {
         },
         frame,
       );
-      this.sendToNextHop(deviceId, out, entry.nextHop, pkt, next, flowId, false);
+      this.sendToNextHop(deviceId, out, entry.nextHop, pkt, next, flowId, false, frame.l2);
       return;
     }
     const ipTtl = propagate ? Math.min(pkt.ttl, ttl) : pkt.ttl;
@@ -1843,7 +1872,15 @@ export class Sim {
         },
         frame,
       );
-      this.sendToNextHop(deviceId, out, entry.nextHop, { ...pkt, ttl: ipTtl }, rest.length ? rest : undefined, flowId, false);
+      this.sendToNextHop(deviceId, out, entry.nextHop, { ...pkt, ttl: ipTtl }, rest.length ? rest : undefined, flowId, false, frame.l2);
+      return;
+    }
+    if (frame.l2) {
+      this.trace(
+        flowId,
+        { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Label ${top.label} (FEC ${fec}) has no outgoing label — a pseudowire packet cannot be routed as IP; dropped.` },
+        frame,
+      );
       return;
     }
     // No outgoing label (next hop not an LDP peer / no binding): forward as IP.
@@ -1959,6 +1996,10 @@ export class Sim {
     );
     const probe: LspProbe = { seq: index, ttl, flowId, sentAt: this.now, code: 'pending' };
     s.probes.push(probe);
+    if (s.pw) {
+      this.pwLspSend(s, probe);
+      return;
+    }
     const ftn = this.ldp.byFec.get(`${s.srcDeviceId}|${fec}`)?.[0];
     s.ingress ??= ftn ? { iface: ftn.iface, nextHop: ftn.nextHop, out: ftn.out } : undefined;
     const out = ftn ? this.interfaces(s.srcDeviceId).find((i) => i.name === ftn.iface && i.up && i.ip !== undefined) : undefined;
@@ -2966,6 +3007,220 @@ export class Sim {
     this.sendToNextHop(deviceId, iface, g.nextHop, pkt, stack, flowId, originated);
   }
 
+  // -------------------------------------------------------- pseudowires --
+
+  /** Interface whose xconnect takes this frame: a port-mode AC takes everything, else a dot1Q subinterface by tag. */
+  private acFor(deviceId: string, portId: string, vlanTag: number | undefined): string | undefined {
+    const cfg = this.configs.get(deviceId)!;
+    if (cfg.interfaces[portId]?.xconnect) return portId;
+    if (vlanTag === undefined) return undefined;
+    const sub = this.interfaces(deviceId).find((i) => i.kind === 'sub' && i.port === portId && i.vlan === vlanTag);
+    return sub && cfg.interfaces[sub.name]?.xconnect ? sub.name : undefined;
+  }
+
+  private acInput(deviceId: string, ifName: string, frame: Frame): void {
+    const xc = this.configs.get(deviceId)!.interfaces[ifName]!.xconnect!;
+    const li = this.interfaces(deviceId).find((i) => i.name === ifName);
+    if (!li?.up) {
+      this.trace(frame.flowId, { deviceId, iface: ifName, action: 'drop', table: 'Interface', detail: `Attachment circuit ${ifName} is down.` }, frame);
+      return;
+    }
+    if ('vfi' in xc) {
+      this.vplsForward(deviceId, xc.vfi, frame, { iface: ifName });
+      return;
+    }
+    const e = this.pw.endpoints.find((x) => x.deviceId === deviceId && x.iface === ifName);
+    if (!e || e.status !== 'UP') {
+      this.trace(
+        frame.flowId,
+        {
+          deviceId,
+          iface: ifName,
+          action: 'drop',
+          table: 'LFIB',
+          detail: `Attachment circuit ${ifName} → pseudowire VC ${xc.vcId} to ${xc.peer} is DOWN${e?.reason ? `: ${e.reason}` : ''}.`,
+        },
+        frame,
+      );
+      return;
+    }
+    // VLAN-based AC: the tag is removed here and the remote PE adds its own (VLAN rewrite).
+    this.pwSend(deviceId, e, e.vlan !== undefined ? { ...frame, vlanTag: undefined } : frame, `Attachment circuit ${ifName}`);
+  }
+
+  /** Imposes [transport label, VC label] on a customer frame and sends it towards the remote PE. */
+  private pwSend(deviceId: string, e: PwEndpoint, inner: Frame, from: string): void {
+    const t = e.transport!;
+    const out = this.interfaces(deviceId).find((i) => i.name === t.iface && i.up && i.ip !== undefined);
+    if (!out || !e.remote) {
+      this.trace(inner.flowId, { deviceId, action: 'drop', table: 'LFIB', detail: `Pseudowire to ${formatIpv4(e.peer)}: outgoing interface ${t.iface} is down.` });
+      return;
+    }
+    const vc = e.remote.localLabel;
+    const stack: MplsLabel[] = [...(t.label !== undefined ? [{ label: t.label, tc: 0, ttl: 255 }] : []), { label: vc, tc: 0, ttl: 2 }];
+    const l2: Frame = { ...inner, mpls: undefined, l2: undefined };
+    this.trace(
+      inner.flowId,
+      {
+        deviceId,
+        iface: out.name,
+        action: 'forward',
+        table: 'LFIB',
+        detail: `${from}: frame carried on pseudowire VC ${e.vcId} to ${formatIpv4(e.peer)} — push VC label ${vc}${t.label !== undefined ? ` and transport label ${t.label}` : ' (peer is the next hop: no transport label)'}.`,
+      },
+      inner,
+    );
+    this.sendToNextHop(deviceId, out, t.nextHop, l2.payload as Ipv4Packet, stack, inner.flowId, false, l2);
+  }
+
+  /** VC label at the egress PE: pop and hand the customer frame to the attachment circuit (or the VFI). */
+  private pwEgress(deviceId: string, iface: L3Interface, e: PwEndpoint, frame: Frame): void {
+    const flowId = frame.flowId;
+    const pkt = frame.payload as Ipv4Packet;
+    if (!frame.l2) {
+      if (pkt.kind === 'ipv4' && pkt.udp?.app?.kind === 'mpls-echo-request') {
+        const app = pkt.udp.app;
+        const ok = e.status === 'UP';
+        this.trace(flowId, {
+          deviceId,
+          iface: iface.name,
+          action: 'deliver',
+          table: 'LFIB',
+          detail: `MPLS echo request on pseudowire VC ${e.vcId} (VC label ${e.localLabel}) — ${ok ? 'pseudowire endpoint found (return code 3).' : `pseudowire is DOWN here: ${e.reason}`}`,
+        });
+        this.lspReply(deviceId, pkt, app.id, app.seq, ok ? '!' : 'f', ok ? '' : 'pseudowire down', flowId);
+        return;
+      }
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `VC label ${e.localLabel} with no Ethernet payload — dropped.` }, frame);
+      return;
+    }
+    if (e.status !== 'UP') {
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `VC label ${e.localLabel}: pseudowire VC ${e.vcId} is DOWN here (${e.reason}).` }, frame);
+      return;
+    }
+    const inner = { ...frame.l2, flowId };
+    this.trace(
+      flowId,
+      {
+        deviceId,
+        iface: iface.name,
+        action: 'forward',
+        table: 'LFIB',
+        detail: `VC label ${e.localLabel}: pop — pseudowire VC ${e.vcId} from ${formatIpv4(e.peer)}; customer frame goes to ${e.vfi ? `VFI ${e.vfi}` : e.ac}.`,
+      },
+      frame,
+    );
+    if (e.vfi) {
+      this.vplsForward(deviceId, e.vfi, inner, { peer: e.peer });
+      return;
+    }
+    const ac = this.interfaces(deviceId).find((i) => i.name === e.iface && i.up);
+    if (!ac?.port) {
+      this.trace(flowId, { deviceId, iface: e.iface, action: 'drop', table: 'Interface', detail: `Attachment circuit ${e.iface} is down.` }, inner);
+      return;
+    }
+    this.transmit(deviceId, ac.port, e.vlan !== undefined ? { ...inner, vlanTag: e.vlan } : inner);
+  }
+
+  /** VPLS forwarder: MAC learning per VFI, flooding, and pseudowire split horizon. */
+  private vplsForward(deviceId: string, vfi: string, frame: Frame, from: { iface?: string; peer?: number }): void {
+    const key = `${deviceId}|${vfi}`;
+    const table = this.vfiMacs.get(key) ?? new Map<string, { iface?: string; peer?: number; at: number }>();
+    this.vfiMacs.set(key, table);
+    if (frame.srcMac !== BROADCAST_MAC) table.set(frame.srcMac, { ...from, at: this.now });
+    const acs = (this.pw.vfiAcs.get(key) ?? []).filter((a) => a !== from.iface);
+    const pws = from.peer === undefined ? this.pw.endpoints.filter((x) => x.deviceId === deviceId && x.vfi === vfi && x.status === 'UP') : [];
+    const fromText = from.iface ? `attachment ${from.iface}` : `pseudowire from ${formatIpv4(from.peer!)}`;
+    const toAc = (a: string) => {
+      const li = this.interfaces(deviceId).find((i) => i.name === a && i.up);
+      if (li?.port) this.transmit(deviceId, li.port, frame);
+    };
+    const known = frame.dstMac === BROADCAST_MAC ? undefined : table.get(frame.dstMac);
+    if (known && !(known.iface !== undefined && known.iface === from.iface) && !(known.peer !== undefined && from.peer !== undefined)) {
+      const where = known.iface ?? `pseudowire to ${formatIpv4(known.peer!)}`;
+      this.trace(
+        frame.flowId,
+        { deviceId, action: 'forward', table: 'MAC table', detail: `VFI ${vfi}: learned ${frame.srcMac} on ${fromText}; ${frame.dstMac} is known on ${where}.` },
+        frame,
+      );
+      if (known.iface) toAc(known.iface);
+      else {
+        const e = this.pw.endpoints.find((x) => x.deviceId === deviceId && x.vfi === vfi && x.peer === known.peer && x.status === 'UP');
+        if (e) this.pwSend(deviceId, e, frame, `VFI ${vfi}`);
+      }
+      return;
+    }
+    if (known && known.peer !== undefined && from.peer !== undefined) {
+      this.trace(
+        frame.flowId,
+        { deviceId, action: 'drop', table: 'MAC table', detail: `VFI ${vfi}: ${frame.dstMac} is behind another pseudowire — split horizon: never forwarded pseudowire to pseudowire.` },
+        frame,
+      );
+      return;
+    }
+    this.trace(
+      frame.flowId,
+      {
+        deviceId,
+        action: 'flood',
+        table: 'MAC table',
+        detail: `VFI ${vfi}: learned ${frame.srcMac} on ${fromText}; ${frame.dstMac === BROADCAST_MAC ? 'broadcast' : `${frame.dstMac} unknown`} — flood to ${[...acs, ...pws.map((x) => `PW ${formatIpv4(x.peer)}`)].join(', ') || 'nothing'}${from.peer !== undefined ? ' (split horizon: not to other pseudowires)' : ''}.`,
+      },
+      frame,
+    );
+    for (const a of acs) toAc(a);
+    for (const e of pws) this.pwSend(deviceId, e, frame, `VFI ${vfi}`);
+  }
+
+  /** "ping mpls pseudowire PEER VCID": MPLS echo carried with the pseudowire's VC label. */
+  pwPing(srcDeviceId: string, peer: number, vcId: number, opts: { count?: number; timeoutMs?: number } = {}): number {
+    const id = this.startLsp('ping', srcDeviceId, peer, 32, { count: opts.count ?? 5, timeoutMs: opts.timeoutMs ?? PING_TIMEOUT_MS, maxTtl: 255 });
+    const s = this.lspSessions.get(id)!;
+    s.pw = { peer, vcId };
+    if (!s.error && !this.pw.endpoints.some((x) => x.deviceId === srcDeviceId && x.peer === peer && x.vcId === vcId)) {
+      s.error = `% No pseudowire to ${formatIpv4(peer)} with VC ID ${vcId} on this router.`;
+      s.done = true;
+    }
+    return id;
+  }
+
+  private pwLspSend(s: LspSession, probe: LspProbe): void {
+    const e = this.pw.endpoints.find((x) => x.deviceId === s.srcDeviceId && x.peer === s.pw!.peer && x.vcId === s.pw!.vcId);
+    const out = e?.transport ? this.interfaces(s.srcDeviceId).find((i) => i.name === e.transport!.iface && i.up && i.ip !== undefined) : undefined;
+    if (!e || e.status !== 'UP' || !e.remote || !out) {
+      probe.code = 'Q';
+      this.trace(probe.flowId, {
+        deviceId: s.srcDeviceId,
+        action: 'drop',
+        table: 'LFIB',
+        detail: `Pseudowire VC ${s.pw!.vcId} to ${formatIpv4(s.pw!.peer)} is DOWN${e?.reason ? ` (${e.reason})` : ''} — MPLS echo request not sent.`,
+      });
+      this.afterLsp(s);
+      return;
+    }
+    const pkt: Ipv4Packet = {
+      kind: 'ipv4',
+      src: this.ldp.routers.get(s.srcDeviceId)!.routerId,
+      dst: 0x7f000001,
+      ttl: 1,
+      dscp: 0,
+      protocol: 'udp',
+      udp: { srcPort: 3503, dstPort: 3503, app: { kind: 'mpls-echo-request', id: s.id, seq: probe.seq, fec: `pseudowire ${formatIpv4(e.peer)} VC ${e.vcId}` } },
+      sizeBytes: 100,
+    };
+    const t = e.transport!;
+    const stack: MplsLabel[] = [...(t.label !== undefined ? [{ label: t.label, tc: 0, ttl: 255 }] : []), { label: e.remote.localLabel, tc: 0, ttl: 1 }];
+    this.queue.push(this.now + s.timeoutMs, { type: 'lsp-timeout', sessionId: s.id, index: probe.seq });
+    this.trace(probe.flowId, {
+      deviceId: s.srcDeviceId,
+      iface: out.name,
+      action: 'send',
+      table: 'LFIB',
+      detail: `MPLS echo request on pseudowire VC ${e.vcId}: VC label ${e.remote.localLabel}${t.label !== undefined ? ` under transport label ${t.label}` : ''}.`,
+    });
+    this.sendToNextHop(s.srcDeviceId, out, t.nextHop, pkt, stack, probe.flowId, true);
+  }
+
   /** ARP resolution + transmission towards a next hop (shared by IP routing and label switching). */
   private sendToNextHop(
     deviceId: string,
@@ -2975,6 +3230,7 @@ export class Sim {
     mpls: MplsLabel[] | undefined,
     flowId: number,
     originated: boolean,
+    l2?: Frame,
   ): void {
     if (iface.ip === undefined) {
       this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Interface', detail: `${iface.name} has no IP address.` });
@@ -2985,7 +3241,7 @@ export class Sim {
     const rt = this.rt(deviceId);
     const arp = rt.arp.get(r.nextHop);
     if (arp && arp.iface === iface.name && this.now - arp.at <= ARP_TIMEOUT_MS) {
-      const frame: Frame = { srcMac: iface.mac, dstMac: arp.mac, payload: pkt, flowId, mpls };
+      const frame: Frame = { srcMac: iface.mac, dstMac: arp.mac, payload: l2 ? l2.payload : pkt, flowId, mpls, ...(l2 ? { l2 } : {}) };
       this.trace(
         flowId,
         { deviceId, iface: iface.name, action: 'send', table: 'ARP cache', detail: `Next hop ${formatIpv4(r.nextHop)} is at ${arp.mac}.` },
@@ -3063,6 +3319,19 @@ export class Sim {
 // ---------------------------------------------------------------------------
 
 export function viewFrame(f: Frame): FrameView {
+  if (f.l2) {
+    const inner = viewFrame(f.l2);
+    return {
+      ...inner,
+      srcMac: f.srcMac,
+      dstMac: f.dstMac,
+      vlanTag: f.vlanTag,
+      etherType: etherTypeOf(f),
+      mpls: f.mpls?.map((l) => ({ ...l })),
+      pw: { srcMac: inner.srcMac, dstMac: inner.dstMac, vlanTag: inner.vlanTag, etherType: inner.etherType },
+      summary: `MPLS [${(f.mpls ?? []).map((l) => l.label).join('/')}] pseudowire ⟶ Ethernet ${inner.summary}`,
+    };
+  }
   const base = { srcMac: f.srcMac, dstMac: f.dstMac, vlanTag: f.vlanTag, etherType: etherTypeOf(f), mpls: f.mpls?.map((l) => ({ ...l })) };
   const p = f.payload;
   if (p.kind === 'arp') {

@@ -229,6 +229,19 @@ function Headers({ f }: { f: FrameView }) {
           <p className="text-slate-500">None — plain IP on this hop</p>
         )}
       </section>
+      {f.pw && (
+        <section>
+          <h4 className="rn-label">Pseudowire payload: customer Ethernet</h4>
+          <table>
+            <tbody>
+              {row('Destination', f.pw.dstMac)}
+              {row('Source', f.pw.srcMac)}
+              {f.pw.vlanTag !== undefined && row('802.1Q VLAN', f.pw.vlanTag)}
+              {row('EtherType', f.pw.etherType)}
+            </tbody>
+          </table>
+        </section>
+      )}
       {f.arp && (
         <section>
           <h4 className="rn-label">ARP</h4>

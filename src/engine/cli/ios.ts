@@ -24,6 +24,7 @@ import { igpCmds } from './iosIgp';
 import { mgmtCmds } from './iosMgmt';
 import { mplsCmds } from './iosMpls';
 import { bgpCmds } from './iosBgp';
+import { l2vpnCmds } from './iosL2vpn';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -55,7 +56,11 @@ export type CliMode =
   | 'config-vrf'
   | 'config-vrf-af'
   | 'config-router-bgp'
-  | 'config-router-af';
+  | 'config-router-af'
+  | 'config-vfi'
+  | 'config-controller'
+  | 'config-cem-if'
+  | 'config-if-cem';
 
 export interface CliSession {
   deviceId: string;
@@ -70,6 +75,8 @@ export interface CliSession {
   pmapClass?: string;
   /** BGP address family being edited: 'ipv4', 'vpnv4' or 'vrf:NAME'. */
   bgpAf?: string;
+  /** CEM group being edited under "interface CEMx/y/z" → "cem N". */
+  cemGroup?: number;
 }
 
 export interface CliContext {
@@ -145,6 +152,10 @@ export const ANYCONF: CliMode[] = [
   'config-vrf-af',
   'config-router-bgp',
   'config-router-af',
+  'config-vfi',
+  'config-controller',
+  'config-cem-if',
+  'config-if-cem',
 ];
 
 const INVALID = "% Invalid input detected at '^' marker.";
@@ -390,7 +401,9 @@ const CMDS: Cmd[] = [
             ? x.setMode('config-vrf', { ctxName: x.session.ctxName })
             : x.session.mode === 'config-router-af'
               ? x.setMode('config-router-bgp')
-              : x.setMode('config'),
+              : x.session.mode === 'config-if-cem'
+                ? x.setMode('config-cem-if', { ctxName: x.session.ctxName })
+                : x.setMode('config'),
   },
   {
     modes: CONF,
@@ -849,7 +862,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds(), ...l2vpnCmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -1124,6 +1137,14 @@ export function prompt(session: CliSession, topology: Topology): string {
       return `${name}(config-router)#`;
     case 'config-router-af':
       return `${name}(config-router-af)#`;
+    case 'config-vfi':
+      return `${name}(config-vfi)#`;
+    case 'config-controller':
+      return `${name}(config-controller)#`;
+    case 'config-cem-if':
+      return `${name}(config-if)#`;
+    case 'config-if-cem':
+      return `${name}(config-if-cem)#`;
   }
 }
 

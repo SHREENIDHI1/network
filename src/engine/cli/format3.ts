@@ -1,3 +1,4 @@
+import { tsText } from '../l2vpn/pw';
 import { isisProtocolLines, ripProtocolLines } from './formatIgp';
 import type { Device } from '../../model/types';
 import { longIfName, type InterfaceConfig, type NetConfig } from '../config/netConfig';
@@ -326,6 +327,8 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
   if (ic.natRole) L.push(` ip nat ${ic.natRole}`);
   if (ic.isisEnabled) L.push(' ip router isis');
   if (ic.mplsIp) L.push(' mpls ip');
+  if (ic.l2Mtu) L.push(` mtu ${ic.l2Mtu}`);
+  if (ic.xconnect) L.push('vfi' in ic.xconnect ? ` xconnect vfi ${ic.xconnect.vfi}` : ` xconnect ${ic.xconnect.peer} ${ic.xconnect.vcId} encapsulation mpls`);
   if (ic.isisMetric) L.push(` isis metric ${ic.isisMetric}`);
   if (ic.isisCircuitType && ic.isisCircuitType !== 'level-1-2') L.push(` isis circuit-type ${ic.isisCircuitType}`);
   if (ic.ospfCost) L.push(` ip ospf cost ${ic.ospfCost}`);
@@ -363,6 +366,28 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
     for (const rt of v.exportRts) L.push(`  route-target export ${rt}`);
     for (const rt of v.importRts) L.push(`  route-target import ${rt}`);
     L.push(' exit-address-family', '!');
+  }
+  for (const [n, v] of Object.entries(cfg.vfis)) {
+    L.push(`l2 vfi ${n} manual`);
+    if (v.vpnId !== undefined) L.push(` vpn id ${v.vpnId}`);
+    for (const nb of v.neighbors) L.push(` neighbor ${nb} encapsulation mpls`);
+    L.push('!');
+  }
+  for (const [k, c] of Object.entries(cfg.e1Controllers)) {
+    L.push(`controller E1 ${k}`);
+    for (const [g, grp] of Object.entries(c.cemGroups)) L.push(` cem-group ${g} ${grp.unframed ? 'unframed' : `timeslots ${tsText(grp.timeslots)}`}`);
+    if (c.shutdown) L.push(' shutdown');
+    L.push('!');
+  }
+  for (const [k, c] of Object.entries(cfg.e1Controllers)) {
+    if (!Object.keys(c.cemGroups).length) continue;
+    L.push(`interface CEM${k}`, ' no ip address');
+    for (const g of Object.keys(c.cemGroups)) {
+      L.push(` cem ${g}`);
+      const xc = c.xconnects[g];
+      if (xc) L.push(`  xconnect ${xc.peer} ${xc.vcId} encapsulation mpls`);
+    }
+    L.push('!');
   }
   const mp = cfg.mpls;
   if (mp.ldpRouterId || mp.explicitNull || !mp.propagateTtl) {
