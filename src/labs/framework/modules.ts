@@ -69,6 +69,8 @@ export const BUILT_MODULES: ReadonlySet<EngineModule> = new Set<EngineModule>([
   'bgp',
   'l2vpn',
   'te',
+  'faults',
+  'nms',
 ]);
 
 export function missingModules(required: readonly EngineModule[], built: ReadonlySet<EngineModule> = BUILT_MODULES): EngineModule[] {

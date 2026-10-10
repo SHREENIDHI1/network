@@ -58,6 +58,7 @@ export function deriveL3Interfaces(device: Device, cfg: NetConfig, phys: Physica
   if (role === 'opaque' || role === 'hub') return [];
   const out: L3Interface[] = [];
   const portUp = (portId: string) => !!phys.ports.get(portKey(device.id, portId))?.operUp;
+  if (device.fault?.power) return deriveL3Interfaces({ ...device, fault: undefined }, cfg, phys, stp).map((i) => ({ ...i, up: false, reason: 'power off' }));
 
   device.ports.forEach((p, idx) => {
     const eff = effectivePort(role, cfg.interfaces[p.id]);

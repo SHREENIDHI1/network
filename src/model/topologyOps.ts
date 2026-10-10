@@ -59,7 +59,7 @@ export function addDevice(
   return { topology: { ...topo, devices: [...topo.devices, device] }, device };
 }
 
-export type DevicePatch = Partial<Pick<Device, 'name' | 'station' | 'notes' | 'position'>>;
+export type DevicePatch = Partial<Pick<Device, 'name' | 'station' | 'notes' | 'position' | 'fault'>>;
 
 export function updateDevice(topo: Topology, id: string, patch: DevicePatch): Topology {
   return { ...topo, devices: topo.devices.map((d) => (d.id === id ? { ...d, ...patch } : d)) };

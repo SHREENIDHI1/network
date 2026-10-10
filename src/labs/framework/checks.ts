@@ -678,6 +678,43 @@ export function pwUp(a: string, b: string, vcId: number, type?: PseudowireState[
 // NMS / services (Phase 6)
 // ---------------------------------------------------------------------------
 
+/** The NMS manages `dev` (SNMP polling community configured and reachable from the NMS). */
+export function nmsManaged(dev: string): Check {
+  return (snap) => {
+    const d = section(snap, 'nmsDevices', 'nms');
+    if (isResult(d)) return d;
+    const x = d.find((y) => y.device === dev);
+    if (!x) return fail(`${dev} is not a device the NMS can poll.`);
+    if (x.state === 'managed') return pass();
+    return fail(x.state === 'unreachable' ? `${dev} has the SNMP community but the NMS cannot reach it.` : `${dev} is not managed — the NMS polling community is not configured on it.`);
+  };
+}
+
+/** No NMS alarm of these severities (default critical + major), optionally of given types. */
+export function nmsNoAlarms(o: { severities?: Array<'critical' | 'major' | 'minor' | 'warning'>; types?: string[] } = {}): Check {
+  return (snap) => {
+    const al = section(snap, 'nmsAlarms', 'nms');
+    if (isResult(al)) return al;
+    const sev = o.severities ?? ['critical', 'major'];
+    const hit = al.filter((a) => sev.includes(a.severity) && (!o.types || o.types.includes(a.type)));
+    return hit.length ? fail(`The NMS still shows ${hit.length} ${sev.join('/')} alarm(s), e.g. ${hit[0].type} on ${hit[0].device}.`) : pass();
+  };
+}
+
+/** Every device's running-config matches every pattern (regular expressions over the config lines). */
+export function configHasLines(devices: string[], patterns: string[]): Check {
+  return (snap) => {
+    const rc = section(snap, 'runningConfigs', 'nms');
+    if (isResult(rc)) return rc;
+    for (const dev of devices) {
+      const text = rc.find((r) => r.device === dev)?.text ?? '';
+      const miss = patterns.find((p) => !new RegExp(p, 'm').test(text));
+      if (miss !== undefined) return fail(`${dev} is not compliant: no line matching /${miss}/.`);
+    }
+    return pass();
+  };
+}
+
 export function serviceUp(name: string): Check {
   return (snap) => {
     const sv = section(snap, 'services', 'nms');

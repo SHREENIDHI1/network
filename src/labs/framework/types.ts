@@ -120,6 +120,19 @@ export interface QosFlowInfo {
   hops?: Array<{ device: string; iface: string; exp?: number }>;
 }
 
+export interface NmsDeviceInfo {
+  device: string;
+  state: 'managed' | 'unreachable' | 'not-managed';
+}
+
+export interface NmsAlarmInfo {
+  device: string;
+  object?: string;
+  type: string;
+  severity: 'critical' | 'major' | 'minor' | 'warning';
+  layer: 'root' | 'impact' | 'info';
+}
+
 export interface TeTunnelInfo {
   head: string;
   tunnel: string;
@@ -305,6 +318,10 @@ export interface SimSnapshot {
   readonly appResults?: readonly AppResult[];
   readonly qosFlows?: readonly QosFlowInfo[];
   readonly teTunnels?: readonly TeTunnelInfo[];
+  readonly nmsDevices?: readonly NmsDeviceInfo[];
+  readonly nmsAlarms?: readonly NmsAlarmInfo[];
+  /** Running-config text of routers and switches (automation / compliance checks). */
+  readonly runningConfigs?: ReadonlyArray<{ device: string; text: string }>;
   /** Links cut with "Cut fibre/cable", as [device A, device B] names. */
   readonly cutLinks?: ReadonlyArray<readonly [string, string]>;
   // qos (Phase 3)

@@ -104,6 +104,8 @@ export interface Device {
   position: XY;
   ports: Port[];
   notes?: string;
+  /** Injected hardware fault (fault-injection drills): power failure or failed line cards (port-name prefixes, e.g. "Te0/0/"). */
+  fault?: { power?: boolean; cards?: string[] };
   /**
    * Per-device configuration. Empty in Phase 1; protocol modules add their own
    * namespaced sections (e.g. config.ip, config.sdh) in later phases.

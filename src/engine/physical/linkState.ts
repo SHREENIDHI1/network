@@ -19,6 +19,8 @@ export type PortDownReason =
   | 'optical LOS'
   | 'optical overload'
   | 'peer down'
+  | 'power off'
+  | 'card failed'
   | 'media not simulated';
 
 export interface PortStatus {
@@ -79,6 +81,8 @@ export function computePhysical(
     if (!dev) return 'not connected';
     const role = roleOf(dev.kind);
     if (role === 'opaque') return 'media not simulated';
+    if (dev.fault?.power) return 'power off';
+    if (dev.fault?.cards?.some((c) => portId.startsWith(c))) return 'card failed';
     const cfg = effectivePort(role, configs.get(deviceId)?.interfaces[portId]);
     if (cfg.shutdown) return 'administratively down';
     if (errDisabled.get(deviceId)?.has(portId)) return 'err-disabled';

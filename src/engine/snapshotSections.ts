@@ -17,6 +17,9 @@ import type {
   OspfNeighbor,
   QosFlowInfo,
   TeTunnelInfo,
+  NmsDeviceInfo,
+  NmsAlarmInfo,
+  ServiceState,
   EtherChannelInfo,
   InterfaceIp,
   MacEntry,
@@ -30,6 +33,7 @@ import { portKey } from './physical/linkState';
 import { effectivePort, isBridgeRole, roleOf } from './config/netConfig';
 import { formatIpv4 } from './ip/ipv4';
 import type { Sim } from './sim';
+import { runningConfig } from './cli/format';
 
 /**
  * Converts live engine state into the read-only snapshot sections used by
@@ -192,6 +196,13 @@ export function engineSections(sim: Sim): EngineSections {
     lossPct: f.lossPct,
     hops: f.hops.map((h) => ({ device: name(h.deviceId), iface: h.iface, exp: h.exp })),
   }));
+  const nv = sim.nmsView();
+  const nmsDevices: NmsDeviceInfo[] = nv.devices.map((d) => ({ device: name(d.deviceId), state: d.state }));
+  const nmsAlarms: NmsAlarmInfo[] = nv.alarms.map((a) => ({ device: name(a.deviceId), object: a.object, type: a.type, severity: a.severity, layer: a.layer }));
+  const services: ServiceState[] = nv.services.map((s) => ({ name: s.name, status: s.status === 'UNKNOWN' ? 'DOWN' : s.status, carriedBy: s.kind === 'pw' ? 'mpls' : 'ip' }));
+  const runningConfigs = sim.topology.devices
+    .filter((d) => ['router', 'l3switch', 'switch'].includes(roleOf(d.kind)))
+    .map((d) => ({ device: d.name, text: runningConfig(d, sim.config(d.id)!) }));
   const teTunnels: TeTunnelInfo[] = sim.te.lsps.map((l) => ({
     head: name(l.head),
     tunnel: l.tunnel,
@@ -315,6 +326,10 @@ export function engineSections(sim: Sim): EngineSections {
     appResults,
     qosFlows,
     teTunnels,
+    nmsDevices,
+    nmsAlarms,
+    services,
+    runningConfigs,
   };
 }
 

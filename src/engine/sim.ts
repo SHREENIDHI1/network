@@ -3,6 +3,7 @@ import { effectivePort, getNetConfig, isBridgeRole, longIfName, roleOf, type Dev
 import { EventQueue } from './core/eventQueue';
 import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet, type MplsLabel } from './core/types';
 import { classify } from './qos/analysis';
+import { computeNms, type NmsView } from './nms/nms';
 import { computeTe, emptyTe, outLabel, type TeLsp, type TeMemory, type TeResult } from './te/te';
 import { computePseudowires, emptyPw, type PwEndpoint, type PwResult } from './l2vpn/pw';
 import { computeBgp, emptyBgp, type BgpResult } from './bgp/bgp';
@@ -395,6 +396,7 @@ export class Sim {
   }
 
   private changed(): void {
+    this.nmsVersion++;
     this.version++;
     for (const l of this.listeners) l();
   }
@@ -455,6 +457,7 @@ export class Sim {
   }
 
   private recompute(): void {
+    this.nmsVersion++;
     this.applyLeases();
     const oldStp = this.stp;
     const oldPhys = this.phys;
@@ -3107,6 +3110,17 @@ export class Sim {
       detail: `VRF ${vrf}: ${fec} is a VPNv4 route via PE ${formatIpv4(pe)} — push VPN label ${route.vpnLabel}${directPe ? '' : ` and transport label ${ftn!.out}`}.`,
     });
     this.sendToNextHop(deviceId, iface, g.nextHop, pkt, stack, flowId, originated);
+  }
+
+  // ---------------------------------------------------------------- NMS --
+
+  private nmsCache?: { version: number; view: NmsView };
+  private nmsVersion = 0;
+
+  /** What the NMS server sees (managed devices, alarms, services, loads); cached until the next change. */
+  nmsView(): NmsView {
+    if (this.nmsCache?.version !== this.nmsVersion) this.nmsCache = { version: this.nmsVersion, view: computeNms(this) };
+    return this.nmsCache.view;
   }
 
   // ------------------------------------------------------------ RSVP-TE --

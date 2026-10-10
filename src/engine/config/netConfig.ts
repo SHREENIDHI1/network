@@ -372,6 +372,29 @@ const baseConfigSchema = z.object({
   vfis: z.record(vfiSchema).default({}),
   e1Controllers: z.record(e1ControllerSchema).default({}),
   explicitPaths: z.record(explicitPathSchema).default({}),
+  /** NMS server settings (device kind "nms"): SNMP polling community and monitored railway services. */
+  nms: z
+    .object({
+      pollCommunity: z.string().optional(),
+      services: z
+        .array(
+          z.object({
+            name: z.string(),
+            kind: z.enum(['path', 'pw']),
+            /** path: source device name and destination address. */
+            src: z.string().optional(),
+            dst: dotted.optional(),
+            /** pw: the two PEs (device names) and the VC ID. */
+            a: z.string().optional(),
+            b: z.string().optional(),
+            vcId: z.number().int().optional(),
+            /** Safety-related circuit: its outage is a critical alarm. */
+            safety: z.boolean().optional(),
+          }),
+        )
+        .default([]),
+    })
+    .optional(),
   teTunnels: z.record(teTunnelSchema).default({}),
   acls: z.record(aclSchema).default({}),
   nat: natSchema.default({}),
@@ -402,6 +425,8 @@ export type BgpVrfConfig = z.infer<typeof bgpVrfSchema>;
 export type VfiConfig = z.infer<typeof vfiSchema>;
 export type E1ControllerConfig = z.infer<typeof e1ControllerSchema>;
 export type TeTunnelConfig = z.infer<typeof teTunnelSchema>;
+export type NmsConfig = NonNullable<NetConfig['nms']>;
+export type NmsServiceConfig = NmsConfig['services'][number];
 export type ExplicitPathConfig = z.infer<typeof explicitPathSchema>;
 export type AclConfig = z.infer<typeof aclSchema>;
 export type AclEntry = z.infer<typeof aclEntrySchema>;
