@@ -1,6 +1,6 @@
 import { useReactFlow } from '@xyflow/react';
-import { BookOpen, CheckCircle2, Download, FlaskConical, Library, Lock, Terminal, Upload } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { BookOpen, CheckCircle2, Download, FlaskConical, Library, Lock, Map as MapIcon, Terminal, Upload } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { CURRICULUM, LESSON_LOADERS, isAvailable } from '../../lessons/curriculum';
 import { exportProgress, importProgress, recordQuiz, type Progress } from '../../lessons/progress';
 import { useAppMode } from '../../store/appModeStore';
@@ -10,6 +10,8 @@ import { useTopologyStore } from '../../store/topologyStore';
 import { Diagram } from './diagrams';
 import { FlashQuiz } from './FlashQuiz';
 import { CommandsPage, GlossaryPage } from './ReferencePages';
+
+const JodhpurPlanPage = lazy(() => import('./JodhpurPlanPage').then((m) => ({ default: m.JodhpurPlanPage })));
 import { Widget } from './widgets';
 
 /** LEARN mode: curriculum list + lesson reader + 5-question flash quiz. */
@@ -17,7 +19,7 @@ export default function LearnView() {
   const progress = useProgress((s) => s.progress);
   const requested = useAppMode((s) => s.lessonId);
   const [current, setCurrent] = useState(() => (requested && isAvailable(requested) ? requested : 'A0'));
-  const [page, setPage] = useState<'lesson' | 'glossary' | 'commands'>('lesson');
+  const [page, setPage] = useState<'lesson' | 'glossary' | 'commands' | 'jodhpur'>('lesson');
   useEffect(() => {
     if (requested && isAvailable(requested)) {
       setCurrent(requested);
@@ -117,6 +119,13 @@ export default function LearnView() {
           >
             <Terminal className="h-3.5 w-3.5" /> Commands
           </button>
+          <button
+            type="button"
+            className={`flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 ${page === 'jodhpur' ? 'bg-sky-900/60 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+            onClick={() => setPage('jodhpur')}
+          >
+            <MapIcon className="h-3.5 w-3.5" /> Jodhpur
+          </button>
         </div>
         <ol className="min-h-0 flex-1 overflow-y-auto p-2 text-sm">
           {(['A', 'B'] as const).map((part) => (
@@ -165,6 +174,11 @@ export default function LearnView() {
       <main className="min-w-0 flex-1 overflow-y-auto">
         {page === 'glossary' && <GlossaryPage />}
         {page === 'commands' && <CommandsPage />}
+        {page === 'jodhpur' && (
+          <Suspense fallback={<p className="p-6 text-slate-500">Loading…</p>}>
+            <JodhpurPlanPage />
+          </Suspense>
+        )}
         {page === 'lesson' && error && <p className="p-6 text-red-400">{error}</p>}
         {page === 'lesson' && !lesson && !error && <p className="p-6 text-slate-500">Loading…</p>}
         {page === 'lesson' && lesson && (

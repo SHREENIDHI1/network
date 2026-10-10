@@ -1,12 +1,10 @@
 import { useReactFlow } from '@xyflow/react';
-import { BookOpen, FilePlus, FlaskConical, FolderOpen, Info, LayoutGrid, Save, Sparkles, TrainFront } from 'lucide-react';
+import { BookOpen, FilePlus, FlaskConical, FolderOpen, Info, LayoutGrid, Save, TrainFront } from 'lucide-react';
 import { useAppMode, type AppMode } from '../store/appModeStore';
 import { useLabStore } from '../store/labStore';
 import { useRef } from 'react';
 import { useTopologyStore } from '../store/topologyStore';
-import { ENABLE_LEGACY_TDM } from '../config/features';
-import { demoNetworking } from '../topologies/demoNetworking';
-import { demoTwoStation } from '../topologies/demoTwoStation';
+import { LoadMenu } from './LoadMenu';
 import { SimControls } from './sim/SimControls';
 
 function safeFileName(name: string): string {
@@ -16,7 +14,6 @@ function safeFileName(name: string): string {
 export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }) {
   const topology = useTopologyStore((s) => s.topology);
   const newTopology = useTopologyStore((s) => s.newTopology);
-  const loadTopology = useTopologyStore((s) => s.loadTopology);
   const loadFromText = useTopologyStore((s) => s.loadFromText);
   const exportText = useTopologyStore((s) => s.exportText);
   const notify = useTopologyStore((s) => s.notify);
@@ -96,19 +93,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
           <button type="button" className="rn-btn" title="Save topology file" aria-label="Save topology file" onClick={onSave}>
             <Save className="h-4 w-4" /> <span className="hidden xl:inline">Save</span>
           </button>
-          <button
-            type="button"
-            className="rn-btn"
-            title="Load demo"
-            aria-label="Load demo"
-            onClick={() => {
-              if (!confirmDiscard()) return;
-              loadTopology(ENABLE_LEGACY_TDM ? demoTwoStation() : demoNetworking());
-              fit();
-            }}
-          >
-            <Sparkles className="h-4 w-4" /> <span className="hidden xl:inline">Load demo</span>
-          </button>
+          <LoadMenu confirmDiscard={confirmDiscard} onLoaded={fit} />
           <div className="ml-2 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
             {topology.meta.name}
           </div>

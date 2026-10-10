@@ -68,19 +68,27 @@ export interface LdpResult {
   local: Map<string, Map<string, number>>;
   /** LFIB entries (one per path) for every labelled prefix. */
   lfib: LfibEntry[];
+  /** Index: "deviceId|inLabel" → entry (first path). */
+  byInLabel: Map<string, LfibEntry>;
+  /** Index: "deviceId|net/len" → entries (all paths). */
+  byFec: Map<string, LfibEntry[]>;
   problems: Array<{ deviceId: string; text: string }>;
 }
 
 export const prefixKey = (network: number, prefixLen: number) => `${network}/${prefixLen}`;
 
 export function emptyLdp(): LdpResult {
-  return { routers: new Map(), discoveries: [], sessions: [], local: new Map(), lfib: [], problems: [] };
+  return { routers: new Map(), discoveries: [], sessions: [], local: new Map(), lfib: [], byInLabel: new Map(), byFec: new Map(), problems: [] };
 }
 
 /** Interfaces where label switching is enabled ("mpls ip", or OSPF "mpls ldp autoconfig"). */
 export function mplsInterfaces(deviceId: string, cfg: NetConfig, ifs: L3Interface[], ospf: OspfResult): string[] {
-  const auto = cfg.ospf?.ldpAutoconfig ? new Set(ospf.interfaces.filter((o) => o.deviceId === deviceId && !o.passive).map((o) => o.iface)) : new Set<string>();
-  return ifs.filter((i) => i.kind !== 'loop' && i.up && i.ip !== undefined && (cfg.interfaces[i.name]?.mplsIp || auto.has(i.name))).map((i) => i.name);
+  const auto = cfg.ospf?.ldpAutoconfig
+    ? new Set(ospf.interfaces.filter((o) => o.deviceId === deviceId && !o.passive).map((o) => o.iface))
+    : new Set<string>();
+  return ifs
+    .filter((i) => i.kind !== 'loop' && i.up && i.ip !== undefined && (cfg.interfaces[i.name]?.mplsIp || auto.has(i.name)))
+    .map((i) => i.name);
 }
 
 /** LDP router-ID: the configured interface, else the highest loopback, else the highest interface address. */
@@ -140,7 +148,10 @@ export function computeLdp(
       for (const o of seg.members) {
         if (o.deviceId === m.deviceId || !routesPackets(topo.devices.find((d) => d.id === o.deviceId)!.kind, configs.get(o.deviceId)!)) continue;
         if (!res.routers.get(o.deviceId)?.mplsIfaces.includes(o.iface))
-          res.problems.push({ deviceId: m.deviceId, text: `${m.iface}: no LDP hellos from the router on this link (is "mpls ip" missing on its ${o.iface}?).` });
+          res.problems.push({
+            deviceId: m.deviceId,
+            text: `${m.iface}: no LDP hellos from the router on this link (is "mpls ip" missing on its ${o.iface}?).`,
+          });
       }
     }
   }
@@ -210,12 +221,29 @@ export function computeLdp(
     for (const route of routes.get(devId) ?? []) {
       if (route.protocol === 'C' || route.protocol === 'L' || route.isGateway) continue;
       const k = prefixKey(route.network, route.prefixLen);
-      const paths = route.paths?.length ? route.paths : route.nextHop !== undefined && route.iface ? [{ nextHop: route.nextHop, iface: route.iface }] : [];
+      const paths = route.paths?.length
+        ? route.paths
+        : route.nextHop !== undefined && route.iface
+          ? [{ nextHop: route.nextHop, iface: route.iface }]
+          : [];
       for (const p of paths) {
         const peer = r.mplsIfaces.includes(p.iface) ? peerByAddr.get(`${devId}|${p.nextHop}`) : undefined;
         const remote = peer ? res.local.get(peer)?.get(k) : undefined;
         const out: LfibEntry['out'] = remote === undefined ? 'none' : remote === LABEL_IMPLICIT_NULL ? 'pop' : remote;
-        res.lfib.push({ deviceId: devId, inLabel: local.get(k) ?? null, network: route.network, prefixLen: route.prefixLen, out, nextHop: p.nextHop, iface: p.iface, nextHopDeviceId: peer });
+        const e: LfibEntry = {
+          deviceId: devId,
+          inLabel: local.get(k) ?? null,
+          network: route.network,
+          prefixLen: route.prefixLen,
+          out,
+          nextHop: p.nextHop,
+          iface: p.iface,
+          nextHopDeviceId: peer,
+        };
+        res.lfib.push(e);
+        if (e.inLabel !== null && !res.byInLabel.has(`${devId}|${e.inLabel}`)) res.byInLabel.set(`${devId}|${e.inLabel}`, e);
+        const fk = `${devId}|${k}`;
+        res.byFec.set(fk, [...(res.byFec.get(fk) ?? []), e]);
       }
     }
   }

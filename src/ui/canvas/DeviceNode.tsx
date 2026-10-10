@@ -2,7 +2,23 @@ import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { memo } from 'react';
 import { getTemplate } from '../../model/catalog';
 import type { Device } from '../../model/types';
+import { boardsOf, type ControlBoard } from '../../topologies/data/jodhpur';
 import { CATEGORY_ACCENT, DEVICE_ICONS } from '../icons';
+
+/** Control-board colours (Jodhpur division map legend style). */
+const BOARD_BADGE: Record<ControlBoard, string> = {
+  North: 'bg-sky-900 text-sky-200',
+  Central: 'bg-amber-900 text-amber-200',
+  West: 'bg-rose-900 text-rose-200',
+  East: 'bg-emerald-900 text-emerald-200',
+};
+
+function stationBadge(code: string): { cls: string; title: string } {
+  const boards = boardsOf(code);
+  if (boards.length === 1) return { cls: BOARD_BADGE[boards[0]], title: `${boards[0]} control board` };
+  if (boards.length > 1) return { cls: 'bg-violet-900 text-violet-200', title: `Junction between ${boards.join(' / ')} boards` };
+  return { cls: 'bg-slate-800 text-slate-300', title: 'Station' };
+}
 
 export type DeviceNodeData = {
   device: Device;
@@ -25,10 +41,7 @@ function DeviceNodeImpl({ data }: NodeProps<DeviceFlowNode>) {
   const accent = CATEGORY_ACCENT[t.category];
 
   return (
-    <div
-      className={`rn-device w-[150px] rounded-lg border bg-slate-900/95 px-2 py-1.5 shadow-lg ${accent}`}
-      title={t.description}
-    >
+    <div className={`rn-device w-[150px] rounded-lg border bg-slate-900/95 px-2 py-1.5 shadow-lg ${accent}`} title={t.description}>
       {HANDLES.map((h) => (
         <Handle key={h.id} id={h.id} type="source" position={h.pos} className="rn-handle" />
       ))}
@@ -41,7 +54,9 @@ function DeviceNodeImpl({ data }: NodeProps<DeviceFlowNode>) {
       </div>
       <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
         {device.station ? (
-          <span className="rounded bg-slate-800 px-1 font-mono text-slate-300">{device.station}</span>
+          <span className={`rounded px-1 font-mono ${stationBadge(device.station).cls}`} title={stationBadge(device.station).title}>
+            {device.station}
+          </span>
         ) : (
           <span />
         )}

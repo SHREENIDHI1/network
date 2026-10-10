@@ -59,9 +59,30 @@ export const LINK_KINDS: LinkKindInfo[] = [
     defaultLengthKm: 0.01,
   },
   { kind: 'sfp-1g', label: 'SFP 1G patch', short: '1G', description: 'Short optical/DAC patch, 1 Gbit/s.', optical: false, defaultLengthKm: 0.005 },
-  { kind: 'sfp-10g', label: 'SFP+ 10G patch', short: '10G', description: 'Short optical/DAC patch, 10 Gbit/s.', optical: false, defaultLengthKm: 0.005 },
-  { kind: 'sfp-25g', label: 'SFP28 25G patch', short: '25G', description: 'Short optical/DAC patch, 25 Gbit/s.', optical: false, defaultLengthKm: 0.005 },
-  { kind: 'sfp-100g', label: 'QSFP28 100G patch', short: '100G', description: 'Short optical/DAC patch, 100 Gbit/s.', optical: false, defaultLengthKm: 0.005 },
+  {
+    kind: 'sfp-10g',
+    label: 'SFP+ 10G patch',
+    short: '10G',
+    description: 'Short optical/DAC patch, 10 Gbit/s.',
+    optical: false,
+    defaultLengthKm: 0.005,
+  },
+  {
+    kind: 'sfp-25g',
+    label: 'SFP28 25G patch',
+    short: '25G',
+    description: 'Short optical/DAC patch, 25 Gbit/s.',
+    optical: false,
+    defaultLengthKm: 0.005,
+  },
+  {
+    kind: 'sfp-100g',
+    label: 'QSFP28 100G patch',
+    short: '100G',
+    description: 'Short optical/DAC patch, 100 Gbit/s.',
+    optical: false,
+    defaultLengthKm: 0.005,
+  },
 ];
 
 const LINK_KIND_INFO = new Map(LINK_KINDS.map((k) => [k.kind, k]));
@@ -134,8 +155,7 @@ export function checkPortPair(kind: LinkKind, a: Port, b: Port): CheckResult {
       const vf = ['vf2w', 'vf4w'];
       if (!vf.includes(a.kind) || !vf.includes(b.kind)) return fail('Quad cable needs VF (2W/4W) ports on both ends.');
       if (a.kind !== b.kind) return fail('Cannot wire a 2-wire port to a 4-wire port (use a 2W/4W hybrid).');
-      if (!vfPairOk(a.vfRole, b.vfRole))
-        return fail(`VF roles ${a.vfRole} and ${b.vfRole} are not compatible (e.g. FXS must face a phone or FXO).`);
+      if (!vfPairOk(a.vfRole, b.vfRole)) return fail(`VF roles ${a.vfRole} and ${b.vfRole} are not compatible (e.g. FXS must face a phone or FXO).`);
       return OK;
     }
 
@@ -145,8 +165,7 @@ export function checkPortPair(kind: LinkKind, a: Port, b: Port): CheckResult {
     case 'sfp-100g': {
       const speed = SFP_SPEED[kind]!;
       if (!sfpLike(a) || !sfpLike(b)) return fail('SFP patch needs SFP (or combo) ports on both ends.');
-      if (!a.speedsGbps?.includes(speed) || !b.speedsGbps?.includes(speed))
-        return fail(`Both SFP ports must support ${speed}G.`);
+      if (!a.speedsGbps?.includes(speed) || !b.speedsGbps?.includes(speed)) return fail(`Both SFP ports must support ${speed}G.`);
       return OK;
     }
 
@@ -154,19 +173,16 @@ export function checkPortPair(kind: LinkKind, a: Port, b: Port): CheckResult {
       const ch = a.kind === 'cwdm-ch' ? a : b.kind === 'cwdm-ch' ? b : undefined;
       const other = ch === a ? b : a;
       if (!ch) return fail('CWDM lambda patch must land on a CWDM channel port.');
-      if (other.kind !== 'stm' && !sfpLike(other))
-        return fail('The other end of a CWDM lambda must be a coloured STM or SFP optic.');
+      if (other.kind !== 'stm' && !sfpLike(other)) return fail('The other end of a CWDM lambda must be a coloured STM or SFP optic.');
       return OK;
     }
 
     case 'ofc': {
       const opt = (p: Port) => (p.kind === 'combo' ? 'sfp' : p.kind);
       const optical = ['stm', 'sfp', 'cwdm-line'];
-      if (!optical.includes(opt(a)) || !optical.includes(opt(b)))
-        return fail('OFC must terminate on optical ports (STM, SFP or CWDM LINE).');
+      if (!optical.includes(opt(a)) || !optical.includes(opt(b))) return fail('OFC must terminate on optical ports (STM, SFP or CWDM LINE).');
       if (opt(a) !== opt(b)) return fail(`Optical port types differ (${a.kind} vs ${b.kind}).`);
-      if (a.kind === 'stm' && a.stmLevel !== b.stmLevel)
-        return fail(`SDH rate mismatch: STM-${a.stmLevel} cannot be fibred to STM-${b.stmLevel}.`);
+      if (a.kind === 'stm' && a.stmLevel !== b.stmLevel) return fail(`SDH rate mismatch: STM-${a.stmLevel} cannot be fibred to STM-${b.stmLevel}.`);
       if (opt(a) === 'sfp' && sharedSpeed(a, b).length === 0) return fail('SFP ports share no common speed.');
       return OK;
     }
@@ -209,11 +225,7 @@ export function freePorts(device: Device, links: Link[]): Port[] {
 }
 
 /** For each link kind, the free port pairs that would be valid between two devices. */
-export function compatibleOptions(
-  da: Device,
-  db: Device,
-  links: Link[],
-): Array<{ kind: LinkKind; pairs: Array<[Port, Port]> }> {
+export function compatibleOptions(da: Device, db: Device, links: Link[]): Array<{ kind: LinkKind; pairs: Array<[Port, Port]> }> {
   const fa = freePorts(da, links);
   const fb = freePorts(db, links);
   const out: Array<{ kind: LinkKind; pairs: Array<[Port, Port]> }> = [];
@@ -240,15 +252,96 @@ export interface OpticProfile {
 }
 
 export const OPTIC_PROFILES: OpticProfile[] = [
-  { id: 'S-1.1', label: 'S-1.1 STM-1 short haul 1310 nm', source: 'ITU-T G.957', wavelengthNm: 1310, txPowerDbm: -15, rxSensitivityDbm: -28, rxOverloadDbm: -8 },
-  { id: 'L-1.1', label: 'L-1.1 STM-1 long haul 1310 nm', source: 'ITU-T G.957', wavelengthNm: 1310, txPowerDbm: -5, rxSensitivityDbm: -34, rxOverloadDbm: -10 },
-  { id: 'L-1.2', label: 'L-1.2 STM-1 long haul 1550 nm', source: 'ITU-T G.957', wavelengthNm: 1550, txPowerDbm: -5, rxSensitivityDbm: -34, rxOverloadDbm: -10 },
-  { id: 'L-4.1', label: 'L-4.1 STM-4 long haul 1310 nm', source: 'ITU-T G.957', wavelengthNm: 1310, txPowerDbm: -3, rxSensitivityDbm: -28, rxOverloadDbm: -8 },
-  { id: 'L-16.2', label: 'L-16.2 STM-16 long haul 1550 nm', source: 'ITU-T G.957', wavelengthNm: 1550, txPowerDbm: -2, rxSensitivityDbm: -28, rxOverloadDbm: -9 },
-  { id: '1000BASE-LX', label: '1000BASE-LX 1310 nm (10 km)', source: 'IEEE 802.3 cl.38 (approx.)', wavelengthNm: 1310, txPowerDbm: -11, rxSensitivityDbm: -19, rxOverloadDbm: -3 },
-  { id: '1000BASE-ZX', label: '1000BASE-ZX 1550 nm (80 km)', source: 'Vendor-typical (not IEEE)', wavelengthNm: 1550, txPowerDbm: 0, rxSensitivityDbm: -23, rxOverloadDbm: -3 },
-  { id: '10GBASE-LR', label: '10GBASE-LR 1310 nm (10 km)', source: 'IEEE 802.3 cl.52 (approx.)', wavelengthNm: 1310, txPowerDbm: -8.2, rxSensitivityDbm: -14.4, rxOverloadDbm: 0.5 },
-  { id: '10GBASE-ER', label: '10GBASE-ER 1550 nm (40 km)', source: 'IEEE 802.3 cl.52 (approx.)', wavelengthNm: 1550, txPowerDbm: -4.7, rxSensitivityDbm: -15.8, rxOverloadDbm: -1 },
+  {
+    id: 'S-1.1',
+    label: 'S-1.1 STM-1 short haul 1310 nm',
+    source: 'ITU-T G.957',
+    wavelengthNm: 1310,
+    txPowerDbm: -15,
+    rxSensitivityDbm: -28,
+    rxOverloadDbm: -8,
+  },
+  {
+    id: 'L-1.1',
+    label: 'L-1.1 STM-1 long haul 1310 nm',
+    source: 'ITU-T G.957',
+    wavelengthNm: 1310,
+    txPowerDbm: -5,
+    rxSensitivityDbm: -34,
+    rxOverloadDbm: -10,
+  },
+  {
+    id: 'L-1.2',
+    label: 'L-1.2 STM-1 long haul 1550 nm',
+    source: 'ITU-T G.957',
+    wavelengthNm: 1550,
+    txPowerDbm: -5,
+    rxSensitivityDbm: -34,
+    rxOverloadDbm: -10,
+  },
+  {
+    id: 'L-4.1',
+    label: 'L-4.1 STM-4 long haul 1310 nm',
+    source: 'ITU-T G.957',
+    wavelengthNm: 1310,
+    txPowerDbm: -3,
+    rxSensitivityDbm: -28,
+    rxOverloadDbm: -8,
+  },
+  {
+    id: 'L-16.2',
+    label: 'L-16.2 STM-16 long haul 1550 nm',
+    source: 'ITU-T G.957',
+    wavelengthNm: 1550,
+    txPowerDbm: -2,
+    rxSensitivityDbm: -28,
+    rxOverloadDbm: -9,
+  },
+  {
+    id: '1000BASE-LX',
+    label: '1000BASE-LX 1310 nm (10 km)',
+    source: 'IEEE 802.3 cl.38 (approx.)',
+    wavelengthNm: 1310,
+    txPowerDbm: -11,
+    rxSensitivityDbm: -19,
+    rxOverloadDbm: -3,
+  },
+  {
+    id: '1000BASE-ZX',
+    label: '1000BASE-ZX 1550 nm (80 km)',
+    source: 'Vendor-typical (not IEEE)',
+    wavelengthNm: 1550,
+    txPowerDbm: 0,
+    rxSensitivityDbm: -23,
+    rxOverloadDbm: -3,
+  },
+  {
+    id: '10GBASE-LR',
+    label: '10GBASE-LR 1310 nm (10 km)',
+    source: 'IEEE 802.3 cl.52 (approx.)',
+    wavelengthNm: 1310,
+    txPowerDbm: -8.2,
+    rxSensitivityDbm: -14.4,
+    rxOverloadDbm: 0.5,
+  },
+  {
+    id: '10GBASE-ER',
+    label: '10GBASE-ER 1550 nm (40 km)',
+    source: 'IEEE 802.3 cl.52 (approx.)',
+    wavelengthNm: 1550,
+    txPowerDbm: -4.7,
+    rxSensitivityDbm: -15.8,
+    rxOverloadDbm: -1,
+  },
+  {
+    id: '10GBASE-ZR',
+    label: '10G ZR 1550 nm (80 km)',
+    source: 'Vendor-typical (not IEEE)',
+    wavelengthNm: 1550,
+    txPowerDbm: 0,
+    rxSensitivityDbm: -24,
+    rxOverloadDbm: -7,
+  },
   { id: 'CWDM-80', label: 'CWDM SFP 80 km', source: 'Vendor-typical', wavelengthNm: 1551, txPowerDbm: 0, rxSensitivityDbm: -28, rxOverloadDbm: -9 },
 ];
 

@@ -1653,7 +1653,7 @@ export class Sim {
       this.l3Input(deviceId, iface, { ...frame, mpls: rest.length ? rest : undefined, payload: { ...pkt, ttl: ipTtl } }, iface.port ?? 'cpu');
       return;
     }
-    const entry = this.ldp.lfib.find((e) => e.deviceId === deviceId && e.inLabel === top.label);
+    const entry = this.ldp.byInLabel.get(`${deviceId}|${top.label}`);
     if (!entry) {
       this.trace(
         flowId,
@@ -1842,7 +1842,7 @@ export class Sim {
     );
     const probe: LspProbe = { seq: index, ttl, flowId, sentAt: this.now, code: 'pending' };
     s.probes.push(probe);
-    const ftn = this.ldp.lfib.find((e) => e.deviceId === s.srcDeviceId && prefixKey(e.network, e.prefixLen) === fec);
+    const ftn = this.ldp.byFec.get(`${s.srcDeviceId}|${fec}`)?.[0];
     s.ingress ??= ftn ? { iface: ftn.iface, nextHop: ftn.nextHop, out: ftn.out } : undefined;
     const out = ftn ? this.interfaces(s.srcDeviceId).find((i) => i.name === ftn.iface && i.up && i.ip !== undefined) : undefined;
     if (!ftn || ftn.out === 'none' || !out) {
@@ -2774,14 +2774,9 @@ export class Sim {
     }
 
     // MPLS imposition (FTN): push the label learned from the next hop's LSR for this prefix.
-    const ftn = this.ldp.lfib.find(
-      (e) =>
-        e.deviceId === deviceId &&
-        e.network === r.route.network &&
-        e.prefixLen === r.route.prefixLen &&
-        e.nextHop === r.nextHop &&
-        e.iface === iface.name,
-    );
+    const ftn = this.ldp.byFec
+      .get(`${deviceId}|${prefixKey(r.route.network, r.route.prefixLen)}`)
+      ?.find((e) => e.nextHop === r.nextHop && e.iface === iface.name);
     let mpls: MplsLabel[] | undefined;
     if (ftn && typeof ftn.out === 'number') {
       const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
