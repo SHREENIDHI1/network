@@ -28,6 +28,8 @@ export type RefMode =
   | 'config-pmap-c'
   | 'config-tunnel'
   | 'config-expl-path'
+  | 'config-srmpls'
+  | 'config-srmpls-af'
   | 'host';
 export type RefDevice = 'l2-switch' | 'l3-switch' | 'router' | 'pc' | 'neon-ler';
 
@@ -1566,6 +1568,69 @@ export const COMMANDS: CommandRef[] = [
     hi: 'Explicit paths.',
     lesson: 'B10',
   },
+  {
+    topic: 'Segment Routing',
+    example: 'segment-routing mpls',
+    mode: 'config',
+    device: r,
+    en: 'Enable SR-MPLS on the router (enters SR configuration).',
+    hi: 'Router par SR chalu.',
+    lesson: 'B14',
+  },
+  {
+    topic: 'Segment Routing',
+    example: 'global-block 16000 23999',
+    mode: 'config-srmpls',
+    device: r,
+    en: 'Set the SRGB (label range for global SIDs); 16000–23999 is the default.',
+    hi: 'SR labels ki range.',
+    lesson: 'B14',
+  },
+  {
+    topic: 'Segment Routing',
+    example: 'connected-prefix-sid-map',
+    mode: 'config-srmpls',
+    device: r,
+    en: 'Map connected prefixes (loopbacks) to SID indexes; then "address-family ipv4".',
+    hi: 'Loopback ko SID index dena.',
+    lesson: 'B14',
+  },
+  {
+    topic: 'Segment Routing',
+    example: '10.0.1.1/32 index 1 range 1',
+    mode: 'config-srmpls-af',
+    device: r,
+    en: 'Prefix SID index 1 for this loopback → label SRGB base + 1 on every router.',
+    hi: 'Loopback ka prefix SID.',
+    lesson: 'B14',
+  },
+  {
+    topic: 'Segment Routing',
+    example: 'segment-routing mpls',
+    mode: 'config-router',
+    device: r,
+    en: '(under router ospf) Advertise and use prefix SIDs in OSPF.',
+    hi: 'OSPF SIDs le jaaye.',
+    lesson: 'B14',
+  },
+  {
+    topic: 'Segment Routing',
+    example: 'fast-reroute per-prefix enable prefix-priority low',
+    mode: 'config-router',
+    device: r,
+    en: '(under router ospf) Compute per-prefix repairs for all prefixes.',
+    hi: 'Per-prefix FRR chalu.',
+    lesson: 'B14',
+  },
+  {
+    topic: 'Segment Routing',
+    example: 'fast-reroute per-prefix ti-lfa',
+    mode: 'config-router',
+    device: r,
+    en: '(under router ospf) Use TI-LFA repair paths (shown in the LIVE Segment Routing panel).',
+    hi: 'TI-LFA repair paths.',
+    lesson: 'B14',
+  },
 ];
 
 /** CLI lines that bring a fresh device into `mode` (used by the reference test and the "try it" hint). */
@@ -1617,5 +1682,9 @@ export function preLines(mode: RefMode, device: RefDevice): string[] {
       return ['enable', 'configure terminal', 'interface tunnel1'];
     case 'config-expl-path':
       return ['enable', 'configure terminal', 'ip explicit-path name VIA_DNA enable'];
+    case 'config-srmpls':
+      return ['enable', 'configure terminal', 'segment-routing mpls'];
+    case 'config-srmpls-af':
+      return ['enable', 'configure terminal', 'segment-routing mpls', 'connected-prefix-sid-map', 'address-family ipv4'];
   }
 }

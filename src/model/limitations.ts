@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6), MPLS QoS (EXP marking and core classes) with RSVP-TE tunnels and fast reroute (Phase 7), and operations: NMS view with alarms and railway services, power / card / fibre fault drills, an automation tab and the Option A inter-division hand-off (Phase 8). Segment Routing and the grand capstone come next.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6), MPLS QoS (EXP marking and core classes) with RSVP-TE tunnels and fast reroute (Phase 7), and operations: NMS view with alarms and railway services, power / card / fibre fault drills, an automation tab and the Option A inter-division hand-off (Phase 8), Segment Routing (SR-MPLS over OSPF with TI-LFA) and the grand capstone with seeded fault tickets (Phase 9). Final docs and polish come next.',
   },
   // ---------------- Physical ----------------
   {
@@ -303,7 +303,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'NMS',
     status: 'active',
     phase: 8,
-    text: 'The NMS tab is computed from simulator state, not from SNMP traffic: a router is "managed" when it has an SNMP community equal to the NMS polling community and the NMS has a path to one of its addresses (path check, no SNMP packets, no MIB walk, no poll interval). Alarms are raised for managed devices (plus node unreachable / not managed) and split by layer: root causes (power, card, link, err-disabled, OSPF, LDP) and impact (BGP, pseudowire, TE, congestion, services). Correlation is rule-based — every impact alarm lists the root causes present at the same time; there is no timing, flapping, acknowledgement or topology-aware correlation.',
+    text: 'The NMS tab is computed from simulator state, not from SNMP traffic: a router is "managed" when it has an SNMP community equal to the NMS polling community and the NMS has a path to one of its addresses and the device has a route back to the NMS (path checks, no SNMP packets, no MIB walk, no poll interval). Alarms are raised for managed devices (plus node unreachable / not managed) and split by layer: root causes (power, card, link, err-disabled, OSPF, LDP) and impact (BGP, pseudowire, TE, congestion, services). Correlation is rule-based — every impact alarm lists the root causes present at the same time; there is no timing, flapping, acknowledgement or topology-aware correlation.',
   },
   {
     area: 'NMS',
@@ -328,6 +328,25 @@ export const LIMITATIONS: Limitation[] = [
     status: 'active',
     phase: 8,
     text: 'Only Inter-AS Option A (back-to-back VRFs on dot1Q sub-interfaces with per-VRF eBGP) is simulated. Options B and C (labelled VPNv4 between ASes) are taught in lesson B13 only. JP-ASBR and AS 65002 are a teaching stand-in for the Jaipur division.',
+  },
+  // ---------------- Phase 9 ----------------
+  {
+    area: 'Segment Routing',
+    status: 'active',
+    phase: 9,
+    text: 'SR-MPLS runs over OSPF only: SRGB (default 16000–23999), prefix SIDs from "connected-prefix-sid-map" (absolute index, range 1), node SIDs with PHP. A SID index conflict rejects both prefixes (real routers apply a resolution rule). All routers are assumed to use the same SRGB. While LDP has a label for a prefix the router uses LDP (IOS-XE default without "sr-prefer"). Not modelled: IS-IS SR, adjacency SIDs as labels, SR-TE policies / on-demand next hop, the mapping server and LDP–SR interworking, SRv6, microloop avoidance.',
+  },
+  {
+    area: 'Segment Routing',
+    status: 'active',
+    phase: 9,
+    text: 'TI-LFA (link protection) is computed per prefix from P-space and Q-space along the post-convergence path and shown in the LIVE Segment Routing panel (no SR-specific show command: its exact IOS-XE output is not reproduced; use "show mpls forwarding-table"). Convergence after a failure is instant in the simulator, so packets never actually ride the repair path. Repairs needing an adjacency SID are listed with "(adjacency SIDs not modelled)"; node and SRLG protection are not computed.',
+  },
+  {
+    area: 'Labs',
+    status: 'active',
+    phase: 9,
+    text: 'The grand capstone draws 10 fault tickets from a catalog of 23 using a seeded pseudo-random order (mulberry32); the same seed always gives the same tickets. The J2 backbone is a chain on the track map (no second path), so each fault cuts everything behind it — a real division backbone would have rings and redundant route reflectors.',
   },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {

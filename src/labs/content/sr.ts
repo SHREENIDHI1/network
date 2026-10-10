@@ -109,7 +109,7 @@ const b14: Lab = {
       }),
     check: C.all(C.srSid(MTD, `${lo('MTD')}/32`, 3), C.srSid(DNA, `${lo('DNA')}/32`, 4)),
     hints: [
-      '"show logging" or the LIVE Segment Routing panel: a SID index conflict removes BOTH prefixes.',
+      'Select DNA-LSR or MTD-LSR: the LIVE Segment Routing panel lists the SID conflict — it removes BOTH prefixes.',
       `On DNA-LSR: segment-routing mpls → connected-prefix-sid-map → address-family ipv4 → ${lo('DNA')}/32 index 4 range 1`,
     ],
     fix: {
