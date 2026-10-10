@@ -18,7 +18,8 @@ export default function LabBrowser() {
 
   const start = (lab: Lab) => {
     const t = useTopologyStore.getState().topology;
-    if (t.devices.length && !window.confirm(`Start lab ${lab.id}? The canvas will be replaced by the lab topology (save your work first if needed).`)) return;
+    if (t.devices.length && !window.confirm(`Start lab ${lab.id}? The canvas will be replaced by the lab topology (save your work first if needed).`))
+      return;
     void useLabStore
       .getState()
       .start(lab)
@@ -32,8 +33,8 @@ export default function LabBrowser() {
         <FlaskConical className="h-6 w-6 text-sky-400" /> Labs
       </h1>
       <p className="mb-4 text-sm text-slate-400">
-        Har lab: railway scenario, tasks with live auto-checks (sirf engine ki asli state se), hints (har hint −2 points), break-fix challenge, 5-question quiz aur field
-        note. Pehle lesson padho, phir lab karo.
+        Har lab: railway scenario, tasks with live auto-checks (sirf engine ki asli state se), hints (har hint −2 points), break-fix challenge,
+        5-question quiz aur field note. Pehle lesson padho, phir lab karo.
       </p>
       {levels.map((lvl) => {
         const lesson = CURRICULUM.find((c) => c.id === `A${lvl}`);

@@ -4,6 +4,9 @@ import type { DiagramId } from '../../lessons/types';
 export function Diagram({ id }: { id: DiagramId }) {
   if (id === 'circuit-vs-packet') return <CircuitVsPacket />;
   if (id === 'osi-stack') return <OsiStack />;
+  if (id === 'ethernet-frame') return <EthernetFrame />;
+  if (id === 'vlan-trunk') return <VlanTrunk />;
+  if (id === 'stp-loop') return <StpLoop />;
   return <FibreVsCopper />;
 }
 
@@ -132,6 +135,122 @@ function FibreVsCopper() {
       <path d="M20 130 L 520 130" stroke="#38bdf8" strokeWidth={2} strokeDasharray="10 6" />
       <T x={270} y={162} c="#64748b" s={11} a="middle">
         cladding · core · cladding — immune to electrical interference
+      </T>
+    </svg>
+  );
+}
+
+function EthernetFrame() {
+  const parts: Array<[string, string, number, string]> = [
+    ['Preamble+SFD', '8', 70, '#334155'],
+    ['Destination MAC', '6', 100, '#0369a1'],
+    ['Source MAC', '6', 100, '#0e7490'],
+    ['Type', '2', 50, '#4338ca'],
+    ['Payload (IP packet)', '46–1500', 150, '#065f46'],
+    ['FCS', '4', 50, '#9f1239'],
+  ];
+  let x = 10;
+  return (
+    <svg viewBox="0 0 560 110" className="w-full max-w-xl" role="img" aria-label="Ethernet II frame format">
+      {parts.map(([n, b, w, c]) => {
+        const g = (
+          <g key={n}>
+            <rect x={x} y={20} width={w - 2} height={44} rx={3} fill={c} />
+            <T x={x + w / 2 - 1} y={40} a="middle" s={10} c="#f1f5f9">
+              {n}
+            </T>
+            <T x={x + w / 2 - 1} y={56} a="middle" s={10} c="#cbd5e1">{`${b} B`}</T>
+          </g>
+        );
+        x += w;
+        return g;
+      })}
+      <T x={10} y={88} c="#94a3b8" s={11}>
+        Switch reads Destination MAC to forward and Source MAC to learn. FCS (CRC) catches damaged frames.
+      </T>
+    </svg>
+  );
+}
+
+function VlanTrunk() {
+  return (
+    <svg viewBox="0 0 560 190" className="w-full max-w-xl" role="img" aria-label="Access ports and an 802.1Q trunk">
+      {[30, 410].map((x, i) => (
+        <g key={x}>
+          <rect x={x} y={70} width={120} height={46} rx={6} fill="#1e293b" stroke="#38bdf8" />
+          <T x={x + 60} y={98} a="middle">
+            {i === 0 ? 'MTD-SW1' : 'MTD-SW2'}
+          </T>
+        </g>
+      ))}
+      <line x1={150} y1={93} x2={410} y2={93} stroke="#f59e0b" strokeWidth={6} />
+      <T x={280} y={84} a="middle" c="#fbbf24" s={11}>
+        Trunk Gi0/24 — frames carry an 802.1Q tag
+      </T>
+      <T x={280} y={112} a="middle" c="#94a3b8" s={10}>
+        [VLAN 10] [VLAN 20] [VLAN 40] … native 99 untagged
+      </T>
+      {[
+        [40, 'UTS1 · VLAN 10', '#38bdf8'],
+        [100, 'PRS1 · VLAN 20', '#a78bfa'],
+      ].map(([x, t, c]) => (
+        <g key={String(t)}>
+          <line x1={Number(x) + 20} y1={116} x2={Number(x)} y2={160} stroke={String(c)} strokeWidth={2} />
+          <T x={Number(x) - 30} y={176} s={10} c={String(c)}>
+            {String(t)}
+          </T>
+        </g>
+      ))}
+      {[
+        [430, 'UTS2 · VLAN 10', '#38bdf8'],
+        [500, 'CAM1 · VLAN 40', '#34d399'],
+      ].map(([x, t, c]) => (
+        <g key={String(t)}>
+          <line x1={Number(x)} y1={116} x2={Number(x)} y2={160} stroke={String(c)} strokeWidth={2} />
+          <T x={Number(x) - 40} y={176} s={10} c={String(c)}>
+            {String(t)}
+          </T>
+        </g>
+      ))}
+      <T x={10} y={20} c="#94a3b8" s={11}>
+        Access ports (thin lines): one VLAN, no tag. Trunk (thick): many VLANs, tagged.
+      </T>
+    </svg>
+  );
+}
+
+function StpLoop() {
+  const pos = { core: [280, 40], cnt: [120, 160], plat: [440, 160] } as const;
+  const node = (k: keyof typeof pos, label: string, root = false) => (
+    <g key={k}>
+      <rect
+        x={pos[k][0] - 60}
+        y={pos[k][1] - 20}
+        width={120}
+        height={40}
+        rx={6}
+        fill="#1e293b"
+        stroke={root ? '#34d399' : '#38bdf8'}
+        strokeWidth={root ? 2 : 1}
+      />
+      <T x={pos[k][0]} y={pos[k][1] + 4} a="middle">
+        {label}
+      </T>
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 560 210" className="w-full max-w-xl" role="img" aria-label="Spanning tree blocks one link of a triangle">
+      <line x1={280} y1={60} x2={120} y2={140} stroke="#38bdf8" strokeWidth={3} />
+      <line x1={280} y1={60} x2={440} y2={140} stroke="#38bdf8" strokeWidth={3} />
+      <line x1={180} y1={160} x2={380} y2={160} stroke="#f87171" strokeWidth={3} strokeDasharray="8 6" />
+      <T x={280} y={152} a="middle" c="#fca5a5" s={11}>
+        blocked (alternate port)
+      </T>
+      {node('core', 'CORE (root)', true)}
+      {node('cnt', 'COUNTER')}
+      {node('plat', 'PLATFORM')}
+      <T x={10} y={204} c="#94a3b8" s={11}>
+        A triangle is a loop. STP keeps every switch reachable from the root and blocks one port so frames cannot circle.
       </T>
     </svg>
   );

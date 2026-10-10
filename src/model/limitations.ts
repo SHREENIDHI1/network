@@ -105,13 +105,25 @@ export const LIMITATIONS: Limitation[] = [
     area: 'Ethernet',
     status: 'active',
     phase: 2,
-    text: 'Switch ports default to static access mode in VLAN 1 (real Catalyst default is dynamic auto/DTP). DTP, VTP, voice VLAN, CDP/LLDP, EtherChannel, storm control and jumbo frames are not modelled. IP phones do not bridge their PC port.',
+    text: 'Switch ports default to static access mode in VLAN 1 (real Catalyst default is dynamic auto/DTP). DTP, VTP, voice VLAN, CDP/LLDP, PAgP, storm control and jumbo frames are not modelled. IP phones do not bridge their PC port.',
   },
   {
     area: 'Ethernet',
     status: 'active',
     phase: 2,
-    text: 'Port security: sticky MACs, aging and err-disable auto-recovery are not modelled; recovery is "shutdown" then "no shutdown". Duplex/speed negotiation is assumed to succeed at the link speed.',
+    text: 'Port security: sticky MACs, aging and err-disable auto-recovery are not modelled; recovery is "shutdown" then "no shutdown".',
+  },
+  {
+    area: 'Ethernet',
+    status: 'active',
+    phase: 2,
+    text: 'EtherChannel (LACP 802.3ad, simplified): bundling is computed from configuration and link state — no LACPDUs, timers, system/port priorities or hot-standby members; PAgP (auto/desirable) is not simulated; only Layer 2 port-channels on switches. Mode "on" facing LACP suspends both ends (real gear may bundle one side and loop; EtherChannel guard would then err-disable it). LACP with no partner shows stand-alone (I). Frames are spread by a src/dst MAC hash.',
+  },
+  {
+    area: 'Ethernet',
+    status: 'active',
+    phase: 2,
+    text: 'Duplex: auto/auto → full; forced + auto → the auto end falls back to half duplex (mismatch when forced full). Only Cat6 links negotiate; fibre/SFP is always full. A mismatch is modelled as a fixed loss of every 4th frame on that link plus CRC (full end) and late-collision (half end) counters — real loss depends on load. Speed negotiation is assumed to succeed at the link speed.',
   },
   {
     area: 'IP',
@@ -200,7 +212,19 @@ export const LIMITATIONS: Limitation[] = [
     phase: 5,
     text: 'MP-BGP VPNv4 will be simplified: best-path selection uses a reduced attribute set. CESoPSN/SAToP E1 emulation timing (adaptive/differential clock recovery, jitter buffers) is labelled as simplified.',
   },
-  // ---------------- Labs (Phase 7) ----------------
+  // ---------------- Labs ----------------
+  {
+    area: 'Labs',
+    status: 'active',
+    phase: 2,
+    text: 'Lab scores, hints used and quiz results are stored in this browser (export/import in Learn mode). Break-fix faults are injected into your lab topology; ping history is cleared so the fix must be tested again.',
+  },
+  {
+    area: 'Learning content',
+    status: 'active',
+    phase: 2,
+    text: '"Ask why" explains the fields of supported show commands in a side pane next to the console (xterm text cannot carry buttons inline). Command Reference lists the documented commands; "?" in the CLI shows everything the simulator accepts in a mode.',
+  },
   {
     area: 'Labs',
     status: 'active',

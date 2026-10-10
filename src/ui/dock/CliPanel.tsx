@@ -1,7 +1,11 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import { useEffect, useMemo, useRef } from 'react';
+import { HelpCircle } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { create } from 'zustand';
+import { explainShow, type ShowExplain } from '../../docs/showExplain';
+import { useDetail } from '../../store/detailStore';
 import { HOST_PROMPT, execHost } from '../../engine/cli/host';
 import { completeIos, execIos, helpIos, newSession, prompt, type CliSession } from '../../engine/cli/ios';
 import { roleOf } from '../../engine/config/netConfig';
@@ -24,6 +28,9 @@ interface TermState {
 
 const states = new Map<string, TermState>();
 
+/** Explanation of the last show command typed in any console ("Ask why"). */
+const useAskWhy = create<{ explain?: ShowExplain; set: (e?: ShowExplain) => void }>((set) => ({ set: (explain) => set({ explain }) }));
+
 function stateFor(deviceId: string): TermState {
   let s = states.get(deviceId);
   if (!s) {
@@ -37,6 +44,8 @@ export default function CliPanel() {
   const deviceId = useSimStore((s) => s.cliDeviceId);
   const topology = useTopologyStore((s) => s.topology);
   const devices = useMemo(() => visibleTopology(topology).devices.filter((d) => roleOf(d.kind) !== 'opaque'), [topology]);
+  const explain = useAskWhy((s) => s.explain);
+  const [askOpen, setAskOpen] = useState(true);
 
   return (
     <div className="flex h-full flex-col">
@@ -44,7 +53,12 @@ export default function CliPanel() {
         <label htmlFor="cli-dev" className="text-slate-400">
           Device
         </label>
-        <select id="cli-dev" className="rn-input w-56 py-0.5 text-xs" value={deviceId ?? ''} onChange={(e) => useSimStore.getState().openCli(e.target.value)}>
+        <select
+          id="cli-dev"
+          className="rn-input w-56 py-0.5 text-xs"
+          value={deviceId ?? ''}
+          onChange={(e) => useSimStore.getState().openCli(e.target.value)}
+        >
           <option value="" disabled>
             Select a device…
           </option>
@@ -54,10 +68,43 @@ export default function CliPanel() {
             </option>
           ))}
         </select>
-        <span className="text-slate-500">Type “?” for help · Tab completes · ↑/↓ history · paste multi-line configs</span>
+        <span className="hidden truncate text-slate-500 2xl:inline">Type “?” for help · Tab completes · ↑/↓ history · paste multi-line configs</span>
+        <button
+          type="button"
+          className={`ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-2 py-0.5 ${explain ? 'text-sky-300 hover:bg-slate-800' : 'text-slate-600'}`}
+          disabled={!explain}
+          title={explain ? 'Explain the fields of the last show command' : 'Run a show command to get an explanation'}
+          aria-pressed={askOpen}
+          onClick={() => setAskOpen((o) => !o)}
+        >
+          <HelpCircle className="h-3.5 w-3.5" /> Ask why
+        </button>
       </div>
-      <div className="min-h-0 flex-1">{deviceId && devices.some((d) => d.id === deviceId) ? <Term key={deviceId} deviceId={deviceId} /> : <Empty />}</div>
+      <div className="flex min-h-0 flex-1">
+        <div className="min-w-0 flex-1">
+          {deviceId && devices.some((d) => d.id === deviceId) ? <Term key={deviceId} deviceId={deviceId} /> : <Empty />}
+        </div>
+        {explain && askOpen && <AskWhy explain={explain} />}
+      </div>
     </div>
+  );
+}
+
+function AskWhy({ explain }: { explain: ShowExplain }) {
+  const lang = useDetail((s) => s.lang);
+  return (
+    <aside className="w-80 shrink-0 overflow-y-auto border-l border-slate-800 bg-slate-950 px-3 py-2 text-xs" aria-label="Ask why">
+      <h3 className="mb-1 font-semibold text-sky-300">Ask why: {explain.title}</h3>
+      <dl className="space-y-1">
+        {explain.fields.map((f) => (
+          <div key={f.field}>
+            <dt className="font-mono text-slate-100">{f.field}</dt>
+            <dd className="text-slate-400">{f[lang]}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 rounded bg-slate-900 px-2 py-1 text-amber-200">👀 {explain.lookFor[lang]}</p>
+    </aside>
   );
 }
 
@@ -124,6 +171,8 @@ function Term({ deviceId }: { deviceId: string }) {
         return;
       }
       let out: string;
+      const ex = explainShow(line, isHost());
+      if (ex) useAskWhy.getState().set(ex);
       if (isHost()) out = execHost(line, d, { sim, simulationMode });
       else {
         const r = execIos(line, st.session!, { topology: useTopologyStore.getState().topology, sim, simulationMode });

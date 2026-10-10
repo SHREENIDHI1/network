@@ -2,7 +2,17 @@ import { useState } from 'react';
 import type { FlashQuestion } from '../../lessons/types';
 
 /** 5-question quiz with instant feedback (lessons and labs). */
-export function FlashQuiz({ questions, onFinish, best, title = 'Flash quiz (5)' }: { questions: FlashQuestion[]; onFinish: (score: number) => void; best?: number; title?: string }) {
+export function FlashQuiz({
+  questions,
+  onFinish,
+  best,
+  title = 'Flash quiz (5)',
+}: {
+  questions: FlashQuestion[];
+  onFinish: (score: number) => void;
+  best?: number;
+  title?: string;
+}) {
   const [answers, setAnswers] = useState<Array<number | null>>(() => questions.map(() => null));
   const [submitted, setSubmitted] = useState(false);
   const score = answers.filter((a, i) => a === questions[i].correctIndex).length;
@@ -49,7 +59,9 @@ export function FlashQuiz({ questions, onFinish, best, title = 'Flash quiz (5)' 
               })}
             </div>
             {submitted && <p className="mt-1 text-xs text-slate-400">{q.explanation}</p>}
-            {'kind' in q && q.kind === 'practical' && !submitted && <p className="mt-1 text-xs text-sky-300">Practical: check this in the simulator before answering.</p>}
+            {'kind' in q && q.kind === 'practical' && !submitted && (
+              <p className="mt-1 text-xs text-sky-300">Practical: check this in the simulator before answering.</p>
+            )}
           </li>
         ))}
       </ol>

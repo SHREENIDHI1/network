@@ -1,4 +1,5 @@
-import { BookOpen, CheckCircle2, Download, Lock, Upload } from 'lucide-react';
+import { useReactFlow } from '@xyflow/react';
+import { BookOpen, CheckCircle2, Download, FlaskConical, Library, Lock, Terminal, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { CURRICULUM, LESSON_LOADERS, isAvailable } from '../../lessons/curriculum';
 import { exportProgress, importProgress, recordQuiz, type Progress } from '../../lessons/progress';
@@ -8,6 +9,7 @@ import type { Lesson, LessonBlock } from '../../lessons/types';
 import { useTopologyStore } from '../../store/topologyStore';
 import { Diagram } from './diagrams';
 import { FlashQuiz } from './FlashQuiz';
+import { CommandsPage, GlossaryPage } from './ReferencePages';
 import { Widget } from './widgets';
 
 /** LEARN mode: curriculum list + lesson reader + 5-question flash quiz. */
@@ -15,8 +17,12 @@ export default function LearnView() {
   const progress = useProgress((s) => s.progress);
   const requested = useAppMode((s) => s.lessonId);
   const [current, setCurrent] = useState(() => (requested && isAvailable(requested) ? requested : 'A0'));
+  const [page, setPage] = useState<'lesson' | 'glossary' | 'commands'>('lesson');
   useEffect(() => {
-    if (requested && isAvailable(requested)) setCurrent(requested);
+    if (requested && isAvailable(requested)) {
+      setCurrent(requested);
+      setPage('lesson');
+    }
   }, [requested]);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +43,8 @@ export default function LearnView() {
 
   const update = (p: Progress) => {
     useProgress.getState().replace(p);
-    if (!useProgress.getState().persisted) notify('info', 'Browser storage is blocked — progress is kept only until you close this tab. Use Export to keep it.');
+    if (!useProgress.getState().persisted)
+      notify('info', 'Browser storage is blocked — progress is kept only until you close this tab. Use Export to keep it.');
   };
 
   const done = CURRICULUM.filter((c) => progress.lessons[c.id]?.completed).length;
@@ -95,6 +102,22 @@ export default function LearnView() {
             <div className="h-1.5 rounded bg-emerald-500" style={{ width: `${(done / CURRICULUM.length) * 100}%` }} />
           </div>
         </div>
+        <div className="flex gap-1 border-b border-slate-800 p-2 text-xs">
+          <button
+            type="button"
+            className={`flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 ${page === 'glossary' ? 'bg-sky-900/60 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+            onClick={() => setPage('glossary')}
+          >
+            <Library className="h-3.5 w-3.5" /> Glossary
+          </button>
+          <button
+            type="button"
+            className={`flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 ${page === 'commands' ? 'bg-sky-900/60 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+            onClick={() => setPage('commands')}
+          >
+            <Terminal className="h-3.5 w-3.5" /> Commands
+          </button>
+        </div>
         <ol className="min-h-0 flex-1 overflow-y-auto p-2 text-sm">
           {(['A', 'B'] as const).map((part) => (
             <li key={part}>
@@ -108,10 +131,13 @@ export default function LearnView() {
                       <button
                         type="button"
                         disabled={!avail}
-                        onClick={() => setCurrent(c.id)}
+                        onClick={() => {
+                          setCurrent(c.id);
+                          setPage('lesson');
+                        }}
                         title={avail ? undefined : `Arrives in build phase P${c.phase}`}
                         className={`flex w-full items-start gap-2 rounded px-2 py-1 text-left ${
-                          current === c.id
+                          current === c.id && page === 'lesson'
                             ? 'bg-sky-900/60 text-white'
                             : avail
                               ? 'text-slate-200 hover:bg-slate-800'
@@ -137,9 +163,11 @@ export default function LearnView() {
         </ol>
       </nav>
       <main className="min-w-0 flex-1 overflow-y-auto">
-        {error && <p className="p-6 text-red-400">{error}</p>}
-        {!lesson && !error && <p className="p-6 text-slate-500">Loading…</p>}
-        {lesson && (
+        {page === 'glossary' && <GlossaryPage />}
+        {page === 'commands' && <CommandsPage />}
+        {page === 'lesson' && error && <p className="p-6 text-red-400">{error}</p>}
+        {page === 'lesson' && !lesson && !error && <p className="p-6 text-slate-500">Loading…</p>}
+        {page === 'lesson' && lesson && (
           <LessonReader
             key={lesson.id}
             lesson={lesson}
@@ -184,6 +212,7 @@ function LessonReader({ lesson, onQuiz, best }: { lesson: Lesson; onQuiz: (score
       <section className="rounded-lg border border-slate-800 p-4 text-sm">
         <h2 className="mb-1 text-lg font-semibold">Practice</h2>
         <p className="text-slate-300">{lesson.practice.note}</p>
+        {lesson.practice.labId && <OpenLab labId={lesson.practice.labId} />}
       </section>
     </article>
   );
@@ -272,4 +301,25 @@ function Block({ b }: { b: LessonBlock }) {
       );
     }
   }
+}
+
+function OpenLab({ labId }: { labId: string }) {
+  const { fitView } = useReactFlow();
+  const open = async () => {
+    const { getLab } = await import('../../labs/registry');
+    const lab = getLab(labId);
+    if (!lab) return;
+    const t = useTopologyStore.getState().topology;
+    if (t.devices.length && !window.confirm(`Start lab ${labId}? The canvas will be replaced by the lab topology (save your work first if needed).`))
+      return;
+    const { useLabStore } = await import('../../store/labStore');
+    await useLabStore.getState().start(lab);
+    useAppMode.getState().setMode('lab');
+    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 120);
+  };
+  return (
+    <button type="button" className="rn-btn-primary mt-2" onClick={() => void open()}>
+      <FlaskConical className="h-4 w-4" /> Open lab {labId}
+    </button>
+  );
 }

@@ -35,7 +35,8 @@ function physicalSwitchport(x: Exec): string | undefined {
   const role = roleOf(x.device.kind);
   const n = x.session.iface!;
   if (!isBridgeRole(role) || !x.device.ports.some((p) => p.id === n)) return x.invalid();
-  if (!effectivePort(role, x.cfg.interfaces[n]).switchport) return '% Command rejected: routed port-channels are not simulated. Use "switchport" first.';
+  if (!effectivePort(role, x.cfg.interfaces[n]).switchport)
+    return '% Command rejected: routed port-channels are not simulated. Use "switchport" first.';
   return undefined;
 }
 
@@ -44,7 +45,8 @@ function channelGroup(x: Exec, mode: 'on' | 'active' | 'passive'): string | void
   if (e) return e;
   const id = Number(x.args.grp);
   const ic = ifCfg(x);
-  if (ic.channelGroup && ic.channelGroup.id !== id) return `% Interface is already part of channel-group ${ic.channelGroup.id}. Remove it first with "no channel-group".`;
+  if (ic.channelGroup && ic.channelGroup.id !== id)
+    return `% Interface is already part of channel-group ${ic.channelGroup.id}. Remove it first with "no channel-group".`;
   const po = `Po${id}`;
   let out: string | undefined;
   if (!x.cfg.interfaces[po]) {
@@ -79,7 +81,11 @@ export function l2Cmds(): Cmd[] {
   const modeKw = kw('mode', 'Etherchannel Mode of the interface');
   return [
     { modes: ['config-if'], toks: [cg, grp, modeKw, kw('active', 'Enable LACP unconditionally')], run: (x) => channelGroup(x, 'active') },
-    { modes: ['config-if'], toks: [cg, grp, modeKw, kw('passive', 'Enable LACP only if a LACP device is detected')], run: (x) => channelGroup(x, 'passive') },
+    {
+      modes: ['config-if'],
+      toks: [cg, grp, modeKw, kw('passive', 'Enable LACP only if a LACP device is detected')],
+      run: (x) => channelGroup(x, 'passive'),
+    },
     { modes: ['config-if'], toks: [cg, grp, modeKw, kw('on', 'Enable Etherchannel only')], run: (x) => channelGroup(x, 'on') },
     {
       modes: ['config-if'],
@@ -93,7 +99,12 @@ export function l2Cmds(): Cmd[] {
     },
     {
       modes: ['config'],
-      toks: [NO(), kw('interface', 'Select an interface to configure'), kw('port-channel', 'Ethernet Channel of interfaces'), num('po', 1, 64, '<1-64> Port-channel interface number')],
+      toks: [
+        NO(),
+        kw('interface', 'Select an interface to configure'),
+        kw('port-channel', 'Ethernet Channel of interfaces'),
+        num('po', 1, 64, '<1-64> Port-channel interface number'),
+      ],
       run: (x) => {
         const po = `Po${Number(x.args.po)}`;
         if (!x.cfg.interfaces[po]) return '% Interface does not exist';
@@ -108,7 +119,11 @@ export function l2Cmds(): Cmd[] {
     { modes: ['config-if'], toks: [NO(), kw('duplex', 'Configure duplex operation.')], run: (x) => setDuplex(x, undefined) },
     {
       modes: EXEC,
-      toks: [kw('show', 'Show running system information'), kw('etherchannel', 'EtherChannel information'), kw('summary', 'One-line summary per channel-group')],
+      toks: [
+        kw('show', 'Show running system information'),
+        kw('etherchannel', 'EtherChannel information'),
+        kw('summary', 'One-line summary per channel-group'),
+      ],
       run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showEtherchannelSummary(x.ctx.sim, x.device) : x.invalid()),
     },
   ];

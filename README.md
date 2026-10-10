@@ -12,9 +12,9 @@ A browser-based **networking + IP-MPLS training simulator** set in the context o
 
 | Mode | What you do |
 |---|---|
-| **Learn** | Lessons A0–A15 (foundations) and B0–B15 (IP-MPLS). Each lesson has railway analogies, interactive widgets, a glossary and a 5-question flash quiz. Progress is saved in the browser (Export/Import as JSON). |
-| **Lab** | Auto-checked labs, from build phase P2. |
-| **Sandbox** | Free canvas: place devices, cable them, configure them via CLI, ping, and step packets hop by hop. |
+| **Learn** | Lessons A0–A15 (foundations) and B0–B15 (IP-MPLS); A0–A8 available now. Railway analogies, interactive widgets (MAC learning, subnet calculator, VLSM planner, 802.1Q tag, root election…), glossary and a 5-question flash quiz. Also a searchable **Glossary** and **Command reference**. Progress is saved in the browser (Export/Import as JSON). |
+| **Lab** | Auto-checked labs L4.1–L8.1 at MTD (hub vs switch, addressing, VLSM, VLANs, STP + LACP + port security): live task checks from engine state, hints (−2 points each), break-fix fault, quiz, field note and the reference solution after completion. |
+| **Sandbox** | Free canvas: place devices, cable them, configure them via CLI, ping, and step packets hop by hop. The console's **Ask why** pane explains every field of the last show command. |
 
 Click any device (or the ⓘ on a palette item, or double-click a device) for its **detail panel**: Overview, Hardware, Capabilities, How it forwards, Config guide, Verify & troubleshoot, Maintenance & safety, Station info and LIVE state, in English or Hinglish.
 
@@ -22,8 +22,10 @@ Click any device (or the ⓘ on a palette item, or double-click a device) for it
 
 | Phase | Scope | Status |
 |---|---|---|
-| P1 | Scaffold, canvas, device catalog (basics, NEON and vendor profiles), links, save/load, Model Limitations, device detail panel, LEARN framework + lessons A0–A3, Jodhpur station data (M0) | ✅ Done — awaiting review |
-| P2–P10 | Labs, IP foundations (A4–A15), MPLS core, VPNs, L2VPN/TDM, QoS/TE, operations/automation, SR, capstones | Planned |
+| P1 | Scaffold, canvas, device catalog (basics, NEON and vendor profiles), links, save/load, Model Limitations, device detail panel, LEARN framework + lessons A0–A3, Jodhpur station data (M0) | ✅ Done |
+| P2 | Engine core, physical (duplex), Ethernet/VLAN/STP, EtherChannel/LACP, CLI (incl. interface range), consoles, packet walk, Lab mode, lessons + labs A4–A8, Glossary, Command Reference, "Ask why" | ✅ Done — awaiting review |
+| P3 | IP routing, OSPF/IS-IS, services, ACL, HSRP, QoS basics; lessons/labs A9–A15 | Next |
+| P4–P10 | Jodhpur topologies + IP plan, MPLS/LDP, BGP/L3VPN, L2VPN/TDM PW, MPLS QoS/TE, NMS/automation, capstone | Planned |
 
 The engine already includes Ethernet/VLAN/RSTP, IPv4, OSPF, DHCP, NAT, ACL, HSRP/VRRP and QoS analysis from the earlier RailNet Sim work. These will be wired into lessons and labs in the coming phases.
 
@@ -40,6 +42,17 @@ npm run dev
 ```
 
 Open the URL it prints (usually <http://localhost:5173>). macOS/Linux: same commands.
+
+### Localhost par purane items dikh rahe hain?
+
+1. **Status bar ke right corner** mein `v0.2.0 · <commit>` dekho. Agar commit GitHub ke latest se purana hai, to code purana hai:
+   ```powershell
+   git pull origin claude/railnet-sim-simulator-le2oq2
+   npm install
+   ```
+   Phir `npm run dev` band karke (Ctrl+C) dobara chalao, aur browser mein **Ctrl+Shift+R** (hard refresh).
+2. Canvas par purana topology = browser ka **autosave** (aapka pichhla kaam). App ab notice dikhata hai "Restored your last canvas…". Fresh start ke liye Sandbox mein **New** dabao. Lab start karne par bhi canvas lab topology se replace ho jaata hai.
+3. Sab kuch reset karna ho (progress bhi): browser DevTools → Application → Local Storage → `railnet-sim:autosave` aur `railmpls-lab:*` keys delete karo. Progress pehle Learn mode se Export kar lo.
 
 ## Scripts
 

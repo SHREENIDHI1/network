@@ -109,6 +109,11 @@ export const LESSON_LOADERS: Record<string, () => Promise<Lesson>> = {
   A1: () => import('./content/a1').then((m) => m.lesson),
   A2: () => import('./content/a2').then((m) => m.lesson),
   A3: () => import('./content/a3').then((m) => m.lesson),
+  A4: () => import('./content/a4').then((m) => m.lesson),
+  A5: () => import('./content/a5').then((m) => m.lesson),
+  A6: () => import('./content/a6').then((m) => m.lesson),
+  A7: () => import('./content/a7').then((m) => m.lesson),
+  A8: () => import('./content/a8').then((m) => m.lesson),
 };
 
 export function isAvailable(id: string): boolean {

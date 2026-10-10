@@ -54,7 +54,13 @@ export const emptyEtherChannel = (): EtherChannelState => ({ bundles: new Map(),
 export function switchingSignature(role: ReturnType<typeof roleOf>, ic: InterfaceConfig | undefined): string {
   const e = effectivePort(role, ic);
   const allowed = e.trunkAllowed === 'all' ? 'all' : [...(e.trunkAllowed ?? [])].sort((a, b) => a - b).join(',');
-  return JSON.stringify([e.switchport, e.mode, e.mode === 'access' ? e.accessVlan : null, e.mode === 'trunk' ? e.nativeVlan : null, e.mode === 'trunk' ? allowed : null]);
+  return JSON.stringify([
+    e.switchport,
+    e.mode,
+    e.mode === 'access' ? e.accessVlan : null,
+    e.mode === 'trunk' ? e.nativeVlan : null,
+    e.mode === 'trunk' ? allowed : null,
+  ]);
 }
 
 export function computeEtherChannel(topo: Topology, configs: ReadonlyMap<string, NetConfig>, phys: PhysicalState): EtherChannelState {
@@ -195,7 +201,10 @@ export function computeEtherChannel(topo: Topology, configs: ReadonlyMap<string,
       peerDeviceId: rep?.peer?.deviceId,
       speedGbps: bundled.reduce((a, m) => a + m.speed, 0),
     };
-    state.bundles.set(deviceId, [...(state.bundles.get(deviceId) ?? []), bundle].sort((a, b) => a.id - b.id));
+    state.bundles.set(
+      deviceId,
+      [...(state.bundles.get(deviceId) ?? []), bundle].sort((a, b) => a.id - b.id),
+    );
     for (const m of ms) {
       state.flags.set(portKey(deviceId, m.portId), m.flag);
       if (m.flag === 'P') state.logical.set(portKey(deviceId, m.portId), bundle.name);

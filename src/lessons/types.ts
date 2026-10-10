@@ -3,8 +3,17 @@
  * technical terms); the UI only renders them. Pure TS, no UI imports.
  */
 
-export type WidgetId = 'bandwidth-calc' | 'encapsulation' | 'optical-budget' | 'binary-converter';
-export type DiagramId = 'circuit-vs-packet' | 'osi-stack' | 'fibre-vs-copper';
+export type WidgetId =
+  | 'bandwidth-calc'
+  | 'encapsulation'
+  | 'optical-budget'
+  | 'binary-converter'
+  | 'mac-learning'
+  | 'subnet-calc'
+  | 'vlsm-planner'
+  | 'vlan-tag'
+  | 'root-election';
+export type DiagramId = 'circuit-vs-packet' | 'osi-stack' | 'fibre-vs-copper' | 'ethernet-frame' | 'vlan-trunk' | 'stp-loop';
 
 export type LessonBlock =
   | { kind: 'text'; heading?: string; body: string }

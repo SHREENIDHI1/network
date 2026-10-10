@@ -31,7 +31,15 @@ export function hubVsSwitch(): Topology {
       { kind: 'cat6', a: ['sw', 'Gi0/3'], b: ['p6', 'eth0'] },
     ],
   );
-  for (const [n, i] of [['PC1', 1], ['PC2', 2], ['PC3', 3], ['PC4', 4], ['PC5', 5], ['PC6', 6]] as const) t = host(t, n, `10.1.1.${i}`);
+  for (const [n, i] of [
+    ['PC1', 1],
+    ['PC2', 2],
+    ['PC3', 3],
+    ['PC4', 4],
+    ['PC5', 5],
+    ['PC6', 6],
+  ] as const)
+    t = host(t, n, `10.1.1.${i}`);
   return t;
 }
 

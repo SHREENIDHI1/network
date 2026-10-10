@@ -1,4 +1,3 @@
-
 import { execIos, newSession } from '../../engine/cli/ios';
 import { parseIpv4 } from '../../engine/ip/ipv4';
 import type { Sim } from '../../engine/sim';
@@ -62,5 +61,3 @@ export function solutionText(sol: LabSolution): string {
   for (const [s, d] of sol.pings ?? []) L.push(`${s}> ping ${d}`);
   return L.join('\n').trim();
 }
-
-

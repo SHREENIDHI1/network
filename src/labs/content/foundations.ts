@@ -27,7 +27,12 @@ const l4: Lab = {
     'Hub Layer 1 device hai: jo signal ek port par aaya, woh baaki sab ports par repeat kar deta hai. Sab devices ek hi collision domain mein hain aur sab ko har frame milta hai.\n' +
     'Switch Layer 2 device hai: har frame ka source MAC padh kar MAC table banata hai ("yeh MAC is port par hai"). Destination MAC pata ho to frame sirf usi port par jaata hai; pata na ho ya broadcast ho to flood.\n' +
     'Railway analogy: hub = station ka loudspeaker — announcement sab sunte hain. Switch = parcel office — parcel sirf us aadmi ko diya jaata hai jiska naam label par hai.',
-  objectives: ['Connect a PC to a hub', 'Ping on both sides', 'See MAC learning on the switch', 'Compare who receives a frame in the Packet Inspector'],
+  objectives: [
+    'Connect a PC to a hub',
+    'Ping on both sides',
+    'See MAC learning on the switch',
+    'Compare who receives a frame in the Packet Inspector',
+  ],
   topologyId: 'lab-hub-vs-switch',
   requiredModules: ETH_IP,
   plan: {
@@ -41,7 +46,12 @@ const l4: Lab = {
     { id: 't1', text: 'Connect PC3 to HUB1 with a Cat6 cable.', check: C.linkExists('PC3', 'HUB1', 'cat6'), points: 10 },
     { id: 't2', text: 'From PC1, ping PC3 (10.1.1.3).', check: C.pingSucceeds('PC1', '10.1.1.3'), points: 15 },
     { id: 't3', text: 'From PC4, ping PC6 (10.1.1.6).', check: C.pingSucceeds('PC4', '10.1.1.6'), points: 15 },
-    { id: 't4', text: 'Check that SW1 has learned at least two MAC addresses ("show mac address-table").', check: C.macLearned('SW1', 2), points: 10 },
+    {
+      id: 't4',
+      text: 'Check that SW1 has learned at least two MAC addresses ("show mac address-table").',
+      check: C.macLearned('SW1', 2),
+      points: 10,
+    },
   ],
   hints: [
     ['Hover PC3, drag from its blue handle and drop on HUB1.', 'In the dialog choose link type Cat6 and any free hub port.'],
@@ -50,7 +60,8 @@ const l4: Lab = {
     ['A switch learns MACs from frames it receives. After the ping in task 3, open SW1 CLI.', 'Type: enable, then show mac address-table'],
   ],
   breakFix: {
-    complaint: 'SM/JU office: "PC5 se kuch bhi nahi chal raha, kal safai wale aaye the." Pata karo kya hua aur PC4 se PC5 ko ping karke confirm karo.',
+    complaint:
+      'SM/JU office: "PC5 se kuch bhi nahi chal raha, kal safai wale aaye the." Pata karo kya hua aur PC4 se PC5 ko ping karke confirm karo.',
     apply: (t) => {
       const sw = t.devices.find((d) => d.name === 'SW1')!;
       const pc5 = t.devices.find((d) => d.name === 'PC5')!;
@@ -97,7 +108,12 @@ const l4: Lab = {
       id: 'q5',
       kind: 'practical',
       prompt: 'Ping PC4 → PC6, then open the Packet Inspector on the echo-request. Did PC5 receive it?',
-      options: ['Yes, the switch flooded it', 'No — after ARP the switch knew PC6’s port and sent it only there', 'Only the first one', 'The Packet Inspector cannot show this'],
+      options: [
+        'Yes, the switch flooded it',
+        'No — after ARP the switch knew PC6’s port and sent it only there',
+        'Only the first one',
+        'The Packet Inspector cannot show this',
+      ],
       correctIndex: 1,
       explanation: 'The ARP request was broadcast, but by the time the echo-request travels SW1 has learned PC6’s MAC and forwards it out one port.',
     },
@@ -131,7 +147,12 @@ const l5: Lab = {
     'Same subnet wale devices seedhe baat karte hain (ARP se MAC dhoondh kar). Doosre network ke liye packet default gateway (router) ko jaata hai.\n' +
     'Network address (.0) aur broadcast (.255) kisi device ko nahi dete.\n' +
     'Railway analogy: subnet = ek station yard; IP = yard mein line number; gateway = yard se bahar jaane wala signal/cabin.',
-  objectives: ['Give the router LAN interface an IP and bring it up', 'Address every terminal in 10.52.1.0/24 with the router as gateway', 'Avoid duplicate addresses', 'Prove reachability with ping'],
+  objectives: [
+    'Give the router LAN interface an IP and bring it up',
+    'Address every terminal in 10.52.1.0/24 with the router as gateway',
+    'Avoid duplicate addresses',
+    'Prove reachability with ping',
+  ],
   topologyId: 'lab-mtd-station-lan',
   requiredModules: ETH_IP,
   plan: {
@@ -145,7 +166,12 @@ const l5: Lab = {
     ],
   },
   tasks: [
-    { id: 't1', text: 'Configure MTD-R1 Gi0/0 as 10.52.1.1/24 and bring it up.', check: C.all(C.ipInSubnet('MTD-R1', 'Gi0/0', '10.52.1.0/24')), points: 15 },
+    {
+      id: 't1',
+      text: 'Configure MTD-R1 Gi0/0 as 10.52.1.1/24 and bring it up.',
+      check: C.all(C.ipInSubnet('MTD-R1', 'Gi0/0', '10.52.1.0/24')),
+      points: 15,
+    },
     {
       id: 't2',
       text: 'Address MTD-UTS1, MTD-UTS2, MTD-FOIS1 and MTD-SM-PC in 10.52.1.0/24.',
@@ -160,24 +186,41 @@ const l5: Lab = {
     {
       id: 't3',
       text: 'Set the default gateway of every terminal to the router.',
-      check: C.all(C.gatewayOnDevice('MTD-UTS1', 'MTD-R1'), C.gatewayOnDevice('MTD-UTS2', 'MTD-R1'), C.gatewayOnDevice('MTD-FOIS1', 'MTD-R1'), C.gatewayOnDevice('MTD-SM-PC', 'MTD-R1')),
+      check: C.all(
+        C.gatewayOnDevice('MTD-UTS1', 'MTD-R1'),
+        C.gatewayOnDevice('MTD-UTS2', 'MTD-R1'),
+        C.gatewayOnDevice('MTD-FOIS1', 'MTD-R1'),
+        C.gatewayOnDevice('MTD-SM-PC', 'MTD-R1'),
+      ),
       points: 15,
     },
-    { id: 't4', text: 'No two devices may share an IP address.', check: C.all(C.noDuplicateIps(), C.ipInSubnet('MTD-UTS1', 'eth0', '10.52.1.0/24')), points: 10 },
+    {
+      id: 't4',
+      text: 'No two devices may share an IP address.',
+      check: C.all(C.noDuplicateIps(), C.ipInSubnet('MTD-UTS1', 'eth0', '10.52.1.0/24')),
+      points: 10,
+    },
     { id: 't5', text: 'From MTD-UTS1, ping the gateway successfully.', check: C.pingReachesDevice('MTD-UTS1', 'MTD-R1'), points: 15 },
   ],
   hints: [
-    ['Open CLI on MTD-R1: enable → configure terminal → interface gi0/0', 'Then: ip address 10.52.1.1 255.255.255.0 and no shutdown (router ports start shut down).'],
+    [
+      'Open CLI on MTD-R1: enable → configure terminal → interface gi0/0',
+      'Then: ip address 10.52.1.1 255.255.255.0 and no shutdown (router ports start shut down).',
+    ],
     ['Select a terminal → IP Configuration in the right panel → Static.', 'Use the plan table: 10.52.1.11, .12, .21, .31 with mask 255.255.255.0.'],
     ['Gateway = the router’s address in the same subnet.', 'Gateway field: 10.52.1.1'],
     ['Each host needs its own last octet — compare with the plan table.'],
     ['Open CLI on MTD-UTS1 and type: ping 10.52.1.1', 'If it fails: is Gi0/0 up? (show ip interface brief on the router). Is the gateway set?'],
   ],
   breakFix: {
-    complaint: 'SM/MTD: "UTS counter 2 kabhi chalta hai kabhi nahi, aur counter 1 bhi beech-beech mein atak jaata hai." Kisi ne naya terminal lagaya tha. Problem dhoondho aur theek karo.',
+    complaint:
+      'SM/MTD: "UTS counter 2 kabhi chalta hai kabhi nahi, aur counter 1 bhi beech-beech mein atak jaata hai." Kisi ne naya terminal lagaya tha. Problem dhoondho aur theek karo.',
     apply: (t) => configure(t, 'MTD-UTS2', (c) => setIf(c, 'eth0', { ip: { address: '10.52.1.11', mask: '255.255.255.0' } })),
     check: C.all(C.noDuplicateIps(), C.ipInSubnet('MTD-UTS2', 'eth0', '10.52.1.0/24'), C.pingReachesDevice('MTD-UTS2', 'MTD-R1')),
-    hints: ['Two terminals that disturb each other often share something. Compare their IP settings.', 'Give MTD-UTS2 back its own address from the plan, then ping the gateway from it.'],
+    hints: [
+      'Two terminals that disturb each other often share something. Compare their IP settings.',
+      'Give MTD-UTS2 back its own address from the plan, then ping the gateway from it.',
+    ],
     fix: { hosts: { 'MTD-UTS2': { ip: '10.52.1.12', mask: '255.255.255.0', gateway: '10.52.1.1' } }, pings: [['MTD-UTS2', '10.52.1.1']] },
   },
   quiz: [
@@ -263,7 +306,11 @@ const l6: Lab = {
     '/26 = 62 hosts, /27 = 30 hosts, /28 = 14, /29 = 6, /30 = 2.\n' +
     'Sabse bade LAN se shuru karo, block ke shuru se allot karo, phir agla bada — overlap nahi hona chahiye.\n' +
     'Railway analogy: ek goods yard ki lines — bade rake ko lambi line, chhote ko chhoti; ek line do rakes ko nahi de sakte.',
-  objectives: ['Pick the smallest subnet for each LAN', 'Configure the three router interfaces without overlap', 'Address one host per LAN and prove it reaches the router'],
+  objectives: [
+    'Pick the smallest subnet for each LAN',
+    'Configure the three router interfaces without overlap',
+    'Address one host per LAN and prove it reaches the router',
+  ],
   topologyId: 'lab-mtd-vlsm',
   requiredModules: ETH_IP,
   plan: {
@@ -275,9 +322,24 @@ const l6: Lab = {
     ],
   },
   tasks: [
-    { id: 't1', text: 'Give MTD-R1 Gi0/1 (CCTV, 50 hosts) the right-sized subnet inside 10.52.20.0/24.', check: C.subnetSizedFor('MTD-R1', 'Gi0/1', 50, '10.52.20.0/24'), points: 15 },
-    { id: 't2', text: 'Give MTD-R1 Gi0/0 (UTS/PRS, 20 hosts) the right-sized subnet.', check: C.subnetSizedFor('MTD-R1', 'Gi0/0', 20, '10.52.20.0/24'), points: 15 },
-    { id: 't3', text: 'Give MTD-R1 Gi0/2 (management, 5 hosts) the right-sized subnet.', check: C.subnetSizedFor('MTD-R1', 'Gi0/2', 5, '10.52.20.0/24'), points: 15 },
+    {
+      id: 't1',
+      text: 'Give MTD-R1 Gi0/1 (CCTV, 50 hosts) the right-sized subnet inside 10.52.20.0/24.',
+      check: C.subnetSizedFor('MTD-R1', 'Gi0/1', 50, '10.52.20.0/24'),
+      points: 15,
+    },
+    {
+      id: 't2',
+      text: 'Give MTD-R1 Gi0/0 (UTS/PRS, 20 hosts) the right-sized subnet.',
+      check: C.subnetSizedFor('MTD-R1', 'Gi0/0', 20, '10.52.20.0/24'),
+      points: 15,
+    },
+    {
+      id: 't3',
+      text: 'Give MTD-R1 Gi0/2 (management, 5 hosts) the right-sized subnet.',
+      check: C.subnetSizedFor('MTD-R1', 'Gi0/2', 5, '10.52.20.0/24'),
+      points: 15,
+    },
     { id: 't4', text: 'The three subnets must not overlap.', check: C.noOverlap(VLSM_IFS), points: 10 },
     {
       id: 't5',
@@ -287,17 +349,33 @@ const l6: Lab = {
     },
   ],
   hints: [
-    ['50 hosts: which prefix gives at least 50 usable addresses? Try the subnet calculator in lesson A6.', '/26 gives 62 usable. Start at the beginning of the block: 10.52.20.0/26 → router can take 10.52.20.1 255.255.255.192. Remember no shutdown.'],
-    ['20 hosts → /27 (30 usable). The next free block after a /26 at .0 starts at .64.', 'Router: interface gi0/0 → ip address 10.52.20.65 255.255.255.224 → no shutdown'],
+    [
+      '50 hosts: which prefix gives at least 50 usable addresses? Try the subnet calculator in lesson A6.',
+      '/26 gives 62 usable. Start at the beginning of the block: 10.52.20.0/26 → router can take 10.52.20.1 255.255.255.192. Remember no shutdown.',
+    ],
+    [
+      '20 hosts → /27 (30 usable). The next free block after a /26 at .0 starts at .64.',
+      'Router: interface gi0/0 → ip address 10.52.20.65 255.255.255.224 → no shutdown',
+    ],
     ['5 hosts → /29 (6 usable). Next free after .64/27 is .96.', 'Router: interface gi0/2 → ip address 10.52.20.97 255.255.255.248 → no shutdown'],
     ['Write each subnet as start–end. If one range touches another, move it to the next free block.'],
-    ['Camera IP must be in the CCTV subnet, e.g. 10.52.20.10 / 255.255.255.192, gateway = router Gi0/1 address.', 'Then open CLI on MTD-CAM1: ping <router Gi0/1 address>'],
+    [
+      'Camera IP must be in the CCTV subnet, e.g. 10.52.20.10 / 255.255.255.192, gateway = router Gi0/1 address.',
+      'Then open CLI on MTD-CAM1: ping <router Gi0/1 address>',
+    ],
   ],
   breakFix: {
-    complaint: 'Control/JU: "MTD ka management laptop router tak nahi pahunch raha, aur kisi ne kal router config badla tha." Router config check karo.',
-    apply: (t) => configure(t, 'MTD-R1', (c) => setIf(c, 'Gi0/2', { ip: { address: c.interfaces['Gi0/2']?.ip?.address ?? '10.52.20.97', mask: '255.255.255.0' } })),
+    complaint:
+      'Control/JU: "MTD ka management laptop router tak nahi pahunch raha, aur kisi ne kal router config badla tha." Router config check karo.',
+    apply: (t) =>
+      configure(t, 'MTD-R1', (c) =>
+        setIf(c, 'Gi0/2', { ip: { address: c.interfaces['Gi0/2']?.ip?.address ?? '10.52.20.97', mask: '255.255.255.0' } }),
+      ),
     check: C.all(C.subnetSizedFor('MTD-R1', 'Gi0/2', 5, '10.52.20.0/24'), C.noOverlap(VLSM_IFS)),
-    hints: ['show running-config on MTD-R1 — look at the masks.', 'One interface has a /24 mask now: it covers the whole block and overlaps the others. Put back the /29 mask.'],
+    hints: [
+      'show running-config on MTD-R1 — look at the masks.',
+      'One interface has a /24 mask now: it covers the whole block and overlaps the others. Put back the /29 mask.',
+    ],
     fix: { cli: { 'MTD-R1': ['enable', 'configure terminal', 'interface gi0/2', 'ip address 10.52.20.97 255.255.255.248', 'end'] } },
   },
   quiz: [
@@ -321,7 +399,12 @@ const l6: Lab = {
       id: 'q3',
       kind: 'mcq',
       prompt: 'Why allocate the largest subnet first?',
-      options: ['It is faster to type', 'Big blocks must start on their own boundary; doing them first avoids gaps and overlaps', 'Routers require it', 'It saves CPU'],
+      options: [
+        'It is faster to type',
+        'Big blocks must start on their own boundary; doing them first avoids gaps and overlaps',
+        'Routers require it',
+        'It saves CPU',
+      ],
       correctIndex: 1,
       explanation: 'A /26 must start at .0, .64, .128 or .192. Placing it first keeps the rest of the block contiguous.',
     },
@@ -385,7 +468,12 @@ const l7: Lab = {
     'Native VLAN ke frames trunk par bina tag jaate hain — dono taraf same hona chahiye. Best practice: native VLAN ko kisi unused VLAN (jaise 99) par rakho.\n' +
     'Teaching plan: UTS 10, PRS 20, FOIS 30, CCTV 40, Railnet 50, VoIP 60, SCADA 70, Mgmt 99.\n' +
     'Railway analogy: ek hi track par alag-alag rake — har wagon par rake number (tag) likha hai; station par sirf apne rake ke wagon utarte hain.',
-  objectives: ['Create VLANs 10, 20, 40 and 99 on both switches', 'Put each host port in its VLAN', 'Make Gi0/24 a trunk with native VLAN 99', 'Prove UTS1↔UTS2 and PRS1↔PRS2 still work across the trunk'],
+  objectives: [
+    'Create VLANs 10, 20, 40 and 99 on both switches',
+    'Put each host port in its VLAN',
+    'Make Gi0/24 a trunk with native VLAN 99',
+    'Prove UTS1↔UTS2 and PRS1↔PRS2 still work across the trunk',
+  ],
   topologyId: 'lab-mtd-vlans',
   requiredModules: ETH_IP,
   plan: {
@@ -424,7 +512,12 @@ const l7: Lab = {
       check: C.all(C.trunkAllows('MTD-SW1', 'Gi0/24', [10, 20, 40]), C.trunkAllows('MTD-SW2', 'Gi0/24', [10, 20, 40])),
       points: 15,
     },
-    { id: 't4', text: 'Set the native VLAN of both trunk ends to 99.', check: C.all(C.nativeVlanIs('MTD-SW1', 'Gi0/24', 99), C.nativeVlanIs('MTD-SW2', 'Gi0/24', 99)), points: 10 },
+    {
+      id: 't4',
+      text: 'Set the native VLAN of both trunk ends to 99.',
+      check: C.all(C.nativeVlanIs('MTD-SW1', 'Gi0/24', 99), C.nativeVlanIs('MTD-SW2', 'Gi0/24', 99)),
+      points: 10,
+    },
     {
       id: 't5',
       text: 'Ping MTD-UTS1 → MTD-UTS2 (10.52.10.12) and MTD-PRS1 → MTD-PRS2 (10.52.20.12) after the change.',
@@ -434,17 +527,30 @@ const l7: Lab = {
   ],
   hints: [
     ['On each switch: enable → configure terminal → vlan 10 → name UTS → exit', 'Repeat for 20 PRS, 40 CCTV, 99 MGMT. Check with "show vlan brief".'],
-    ['interface gi0/1 → switchport mode access → switchport access vlan 10', 'Use "interface range gi0/1 - 2" to save typing where two ports share settings… but here each port has its own VLAN.'],
-    ['interface gi0/24 → switchport mode trunk → switchport trunk allowed vlan 10,20,40', 'Do it on BOTH switches; check with "show interfaces trunk".'],
+    [
+      'interface gi0/1 → switchport mode access → switchport access vlan 10',
+      'Use "interface range gi0/1 - 2" to save typing where two ports share settings… but here each port has its own VLAN.',
+    ],
+    [
+      'interface gi0/24 → switchport mode trunk → switchport trunk allowed vlan 10,20,40',
+      'Do it on BOTH switches; check with "show interfaces trunk".',
+    ],
     ['On the trunk port: switchport trunk native vlan 99 (both ends must match).'],
     ['Open CLI on MTD-UTS1: ping 10.52.10.12', 'If it fails: is VLAN 10 allowed on both trunk ends and does it exist on both switches?'],
   ],
   breakFix: {
-    complaint: 'Booking clerk MTD: "Counter 1 se UTS server (counter 2 side) nahi khul raha, PRS theek chal raha hai." Equipment room mein kal kisi ne switch par kaam kiya tha.',
+    complaint:
+      'Booking clerk MTD: "Counter 1 se UTS server (counter 2 side) nahi khul raha, PRS theek chal raha hai." Equipment room mein kal kisi ne switch par kaam kiya tha.',
     apply: (t) => configure(t, 'MTD-SW2', (c) => setIf(c, 'Gi0/24', { trunkAllowed: [20, 40] })),
     check: C.all(C.trunkAllows('MTD-SW2', 'Gi0/24', [10, 20, 40]), C.pingSucceeds('MTD-UTS1', '10.52.10.12')),
-    hints: ['Only UTS (VLAN 10) is broken. Where does VLAN 10 cross between the switches?', 'On MTD-SW2: show interfaces trunk — compare the allowed list with the plan.'],
-    fix: { cli: { 'MTD-SW2': ['enable', 'configure terminal', 'interface gi0/24', 'switchport trunk allowed vlan 10,20,40', 'end'] }, pings: [['MTD-UTS1', '10.52.10.12']] },
+    hints: [
+      'Only UTS (VLAN 10) is broken. Where does VLAN 10 cross between the switches?',
+      'On MTD-SW2: show interfaces trunk — compare the allowed list with the plan.',
+    ],
+    fix: {
+      cli: { 'MTD-SW2': ['enable', 'configure terminal', 'interface gi0/24', 'switchport trunk allowed vlan 10,20,40', 'end'] },
+      pings: [['MTD-UTS1', '10.52.10.12']],
+    },
   },
   quiz: [
     {
@@ -467,7 +573,12 @@ const l7: Lab = {
       id: 'q3',
       kind: 'mcq',
       prompt: 'UTS1 (VLAN 10) and CAM1 (VLAN 40) are on the same switch. Can they talk without a router?',
-      options: ['Yes, same switch', 'No — different VLANs are different broadcast domains; you need inter-VLAN routing (A9)', 'Only with a trunk', 'Only via broadcast'],
+      options: [
+        'Yes, same switch',
+        'No — different VLANs are different broadcast domains; you need inter-VLAN routing (A9)',
+        'Only with a trunk',
+        'Only via broadcast',
+      ],
       correctIndex: 1,
       explanation: 'VLANs isolate Layer 2. Traffic between VLANs must be routed.',
     },
@@ -475,7 +586,12 @@ const l7: Lab = {
       id: 'q4',
       kind: 'mcq',
       prompt: 'Why move the native VLAN away from VLAN 1?',
-      options: ['VLAN 1 is slower', 'Untagged traffic on trunks is a security risk (VLAN hopping); an unused native VLAN limits it', 'IOS requires it', 'To save bandwidth'],
+      options: [
+        'VLAN 1 is slower',
+        'Untagged traffic on trunks is a security risk (VLAN hopping); an unused native VLAN limits it',
+        'IOS requires it',
+        'To save bandwidth',
+      ],
       correctIndex: 1,
       explanation: 'Keeping native traffic in an unused VLAN reduces double-tagging/VLAN-hopping risk.',
     },
@@ -570,7 +686,12 @@ const l8: Lab = {
     'EtherChannel (LACP, 802.3ad) do-teen cables ko ek logical link (Port-channel) bana deta hai: STP use ek port maanta hai, dono cables traffic le jaati hain, ek cable kati to bhi link chalta hai.\n' +
     'Port security: access port par sirf allowed MAC(s); naya device laga to port err-disabled (shutdown mode).\n' +
     'Railway analogy: STP = route relay interlocking jo conflicting routes ek saath set nahi hone deta; EtherChannel = double line jisme dono lines chalti hain.',
-  objectives: ['Make MTD-SW-CORE the root bridge on purpose', 'Bundle the two core–counter cables with LACP', 'Lock the UTS counter port to one MAC', 'Prove UTS1 still reaches the server'],
+  objectives: [
+    'Make MTD-SW-CORE the root bridge on purpose',
+    'Bundle the two core–counter cables with LACP',
+    'Lock the UTS counter port to one MAC',
+    'Prove UTS1 still reaches the server',
+  ],
   topologyId: 'lab-mtd-resilience',
   requiredModules: ETH_IP,
   plan: {
@@ -590,23 +711,54 @@ const l8: Lab = {
       check: C.all(C.etherChannelBundled('MTD-SW-CORE', 'Po1', 2), C.etherChannelBundled('MTD-SW-COUNTER', 'Po1', 2)),
       points: 25,
     },
-    { id: 't3', text: 'Enable port security on MTD-SW-COUNTER Gi0/1 with a maximum of 1 MAC.', check: C.portSecurityOn('MTD-SW-COUNTER', 'Gi0/1', 1), points: 15 },
-    { id: 't4', text: 'Ping MTD-SRV (10.52.10.100) from MTD-UTS1.', check: C.all(C.portSecurityOn('MTD-SW-COUNTER', 'Gi0/1', 1), C.pingSucceeds('MTD-UTS1', '10.52.10.100')), points: 15 },
+    {
+      id: 't3',
+      text: 'Enable port security on MTD-SW-COUNTER Gi0/1 with a maximum of 1 MAC.',
+      check: C.portSecurityOn('MTD-SW-COUNTER', 'Gi0/1', 1),
+      points: 15,
+    },
+    {
+      id: 't4',
+      text: 'Ping MTD-SRV (10.52.10.100) from MTD-UTS1.',
+      check: C.all(C.portSecurityOn('MTD-SW-COUNTER', 'Gi0/1', 1), C.pingSucceeds('MTD-UTS1', '10.52.10.100')),
+      points: 15,
+    },
   ],
   hints: [
-    ['First look: "show spanning-tree" on each switch — who is root now, and why?', 'On MTD-SW-CORE: configure terminal → spanning-tree vlan 1 priority 4096'],
-    ['On MTD-SW-CORE: interface range gi0/23 - 24 → channel-group 1 mode active', 'Do the same on MTD-SW-COUNTER (active or passive). Check with "show etherchannel summary": both ports should show (P).'],
-    ['On MTD-SW-COUNTER: interface gi0/1 → switchport mode access → switchport port-security', 'Default maximum is 1 and violation is shutdown. Check with "show port-security".'],
+    [
+      'First look: "show spanning-tree" on each switch — who is root now, and why?',
+      'On MTD-SW-CORE: configure terminal → spanning-tree vlan 1 priority 4096',
+    ],
+    [
+      'On MTD-SW-CORE: interface range gi0/23 - 24 → channel-group 1 mode active',
+      'Do the same on MTD-SW-COUNTER (active or passive). Check with "show etherchannel summary": both ports should show (P).',
+    ],
+    [
+      'On MTD-SW-COUNTER: interface gi0/1 → switchport mode access → switchport port-security',
+      'Default maximum is 1 and violation is shutdown. Check with "show port-security".',
+    ],
     ['Open CLI on MTD-UTS1 → ping 10.52.10.100', 'If the port went err-disabled, another MAC was seen: shutdown / no shutdown recovers it.'],
   ],
   breakFix: {
-    complaint: 'Night shift ESM/MTD: "Core aur counter switch ke beech ek cable ki light jal rahi hai par show etherchannel mein kuch \'s\' dikh raha hai. Kisi ne config copy-paste kiya tha." Bundle wapas laao.',
-    apply: (t) => configure(t, 'MTD-SW-COUNTER', (c) => {
-      for (const p of ['Gi0/23', 'Gi0/24']) setIf(c, p, { channelGroup: { id: 1, mode: 'on' } });
-    }),
-    check: C.all(C.etherChannelBundled('MTD-SW-CORE', 'Po1', 2), C.etherChannelBundled('MTD-SW-COUNTER', 'Po1', 2), C.pingSucceeds('MTD-UTS1', '10.52.10.100')),
-    hints: ['show etherchannel summary on both switches — read the RailMPLS Lab note at the bottom.', 'One side is "on", the other is LACP. Set COUNTER members back to "channel-group 1 mode active", then ping again.'],
-    fix: { cli: { 'MTD-SW-COUNTER': ['enable', 'configure terminal', 'interface range gi0/23 - 24', 'channel-group 1 mode active', 'end'] }, pings: [['MTD-UTS1', '10.52.10.100']] },
+    complaint:
+      'Night shift ESM/MTD: "Core aur counter switch ke beech ek cable ki light jal rahi hai par show etherchannel mein kuch \'s\' dikh raha hai. Kisi ne config copy-paste kiya tha." Bundle wapas laao.',
+    apply: (t) =>
+      configure(t, 'MTD-SW-COUNTER', (c) => {
+        for (const p of ['Gi0/23', 'Gi0/24']) setIf(c, p, { channelGroup: { id: 1, mode: 'on' } });
+      }),
+    check: C.all(
+      C.etherChannelBundled('MTD-SW-CORE', 'Po1', 2),
+      C.etherChannelBundled('MTD-SW-COUNTER', 'Po1', 2),
+      C.pingSucceeds('MTD-UTS1', '10.52.10.100'),
+    ),
+    hints: [
+      'show etherchannel summary on both switches — read the RailMPLS Lab note at the bottom.',
+      'One side is "on", the other is LACP. Set COUNTER members back to "channel-group 1 mode active", then ping again.',
+    ],
+    fix: {
+      cli: { 'MTD-SW-COUNTER': ['enable', 'configure terminal', 'interface range gi0/23 - 24', 'channel-group 1 mode active', 'end'] },
+      pings: [['MTD-UTS1', '10.52.10.100']],
+    },
   },
   quiz: [
     {
@@ -629,7 +781,12 @@ const l8: Lab = {
       id: 'q3',
       kind: 'mcq',
       prompt: 'Why is a two-cable EtherChannel better than two separate STP links?',
-      options: ['It uses no power', 'STP sees one logical link, so both cables carry traffic and one can fail without reconvergence', 'It removes the need for VLANs', 'It doubles the MAC table'],
+      options: [
+        'It uses no power',
+        'STP sees one logical link, so both cables carry traffic and one can fail without reconvergence',
+        'It removes the need for VLANs',
+        'It doubles the MAC table',
+      ],
       correctIndex: 1,
       explanation: 'Without bundling, STP blocks one of the parallel cables.',
     },
@@ -655,7 +812,14 @@ const l8: Lab = {
     'Real gear: STP in this simulator converges instantly and runs one instance for all VLANs (real Catalyst default is Rapid PVST+, one instance per VLAN). LACP is computed, not negotiated with LACPDUs/timers; PAgP is not simulated. On real switches "channel-group mode on" facing LACP can cause loops — EtherChannel misconfig guard err-disables it.\nInterview questions: "Root bridge kaise chuna jaata hai?", "LACP active/passive?", "Port security violation modes?"',
   solution: {
     cli: {
-      'MTD-SW-CORE': ['enable', 'configure terminal', 'spanning-tree vlan 1 priority 4096', 'interface range gi0/23 - 24', 'channel-group 1 mode active', 'end'],
+      'MTD-SW-CORE': [
+        'enable',
+        'configure terminal',
+        'spanning-tree vlan 1 priority 4096',
+        'interface range gi0/23 - 24',
+        'channel-group 1 mode active',
+        'end',
+      ],
       'MTD-SW-COUNTER': [
         'enable',
         'configure terminal',

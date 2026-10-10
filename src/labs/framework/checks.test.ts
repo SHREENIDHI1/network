@@ -6,7 +6,18 @@ import type { EngineModule } from './modules';
 import { buildSnapshot } from './snapshot';
 
 const ALL: ReadonlySet<EngineModule> = new Set<EngineModule>([
-  'topology', 'physical', 'ethernet', 'ip', 'ospf', 'qos', 'pdh', 'sdh', 'mpls', 'bgp', 'l2vpn', 'nms',
+  'topology',
+  'physical',
+  'ethernet',
+  'ip',
+  'ospf',
+  'qos',
+  'pdh',
+  'sdh',
+  'mpls',
+  'bgp',
+  'l2vpn',
+  'nms',
 ]);
 
 describe('topology / physical checks (real engine state)', () => {

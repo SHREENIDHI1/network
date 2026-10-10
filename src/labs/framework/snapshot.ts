@@ -13,11 +13,7 @@ export type EngineSections = Omit<SimSnapshot, 'topology' | 'modules' | 'optical
  * and `optical` are filled from real state. Later phases pass their state in
  * `sections`; tests may also pass hand-built sections to exercise checkers.
  */
-export function buildSnapshot(
-  topology: Topology,
-  sections: EngineSections = {},
-  modules: ReadonlySet<EngineModule> = BUILT_MODULES,
-): SimSnapshot {
+export function buildSnapshot(topology: Topology, sections: EngineSections = {}, modules: ReadonlySet<EngineModule> = BUILT_MODULES): SimSnapshot {
   const optical: OpticalLinkState[] = topology.links
     .filter((l) => l.kind === 'ofc' && l.optical)
     .map((l) => {

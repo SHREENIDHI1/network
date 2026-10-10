@@ -101,7 +101,13 @@ export const useLabStore = create<LabState>((set, get) => ({
 }));
 
 /** Score = points of passed tasks − hint cost, + break-fix bonus, + quiz points. */
-export function labScore(lab: Lab, passed: ReadonlySet<string>, hints: Record<string, number>, breakFixDone: boolean, quizScore: number | null): number {
+export function labScore(
+  lab: Lab,
+  passed: ReadonlySet<string>,
+  hints: Record<string, number>,
+  breakFixDone: boolean,
+  quizScore: number | null,
+): number {
   const tasks = lab.tasks.reduce((a, t) => a + (passed.has(t.id) ? t.points : 0), 0);
   const hintCost = Object.values(hints).reduce((a, n) => a + n * HINT_COST, 0);
   return Math.max(0, tasks - hintCost) + (breakFixDone ? BREAKFIX_POINTS : 0) + (quizScore ?? 0) * QUIZ_POINTS_EACH;

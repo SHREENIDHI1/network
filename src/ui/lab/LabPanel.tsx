@@ -48,7 +48,12 @@ export default function LabPanel({ lab }: { lab: Lab }) {
           <button type="button" className="rounded p-1 text-slate-400 hover:bg-slate-800" title="Restart lab" onClick={restart}>
             <RotateCcw className="h-4 w-4" />
           </button>
-          <button type="button" className="rounded p-1 text-slate-400 hover:bg-slate-800" title="Leave lab (back to lab list)" onClick={() => useLabStore.getState().exit()}>
+          <button
+            type="button"
+            className="rounded p-1 text-slate-400 hover:bg-slate-800"
+            title="Leave lab (back to lab list)"
+            onClick={() => useLabStore.getState().exit()}
+          >
             <LogOut className="h-4 w-4" />
           </button>
         </div>
@@ -112,7 +117,11 @@ export default function LabPanel({ lab }: { lab: Lab }) {
               return (
                 <li key={task.id} className={`rounded border p-2 ${r.pass ? 'border-emerald-800 bg-emerald-950/30' : 'border-slate-800'}`}>
                   <div className="flex gap-2">
-                    {r.pass ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />}
+                    {r.pass ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-slate-100">
                         {i + 1}. {task.text} <span className="text-xs text-slate-500">({task.points} pts)</span>
@@ -124,7 +133,11 @@ export default function LabPanel({ lab }: { lab: Lab }) {
                         </p>
                       ))}
                       {!r.pass && shown < list.length && (
-                        <button type="button" className="mt-1 flex items-center gap-1 text-xs text-sky-400 hover:underline" onClick={() => useLabStore.getState().revealHint(task.id)}>
+                        <button
+                          type="button"
+                          className="mt-1 flex items-center gap-1 text-xs text-sky-400 hover:underline"
+                          onClick={() => useLabStore.getState().revealHint(task.id)}
+                        >
                           <Lightbulb className="h-3 w-3" /> Hint {shown + 1}/{list.length} (−{HINT_COST} pts)
                         </button>
                       )}
@@ -136,7 +149,7 @@ export default function LabPanel({ lab }: { lab: Lab }) {
           </ol>
         </section>
 
-        {allDone && lab.breakFix && (
+        {(allDone || breakFix !== 'idle') && lab.breakFix && (
           <section className="rounded-lg border border-red-900 bg-red-950/30 p-2">
             <h3 className="mb-1 flex items-center gap-1 font-semibold text-red-200">
               <Siren className="h-4 w-4" /> Break-fix challenge (+{BREAKFIX_POINTS} pts)

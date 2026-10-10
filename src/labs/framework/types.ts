@@ -141,7 +141,20 @@ export interface SdhXconnect {
   to: string;
 }
 
-export type AlarmType = 'LOS' | 'LOF' | 'AIS' | 'RDI' | 'MS-AIS' | 'MS-RDI' | 'TU-AIS' | 'LP-RDI' | 'LINK-DOWN' | 'LDP-DOWN' | 'BGP-DOWN' | 'PW-DOWN' | 'ERR-DISABLED';
+export type AlarmType =
+  | 'LOS'
+  | 'LOF'
+  | 'AIS'
+  | 'RDI'
+  | 'MS-AIS'
+  | 'MS-RDI'
+  | 'TU-AIS'
+  | 'LP-RDI'
+  | 'LINK-DOWN'
+  | 'LDP-DOWN'
+  | 'BGP-DOWN'
+  | 'PW-DOWN'
+  | 'ERR-DISABLED';
 
 export interface Alarm {
   device: string;

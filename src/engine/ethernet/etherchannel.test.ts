@@ -11,17 +11,22 @@ const ip = (s: string) => parseIpv4(s)!;
 
 /** SW1 ⇉ SW2 over two Cat6 links (Gi0/23, Gi0/24), one PC on each switch. */
 function twin(): Topology {
-  let t = buildTopology('ec', '', [
-    { key: 's1', kind: 'l2-switch', name: 'SW1', x: 0, y: 0 },
-    { key: 's2', kind: 'l2-switch', name: 'SW2', x: 0, y: 0 },
-    { key: 'a', kind: 'pc', name: 'PCA', x: 0, y: 0 },
-    { key: 'b', kind: 'pc', name: 'PCB', x: 0, y: 0 },
-  ], [
-    { kind: 'cat6', a: ['s1', 'Gi0/23'], b: ['s2', 'Gi0/23'] },
-    { kind: 'cat6', a: ['s1', 'Gi0/24'], b: ['s2', 'Gi0/24'] },
-    { kind: 'cat6', a: ['s1', 'Gi0/1'], b: ['a', 'eth0'] },
-    { kind: 'cat6', a: ['s2', 'Gi0/1'], b: ['b', 'eth0'] },
-  ]);
+  let t = buildTopology(
+    'ec',
+    '',
+    [
+      { key: 's1', kind: 'l2-switch', name: 'SW1', x: 0, y: 0 },
+      { key: 's2', kind: 'l2-switch', name: 'SW2', x: 0, y: 0 },
+      { key: 'a', kind: 'pc', name: 'PCA', x: 0, y: 0 },
+      { key: 'b', kind: 'pc', name: 'PCB', x: 0, y: 0 },
+    ],
+    [
+      { kind: 'cat6', a: ['s1', 'Gi0/23'], b: ['s2', 'Gi0/23'] },
+      { kind: 'cat6', a: ['s1', 'Gi0/24'], b: ['s2', 'Gi0/24'] },
+      { kind: 'cat6', a: ['s1', 'Gi0/1'], b: ['a', 'eth0'] },
+      { kind: 'cat6', a: ['s2', 'Gi0/1'], b: ['b', 'eth0'] },
+    ],
+  );
   t = host(t, 'PCA', '10.0.0.1');
   t = host(t, 'PCB', '10.0.0.2');
   return t;

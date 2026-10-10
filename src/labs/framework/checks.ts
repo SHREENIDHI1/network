@@ -96,9 +96,7 @@ function linksBetween(snap: SimSnapshot, a: DevSel, b: DevSel, kind?: LinkKind):
   const as = new Set(resolveDevices(snap, a).map((d) => d.id));
   const bs = new Set(resolveDevices(snap, b).map((d) => d.id));
   return snap.topology.links.filter(
-    (l) =>
-      (!kind || l.kind === kind) &&
-      ((as.has(l.a.deviceId) && bs.has(l.b.deviceId)) || (bs.has(l.a.deviceId) && as.has(l.b.deviceId))),
+    (l) => (!kind || l.kind === kind) && ((as.has(l.a.deviceId) && bs.has(l.b.deviceId)) || (bs.has(l.a.deviceId) && as.has(l.b.deviceId))),
   );
 }
 
@@ -320,7 +318,9 @@ export function gatewayOnDevice(host: string, router: string): Check {
     if (isResult(g)) return g;
     if (isResult(ips)) return ips;
     if (!g[host]) return fail(`${host} has no default gateway.`);
-    return ips.some((i) => i.device === router && i.address.split('/')[0] === g[host]) ? pass() : fail(`${host} default gateway is not an address of ${router}.`);
+    return ips.some((i) => i.device === router && i.address.split('/')[0] === g[host])
+      ? pass()
+      : fail(`${host} default gateway is not an address of ${router}.`);
   };
 }
 
@@ -432,9 +432,7 @@ export function sdhXconnect(dev: string, vc12: string, from: string, to: string)
   return (snap) => {
     const xc = section(snap, 'sdhXconnects', 'sdh');
     if (isResult(xc)) return xc;
-    const ok = xc.some(
-      (x) => x.device === dev && x.vc12 === vc12 && ((x.from === from && x.to === to) || (x.from === to && x.to === from)),
-    );
+    const ok = xc.some((x) => x.device === dev && x.vc12 === vc12 && ((x.from === from && x.to === to) || (x.from === to && x.to === from)));
     return ok ? pass() : fail(`${dev} is missing a required VC-12 cross-connect.`);
   };
 }
@@ -512,8 +510,15 @@ export function vrfIsolated(dev: string, vrfA: string, vrfB: string): Check {
     const vr = section(snap, 'vrfRoutes', 'bgp');
     if (isResult(vr)) return vr;
     const connected = (vrf: string) =>
-      vr.filter((r) => r.vrf === vrf && r.protocol === 'connected').map((r) => parseCidr(r.prefix)).filter((c) => c !== null);
-    const routesIn = (vrf: string) => vr.filter((r) => r.device === dev && r.vrf === vrf).map((r) => parseCidr(r.prefix)).filter((c) => c !== null);
+      vr
+        .filter((r) => r.vrf === vrf && r.protocol === 'connected')
+        .map((r) => parseCidr(r.prefix))
+        .filter((c) => c !== null);
+    const routesIn = (vrf: string) =>
+      vr
+        .filter((r) => r.device === dev && r.vrf === vrf)
+        .map((r) => parseCidr(r.prefix))
+        .filter((c) => c !== null);
     const leaks = (into: string, from: string) => routesIn(into).some((r) => connected(from).some((c) => cidrsOverlap(r, c)));
     return leaks(vrfA, vrfB) || leaks(vrfB, vrfA) ? fail(`VRFs ${vrfA} and ${vrfB} on ${dev} are not isolated.`) : pass();
   };

@@ -16,6 +16,7 @@ import {
   type SizeUnit,
 } from '../../lessons/widgetMath';
 import { spans } from '../../topologies/data/jodhpur';
+import { MacLearning, RootElection, SubnetCalc, VlanTag, VlsmPlanner } from './widgets2';
 
 export function Widget({ id }: { id: WidgetId }) {
   switch (id) {
@@ -27,6 +28,16 @@ export function Widget({ id }: { id: WidgetId }) {
       return <OpticalBudgetWidget />;
     case 'binary-converter':
       return <BinaryConverter />;
+    case 'mac-learning':
+      return <MacLearning />;
+    case 'subnet-calc':
+      return <SubnetCalc />;
+    case 'vlsm-planner':
+      return <VlsmPlanner />;
+    case 'vlan-tag':
+      return <VlanTag />;
+    case 'root-election':
+      return <RootElection />;
   }
 }
 
