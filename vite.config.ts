@@ -7,7 +7,9 @@ import { readFileSync } from 'node:fs';
 /** Build stamp shown in the status bar, so you can tell which version is running. */
 function gitCommit(): string {
   try {
-    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
   } catch {
     return 'unknown';
   }
@@ -38,5 +40,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // The grand capstone replays 20+ fault tickets on the 27-router J2 backbone.
+    testTimeout: 30000,
   },
 });

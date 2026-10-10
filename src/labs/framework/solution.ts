@@ -108,7 +108,8 @@ export function applySolution(topology: Topology, sim: Sim, sol: LabSolution): {
 }
 
 /** Informational "%" lines IOS prints on success. */
-const INFO = /^% (Access VLAN does not exist|The key modulus|Generating \d+ bit RSA|OSPF: Reference bandwidth)/;
+const INFO =
+  /^% (Access VLAN does not exist|Interface \S+ IPv4 disabled and address\(es\) removed|The key modulus|Generating \d+ bit RSA|OSPF: Reference bandwidth)/;
 
 function isCliError(output: string): boolean {
   return output.split('\n').some((l) => l.startsWith('% ') && !INFO.test(l));

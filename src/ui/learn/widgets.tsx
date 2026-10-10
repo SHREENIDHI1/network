@@ -23,6 +23,7 @@ import { IbgpMeshWidget, RtMatcherWidget } from './widgets5';
 import { PwMtuWidget, TdmPwWidget } from './widgets6';
 import { CspfWidget, DscpExpWidget } from './widgets7';
 import { AlarmLayersWidget, TemplateWidget } from './widgets8';
+import { SrLabelWidget, TicketSeedWidget, TiLfaWidget } from './widgets9';
 
 export function Widget({ id }: { id: WidgetId }) {
   switch (id) {
@@ -74,6 +75,12 @@ export function Widget({ id }: { id: WidgetId }) {
       return <AlarmLayersWidget />;
     case 'template':
       return <TemplateWidget />;
+    case 'sr-label':
+      return <SrLabelWidget />;
+    case 'ti-lfa':
+      return <TiLfaWidget />;
+    case 'ticket-seed':
+      return <TicketSeedWidget />;
   }
 }
 

@@ -27,7 +27,10 @@ export type WidgetId =
   | 'dscp-exp'
   | 'cspf'
   | 'alarm-layers'
-  | 'template';
+  | 'template'
+  | 'sr-label'
+  | 'ti-lfa'
+  | 'ticket-seed';
 export type DiagramId =
   | 'circuit-vs-packet'
   | 'osi-stack'

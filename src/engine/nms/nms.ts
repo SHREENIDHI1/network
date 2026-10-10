@@ -91,6 +91,7 @@ export function computeNms(sim: Sim): NmsView {
   view.pollCommunity = ncfg.pollCommunity;
   const name = (id: string) => sim.device(id)?.name ?? id;
   const nmsUp = !nms.fault?.power && sim.interfaces(nms.id).some((i) => i.up && i.ip !== undefined);
+  const nmsIp = sim.interfaces(nms.id).find((i) => i.up && i.ip !== undefined)?.ip;
 
   // ---------------------------------------------------------- managed?
   const managed = new Set<string>();
@@ -109,14 +110,20 @@ export function computeNms(sim: Sim): NmsView {
     }
     const addrs = d.fault?.power ? [] : sim.interfaces(d.id).filter((i) => i.ip !== undefined && !i.vrf && i.up);
     const reach = nmsUp && addrs.some((a) => !walkFlow(sim, nms.id, a.ip!, 0).error);
-    if (reach) {
+    // An SNMP poll needs the reply too: the device must route back to the NMS.
+    const back = reach && (nmsIp === undefined || !walkFlow(sim, d.id, nmsIp, 0).error);
+    if (reach && back) {
       managed.add(d.id);
       view.devices.push({ deviceId: d.id, state: 'managed' });
     } else
       view.devices.push({
         deviceId: d.id,
         state: 'unreachable',
-        reason: d.fault?.power ? 'no response (device is down)' : 'no path from the NMS to any of its addresses',
+        reason: d.fault?.power
+          ? 'no response (device is down)'
+          : reach
+            ? 'no route back to the NMS (replies are lost)'
+            : 'no path from the NMS to any of its addresses',
       });
   }
 

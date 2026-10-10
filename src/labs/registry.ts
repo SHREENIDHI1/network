@@ -6,6 +6,8 @@ import { BGP_LABS } from './content/bgp';
 import { L2VPN_LABS } from './content/l2vpn';
 import { TE_LABS } from './content/te';
 import { OPS_LABS } from './content/ops';
+import { SR_LABS } from './content/sr';
+import { GRAND_LABS } from './content/grand';
 import { MPLS_LABS } from './content/mpls';
 import { ROUTING_LABS } from './content/routing';
 
@@ -22,6 +24,8 @@ export const LABS: readonly Lab[] = [
   ...L2VPN_LABS,
   ...TE_LABS,
   ...OPS_LABS,
+  ...SR_LABS,
+  ...GRAND_LABS,
 ];
 
 export function visibleLabs(labs: readonly Lab[] = LABS): Lab[] {

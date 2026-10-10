@@ -52,6 +52,8 @@ describe('labs A4–A15 and B1–B13', () => {
       'B11',
       'B12',
       'B13',
+      'B14',
+      'B15',
     ]);
   });
 
@@ -282,5 +284,26 @@ describe('practical quiz answers match the engine', () => {
   it('LB13.1: JU learns the Jaipur UTS LAN from FL over iBGP', async () => {
     const out = await solvedCli('LB13.1', 'JU-LSR', ['show ip route vrf UTS']);
     expect(out).toMatch(/^B\s+10\.150\.1\.0\/24 \[200\/0\] via 10\.0\.3\.10/m);
+  });
+
+  it('LB14.1: MTD-LSR uses local label 16001 for the JU loopback', async () => {
+    const { lo } = await import('../topologies/bgpLabs');
+    const out = await solvedCli('LB14.1', 'MTD-LSR', ['show mpls forwarding-table']);
+    const row = out.split('\n').find((l) => l.includes(`${lo('JU')}/32`));
+    expect(row).toMatch(/^16001\s/);
+  });
+
+  it('LB15.1: JU-LSR lists three VPNv4 neighbours', async () => {
+    const out = await solvedCli('LB15.1', 'JU-LSR', ['show bgp vpnv4 unicast all summary']);
+    expect(out.split('\n').filter((l) => /^10\.0\.\d+\.\d+\s+4\s+65000/.test(l))).toHaveLength(3);
+  });
+
+  it('LB15.1: a seed draws 10 distinct tickets, the same for the same seed', () => {
+    const lab = LABS.find((l) => l.id === 'LB15.1')!;
+    const a = challenges(lab, 7);
+    expect(a).toHaveLength(10);
+    expect(new Set(a).size).toBe(10);
+    expect(challenges(lab, 7)).toEqual(a);
+    expect(challenges(lab, 8)).not.toEqual(a);
   });
 });

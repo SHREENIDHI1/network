@@ -135,6 +135,8 @@ export const LESSON_LOADERS: Record<string, () => Promise<Lesson>> = {
   B11: () => import('./content/b11').then((m) => m.lesson),
   B12: () => import('./content/b12').then((m) => m.lesson),
   B13: () => import('./content/b13').then((m) => m.lesson),
+  B14: () => import('./content/b14').then((m) => m.lesson),
+  B15: () => import('./content/b15').then((m) => m.lesson),
 };
 
 export function isAvailable(id: string): boolean {

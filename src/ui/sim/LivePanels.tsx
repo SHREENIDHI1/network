@@ -1,6 +1,7 @@
 import { BgpPanel } from './BgpPanel';
 import { L2vpnPanel } from './L2vpnPanel';
 import { TePanel } from './TePanel';
+import { SrPanel } from './SrPanel';
 import { MplsPanel } from './MplsPanel';
 import { Scissors, Terminal, Wrench } from 'lucide-react';
 import { effectivePort, getNetConfig, isBridgeRole, roleOf } from '../../engine/config/netConfig';
@@ -62,6 +63,7 @@ export function DeviceSimSection({ device }: { device: Device }) {
       {(role === 'router' || role === 'l3switch') && <BgpPanel device={device} />}
       {role === 'router' && <L2vpnPanel device={device} />}
       {role === 'router' && <TePanel device={device} />}
+      {role === 'router' && <SrPanel device={device} />}
       <HardwareFaults device={device} />
       <Section title="Interfaces (live)">
         <table className="w-full text-xs">

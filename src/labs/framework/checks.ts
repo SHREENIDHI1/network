@@ -746,6 +746,27 @@ export function srSid(dev: string, prefix: string, index: number): Check {
   };
 }
 
+/** Every FULL OSPF adjacency also carries an operational LDP session (no label gaps in the core). */
+export function ldpOnAllAdjacencies(): Check {
+  return (snap) => {
+    const nb = section(snap, 'ospfNeighbors', 'ospf');
+    if (isResult(nb)) return nb;
+    const ldp = section(snap, 'ldpNeighbors', 'mpls');
+    if (isResult(ldp)) return ldp;
+    const full = nb.filter((n) => n.state === 'FULL');
+    if (!full.length) return fail('No OSPF adjacency is FULL yet.');
+    const gap = full.find(
+      (n) =>
+        !ldp.some(
+          (l) =>
+            l.state === 'OPERATIONAL' &&
+            ((l.device === n.device && l.neighbor === n.neighbor) || (l.device === n.neighbor && l.neighbor === n.device)),
+        ),
+    );
+    return gap ? fail(`${gap.device} and ${gap.neighbor} are OSPF neighbours but have no LDP session — a label gap in the core.`) : pass();
+  };
+}
+
 /** No LDP session on these devices (an SR-only core). */
 export function noLdp(devices: string[]): Check {
   return (snap) => {

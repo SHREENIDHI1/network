@@ -15,8 +15,8 @@ describe('curriculum', () => {
     expect(isAvailable('A0')).toBe(true);
     expect(['A4', 'A5', 'A6', 'A7', 'A8'].every(isAvailable)).toBe(true);
     expect(['B0', 'B1', 'B2', 'B3', 'B4'].every(isAvailable)).toBe(true);
-    expect(['B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11', 'B12', 'B13'].every(isAvailable)).toBe(true);
-    expect(isAvailable('B14')).toBe(false);
+    expect(['B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11', 'B12', 'B13', 'B14', 'B15'].every(isAvailable)).toBe(true);
+    expect(isAvailable('B16')).toBe(false);
   });
 
   for (const id of Object.keys(LESSON_LOADERS)) {
@@ -388,5 +388,32 @@ describe('P8 widget maths', () => {
     const { renderForSamples } = await import('./widgetMath8');
     const r = renderForSamples('hostname {{hostname}}\nntp source {{ loopback }}\n{{oops}}');
     expect(r[1]).toEqual({ hostname: 'MTD-LSR', lines: ['hostname MTD-LSR', 'ntp source 10.0.1.13'], errors: ['unknown variable {{oops}}'] });
+  });
+});
+
+describe('P9 widget maths', () => {
+  it('SID index → label inside the SRGB', async () => {
+    const { srLabel } = await import('./widgetMath9');
+    expect(srLabel(16000, 23999, 4)).toEqual({ label: 16004 });
+    expect(srLabel(16000, 23999, 8000)).toHaveProperty('error');
+    expect(srLabel(16000, 15000, 1)).toHaveProperty('error');
+  });
+
+  it('TI-LFA on the ring matches the engine (lease cost 50 → node-SID DNA + adj-SID)', async () => {
+    const { tiLfa, ringEdges, RING_SID } = await import('./widgetMath9');
+    const v = tiLfa(ringEdges(50), 'MTD', 'JU', (n) => RING_SID[n])!;
+    expect(v.primary).toEqual(['MTD', 'PPR', 'JU']);
+    expect(v.post).toEqual(['MTD', 'DNA', 'JU']);
+    expect(v.segments).toEqual(['node-SID DNA (16004)', 'adj-SID DNA → JU']);
+    expect(tiLfa(ringEdges(20), 'MTD', 'JU', (n) => RING_SID[n])!.segments).toEqual(['node-SID DNA (16004)']);
+  });
+
+  it('ticket titles follow the LB15.1 catalog and draws are repeatable', async () => {
+    const { GRAND_TICKET_TITLES, drawTickets } = await import('./widgetMath9');
+    const { GRAND_TICKETS } = await import('../labs/content/grand');
+    expect(GRAND_TICKET_TITLES).toHaveLength(GRAND_TICKETS.length);
+    expect(GRAND_TICKETS.length).toBeGreaterThanOrEqual(20);
+    expect(drawTickets(42)).toEqual(drawTickets(42));
+    expect(new Set(drawTickets(42).map((x) => x.n)).size).toBe(10);
   });
 });

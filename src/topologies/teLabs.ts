@@ -165,9 +165,9 @@ const teCore = (lsrIfs: string[]) => [
 ];
 
 /** LB10.x — ring JU–PPR–MTD–DNA plus the leased JU–DNA lambda. `congested`: JU–PPR at 1 Gbit/s with MTD traffic; `teOnMtd`: TE pre-enabled on MTD too. */
-export function b10Ring(o: { congested: boolean; teOnMtd: boolean }): Topology {
+export function b10Ring(o: { congested: boolean; teOnMtd: boolean; sr?: boolean }): Topology {
   let t = generateJodhpur({
-    name: o.congested ? 'Lab B10: TE around a busy span' : 'Lab B10: fast reroute on the ring',
+    name: o.sr ? 'Lab B14: Segment Routing on the ring' : o.congested ? 'Lab B10: TE around a busy span' : 'Lab B10: fast reroute on the ring',
     description:
       'JU, PPR, MTD and DNA with OSPF and LDP, closed into a ring by a LEASED JU–DNA 10G lambda (teaching assumption: the J1 core is a tree, so a second path is added for TE / FRR practice).',
     sections: ['S1', 'S2'],
@@ -214,6 +214,8 @@ export function b10Ring(o: { congested: boolean; teOnMtd: boolean }): Topology {
     'no shutdown',
   ];
   const leaseOspf = (ip: string) => ['router ospf 1', `network ${ip} 0.0.0.0 area 0`, 'exit'];
+  // LB14.1 starts from the same ring with LDP only (no TE): the learner migrates it to SR.
+  const te = (ifs: string[]) => (o.sr ? [] : teCore(ifs));
   return preconfig(t, {
     cli: {
       [JU]: [
@@ -225,15 +227,15 @@ export function b10Ring(o: { congested: boolean; teOnMtd: boolean }): Topology {
         'exit',
         ...leaseOspf(LEASE.ju),
         ...ospfLan,
-        ...teCore(['te0/0/0', 'te0/0/1']),
+        ...te(['te0/0/0', 'te0/0/1']),
         'end',
       ],
-      [DNA]: [...CONF, ...lease(LEASE.dna), 'exit', ...leaseOspf(LEASE.dna), ...teCore(['te0/0/0', 'te0/0/1']), 'end'],
+      [DNA]: [...CONF, ...lease(LEASE.dna), 'exit', ...leaseOspf(LEASE.dna), ...te(['te0/0/0', 'te0/0/1']), 'end'],
       [PPR]: [
         ...CONF,
         // The planners pinned the OSPF cost of the span, so the IGP keeps using it although it is only 1G.
         ...(o.congested ? ['interface te0/0/0', 'description JU span: 1G lambda (teaching)', 'speed 1000', 'ip ospf cost 10', 'exit'] : []),
-        ...teCore(['te0/0/0', 'te0/0/1']),
+        ...te(['te0/0/0', 'te0/0/1']),
         'end',
       ],
       [MTD]: [

@@ -311,7 +311,9 @@ export function walkFlow(sim: Sim, src: string, dst: number, dscp0: number): { h
 
   for (let guard = 0; guard < 64; guard++) {
     const o = owner(dst);
-    if (o?.deviceId === dev && (guard === 0 || !vrf || sim.interfaces(dev).find((i) => i.name === o.iface)?.vrf === vrf)) return { hops };
+    // A host behind the egress PE has no VRF of its own: only a router's own address must sit in the flow's VRF.
+    if (o?.deviceId === dev && (guard === 0 || !vrf || !sim.forwards(dev) || sim.interfaces(dev).find((i) => i.name === o.iface)?.vrf === vrf))
+      return { hops };
     const dcfg = sim.config(dev)!;
     impExp = undefined;
     if (ingress && dcfg.interfaces[ingress]?.servicePolicyIn) {
