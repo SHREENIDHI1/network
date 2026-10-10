@@ -1,5 +1,6 @@
 import { getTemplate } from '../../model/catalog';
 import type { Device, DeviceKind, Link, LinkKind } from '../../model/types';
+import { getNetConfig } from '../../engine/config/netConfig';
 import { cidrsOverlap, parseCidr } from '../../engine/ip/ipv4';
 import { MODULES, type EngineModule } from './modules';
 import type { AlarmType, Check, CheckResult, RouteProtocol, SimSnapshot } from './types';
@@ -291,6 +292,56 @@ export function routeExists(dev: string, prefix: string, protocol?: RouteProtoco
   };
 }
 
+/** The best route on `dev` to `prefix` uses `nextHop` (e.g. after a cost change or a link cut). */
+export function routeVia(dev: string, prefix: string, nextHop: string): Check {
+  return (snap) => {
+    const rt = section(snap, 'routingTables', 'ip');
+    if (isResult(rt)) return rt;
+    const want = parseCidr(prefix);
+    const hits = (rt[dev] ?? []).filter((r) => {
+      const c = parseCidr(r.prefix);
+      return c && want && c.network === want.network && c.prefixLen === want.prefixLen;
+    });
+    if (!hits.length) return fail(`${dev} has no route to the required network.`);
+    if (hits.some((r) => r.nextHop === nextHop) && hits.length === 1) return pass();
+    return fail(
+      `${dev} reaches that network via ${hits.map((r) => r.nextHop ?? r.outInterface ?? 'connected').join(' and ')}, not the planned path.`,
+    );
+  };
+}
+
+/** OSPF cost configured on `dev` `iface` ("ip ospf cost N"). */
+export function ospfCostIs(dev: string, iface: string, cost: number): Check {
+  return (snap) => {
+    const d = snap.topology.devices.find((x) => x.name === dev);
+    if (!d) return fail(`No device named ${dev}.`);
+    const c = getNetConfig(d).interfaces[iface]?.ospfCost;
+    return c === cost ? pass() : fail(`OSPF cost on ${dev} ${iface} is ${c ?? 'the default'}, not as planned.`);
+  };
+}
+
+/** A QoS policy-map is attached to `dev` `iface` in direction `dir` (and the policy exists). */
+export function servicePolicyApplied(dev: string, iface: string, dir: 'input' | 'output'): Check {
+  return (snap) => {
+    const d = snap.topology.devices.find((x) => x.name === dev);
+    if (!d) return fail(`No device named ${dev}.`);
+    const cfg = getNetConfig(d);
+    const name = dir === 'input' ? cfg.interfaces[iface]?.servicePolicyIn : cfg.interfaces[iface]?.servicePolicyOut;
+    if (!name) return fail(`No QoS policy is attached ${dir} on ${dev} ${iface}.`);
+    return cfg.qos.policyMaps[name] ? pass() : fail(`${dev} ${iface} points to policy-map ${name}, which does not exist.`);
+  };
+}
+
+/** The link between devices a and b has been cut (fibre-cut simulation). */
+export function linkCut(a: string, b: string): Check {
+  return (snap) => {
+    const cuts = snap.cutLinks ?? [];
+    return cuts.some(([x, y]) => (x === a && y === b) || (x === b && y === a))
+      ? pass()
+      : fail(`The ${a}–${b} link has not been cut yet (select the link → Cut).`);
+  };
+}
+
 export function pingSucceeds(src: string, dst: string, vrf?: string): Check {
   return (snap) => {
     const pings = section(snap, 'pings', 'ip');
@@ -554,5 +605,145 @@ export function allServicesUp(): Check {
     if (isResult(sv)) return sv;
     const down = sv.filter((s) => s.status !== 'UP').length;
     return down ? fail(`${down} railway service(s) are not UP.`) : pass();
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Routing protocols / services / security / QoS (Phase 3)
+// ---------------------------------------------------------------------------
+
+export function isisAdjacent(a: string, b: string, level?: 1 | 2): Check {
+  return (snap) => {
+    const adj = section(snap, 'isisAdjacencies', 'ospf');
+    if (isResult(adj)) return adj;
+    const hit = adj.some((x) => x.device === a && x.neighbor === b && (!level || x.level === level));
+    return hit ? pass() : fail(`${a} has no IS-IS${level ? ` level-${level}` : ''} adjacency with ${b}.`);
+  };
+}
+
+/** The last ping from src to dst FAILED (e.g. an ACL is supposed to block it). */
+export function pingFails(src: string, dst: string): Check {
+  return (snap) => {
+    const pings = section(snap, 'pings', 'ip');
+    if (isResult(pings)) return pings;
+    const r = [...pings].reverse().find((p) => p.src === src && p.dst === dst);
+    if (!r) return fail(`No ping from ${src} to the target has been run yet.`);
+    return r.success ? fail(`The last ping from ${src} still succeeds — it should be blocked.`) : pass();
+  };
+}
+
+export function fhrpActiveIs(protocol: 'hsrp' | 'vrrp', group: number, active: string, vip?: string): Check {
+  return (snap) => {
+    const g = section(snap, 'fhrpGroups', 'resilience');
+    if (isResult(g)) return g;
+    const grp = g.find((x) => x.protocol === protocol && x.group === group);
+    if (!grp) return fail(`No ${protocol.toUpperCase()} group ${group} is configured.`);
+    if (vip && grp.vip !== vip) return fail(`${protocol.toUpperCase()} group ${group} virtual IP is not as planned.`);
+    if (grp.members.length < 2) return fail(`${protocol.toUpperCase()} group ${group} has only ${grp.members.length} router — redundancy needs two.`);
+    return grp.active === active ? pass() : fail(`${grp.active ?? 'Nobody'} is ${protocol === 'hsrp' ? 'Active' : 'Master'}, not ${active}.`);
+  };
+}
+
+export function natTranslationFor(dev: string, insideLocal: string): Check {
+  return (snap) => {
+    const n = section(snap, 'natTranslations', 'services');
+    if (isResult(n)) return n;
+    return (n[dev] ?? []).some((t) => t.insideLocal === insideLocal)
+      ? pass()
+      : fail(`${dev} has no NAT translation for that inside host yet (send traffic first).`);
+  };
+}
+
+export function dhcpBound(host: string): Check {
+  return (snap) => {
+    const d = section(snap, 'dhcpStates', 'services');
+    if (isResult(d)) return d;
+    const st = d[host];
+    if (!st) return fail(`${host} is not a DHCP client.`);
+    return st === 'bound' ? pass() : fail(`${host} DHCP state is "${st}"${st === 'apipa' ? ' (no server answered)' : ''}.`);
+  };
+}
+
+export function aclApplied(dev: string, iface: string, dir: 'in' | 'out'): Check {
+  return (snap) => {
+    const b = section(snap, 'aclBindings', 'services');
+    if (isResult(b)) return b;
+    return b.some((x) => x.device === dev && x.iface === iface && x.dir === dir) ? pass() : fail(`No ACL is applied ${dir} on ${dev} ${iface}.`);
+  };
+}
+
+export function ntpSynced(dev: string, maxStratum = 15): Check {
+  return (snap) => {
+    const n = section(snap, 'ntp', 'services');
+    if (isResult(n)) return n;
+    const s = n[dev];
+    if (!s) return fail(`${dev} has no NTP server configured.`);
+    if (!s.synced) return fail(`${dev} clock is not synchronised (check reachability of its NTP server, then "show ntp status").`);
+    return (s.stratum ?? 16) <= maxStratum ? pass() : fail(`${dev} is synchronised at stratum ${s.stratum}, higher than allowed.`);
+  };
+}
+
+export function nmsReceived(nms: string, kind: 'syslog' | 'traps', min = 1): Check {
+  return (snap) => {
+    const i = section(snap, 'nmsInbox', 'services');
+    if (isResult(i)) return i;
+    const n = i[nms]?.[kind] ?? 0;
+    return n >= min ? pass() : fail(`${nms} has received ${n} ${kind === 'syslog' ? 'syslog message(s)' : 'trap(s)'} so far.`);
+  };
+}
+
+/** vty accepts SSH only, with local usernames, and SSH is enabled. */
+export function sshOnly(dev: string): Check {
+  return (snap) => {
+    const v = section(snap, 'vty', 'services');
+    if (isResult(v)) return v;
+    const x = v[dev];
+    if (!x) return fail(`${dev} has no vty lines.`);
+    if (!x.sshEnabled) return fail(`SSH is not enabled on ${dev} (domain name + RSA keys).`);
+    if (x.transport !== 'ssh') return fail(`${dev} vty lines still accept other protocols than SSH.`);
+    return x.login === 'local' ? pass() : fail(`${dev} vty lines do not use local usernames.`);
+  };
+}
+
+export function vtyAccessClass(dev: string): Check {
+  return (snap) => {
+    const v = section(snap, 'vty', 'services');
+    if (isResult(v)) return v;
+    return v[dev]?.accessClass ? pass() : fail(`${dev} vty lines accept connections from any address.`);
+  };
+}
+
+/** The last app attempt of `kind` from src to target succeeded (target = device name, or DNS name). */
+export function appSucceeds(src: string, kind: 'dns' | 'ntp' | 'ssh' | 'telnet', target: string, resultIncludes?: string): Check {
+  return (snap) => {
+    const r = section(snap, 'appResults', 'services');
+    if (isResult(r)) return r;
+    const last = [...r].reverse().find((a) => a.src === src && a.kind === kind && a.target === target);
+    if (!last) return fail(`No ${kind.toUpperCase()} attempt from ${src} to ${target} yet.`);
+    if (last.status !== 'ok') return fail(`The last ${kind.toUpperCase()} attempt from ${src} failed: ${last.result}`);
+    return !resultIncludes || last.result.includes(resultIncludes)
+      ? pass()
+      : fail(`${kind.toUpperCase()} from ${src} connected, but: ${last.result}`);
+  };
+}
+
+export function appFails(src: string, kind: 'ssh' | 'telnet', target: string): Check {
+  return (snap) => {
+    const r = section(snap, 'appResults', 'services');
+    if (isResult(r)) return r;
+    const last = [...r].reverse().find((a) => a.src === src && a.kind === kind && a.target === target);
+    if (!last) return fail(`No ${kind.toUpperCase()} attempt from ${src} to ${target} yet.`);
+    return last.status === 'fail' ? pass() : fail(`${kind.toUpperCase()} from ${src} to ${target} still connects — it should be refused.`);
+  };
+}
+
+/** Flow of app `app` from `src` loses at most `maxLossPct` percent. */
+export function qosFlowOk(src: string, app: string, maxLossPct: number): Check {
+  return (snap) => {
+    const q = section(snap, 'qosFlows', 'qos');
+    if (isResult(q)) return q;
+    const f = q.find((x) => x.src === src && x.app === app);
+    if (!f) return fail(`No ${app} traffic flow from ${src} is defined.`);
+    return f.lossPct <= maxLossPct ? pass() : fail(`${app} from ${src} loses ${f.lossPct.toFixed(1)}% (allowed ${maxLossPct}%).`);
   };
 }

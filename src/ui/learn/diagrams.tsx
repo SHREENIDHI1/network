@@ -7,6 +7,9 @@ export function Diagram({ id }: { id: DiagramId }) {
   if (id === 'ethernet-frame') return <EthernetFrame />;
   if (id === 'vlan-trunk') return <VlanTrunk />;
   if (id === 'stp-loop') return <StpLoop />;
+  if (id === 'router-on-a-stick') return <RouterOnAStick />;
+  if (id === 'dhcp-dora') return <Dora />;
+  if (id === 'nat-pat') return <NatPat />;
   return <FibreVsCopper />;
 }
 
@@ -251,6 +254,116 @@ function StpLoop() {
       {node('plat', 'PLATFORM')}
       <T x={10} y={204} c="#94a3b8" s={11}>
         A triangle is a loop. STP keeps every switch reachable from the root and blocks one port so frames cannot circle.
+      </T>
+    </svg>
+  );
+}
+
+function RouterOnAStick() {
+  return (
+    <svg viewBox="0 0 560 210" className="w-full max-w-xl" role="img" aria-label="Router on a stick">
+      <rect x={220} y={10} width={120} height={40} rx={6} fill="#1e293b" stroke="#a78bfa" />
+      <T x={280} y={34} a="middle">
+        MTD-R1
+      </T>
+      <T x={350} y={24} s={10} c="#c4b5fd">
+        Gi0/0.10 10.52.10.1 (VLAN 10)
+      </T>
+      <T x={350} y={38} s={10} c="#c4b5fd">
+        Gi0/0.20 10.52.20.1 (VLAN 20)
+      </T>
+      <line x1={280} y1={50} x2={280} y2={100} stroke="#f59e0b" strokeWidth={6} />
+      <T x={290} y={80} s={10} c="#fbbf24">
+        one trunk, both VLANs tagged
+      </T>
+      <rect x={220} y={100} width={120} height={40} rx={6} fill="#1e293b" stroke="#38bdf8" />
+      <T x={280} y={124} a="middle">
+        MTD-SW1
+      </T>
+      <line x1={240} y1={140} x2={140} y2={180} stroke="#38bdf8" strokeWidth={2} />
+      <line x1={320} y1={140} x2={420} y2={180} stroke="#a78bfa" strokeWidth={2} />
+      <T x={70} y={198} s={11} c="#38bdf8">
+        UTS1 VLAN 10, gw .10.1
+      </T>
+      <T x={360} y={198} s={11} c="#a78bfa">
+        PRS1 VLAN 20, gw .20.1
+      </T>
+    </svg>
+  );
+}
+
+function Dora() {
+  const steps: Array<[string, string, boolean]> = [
+    ['DISCOVER', 'broadcast: koi DHCP server hai?', true],
+    ['OFFER', 'server: 10.52.10.50 le lo', false],
+    ['REQUEST', 'broadcast: mujhe 10.52.10.50 chahiye', true],
+    ['ACK', 'server: pakka, 1 din ke liye (gw, DNS bhi)', false],
+  ];
+  return (
+    <svg viewBox="0 0 560 230" className="w-full max-w-xl" role="img" aria-label="DHCP DORA">
+      <T x={60} y={20} a="middle">
+        Client (UTS)
+      </T>
+      <T x={480} y={20} a="middle">
+        DHCP server
+      </T>
+      <line x1={60} y1={30} x2={60} y2={220} stroke="#475569" />
+      <line x1={480} y1={30} x2={480} y2={220} stroke="#475569" />
+      {steps.map(([n, t, toServer], i) => {
+        const y = 60 + i * 45;
+        return (
+          <g key={n}>
+            <line x1={toServer ? 60 : 480} y1={y} x2={toServer ? 470 : 70} y2={y} stroke="#38bdf8" strokeWidth={2} markerEnd="url(#arr)" />
+            <T x={270} y={y - 6} a="middle" c="#fbbf24">
+              {n}
+            </T>
+            <T x={270} y={y + 14} a="middle" s={10} c="#94a3b8">
+              {t}
+            </T>
+          </g>
+        );
+      })}
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={6} markerHeight={6} orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#38bdf8" />
+        </marker>
+      </defs>
+    </svg>
+  );
+}
+
+function NatPat() {
+  const rows = [
+    ['10.52.50.11:1025', '203.0.113.2:1025'],
+    ['10.52.50.12:1025', '203.0.113.2:1026'],
+    ['10.52.50.13:2048', '203.0.113.2:2048'],
+  ];
+  return (
+    <svg viewBox="0 0 560 170" className="w-full max-w-xl" role="img" aria-label="NAT overload">
+      <T x={10} y={18} c="#94a3b8">
+        Inside (private, Railnet PCs)
+      </T>
+      <T x={380} y={18} c="#94a3b8">
+        Outside (one public IP)
+      </T>
+      <rect x={200} y={40} width={150} height={100} rx={6} fill="#1e293b" stroke="#f59e0b" />
+      <T x={275} y={60} a="middle" c="#fbbf24">
+        JU-FW (PAT)
+      </T>
+      {rows.map(([a, b], i) => (
+        <g key={a}>
+          <T x={10} y={80 + i * 22} s={11} c="#7dd3fc">
+            {a}
+          </T>
+          <line x1={140} y1={76 + i * 22} x2={205} y2={76 + i * 22} stroke="#38bdf8" />
+          <line x1={345} y1={76 + i * 22} x2={380} y2={76 + i * 22} stroke="#34d399" />
+          <T x={385} y={80 + i * 22} s={11} c="#6ee7b7">
+            {b}
+          </T>
+        </g>
+      ))}
+      <T x={10} y={162} c="#64748b" s={10}>
+        Many inside hosts share one outside address; the port number keeps the sessions apart.
       </T>
     </svg>
   );

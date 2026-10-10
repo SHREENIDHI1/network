@@ -1,3 +1,4 @@
+import { execHost } from '../../engine/cli/host';
 import { execIos, newSession } from '../../engine/cli/ios';
 import { parseIpv4 } from '../../engine/ip/ipv4';
 import type { Sim } from '../../engine/sim';
@@ -31,25 +32,72 @@ export function applySolution(topology: Topology, sim: Sim, sol: LabSolution): {
       else delete c.defaultGateway;
     });
   }
+  for (const [name, pools] of Object.entries(sol.pools ?? {})) {
+    t = configure(t, name, (c) => {
+      for (const p of pools) c.dhcp.pools[p.name] = { network: p.network, mask: p.mask, defaultRouter: p.gateway, dnsServer: p.dns, leaseDays: 1 };
+    });
+  }
   sim.setTopology(t);
   for (const [name, lines] of Object.entries(sol.cli ?? {})) {
     let session = newSession(byName(name).id);
     for (const line of lines) {
       const r = execIos(line, session, { topology: t, sim, simulationMode: false });
-      if (/^% |\n% /.test(r.output) && !r.output.startsWith('% Access VLAN does not exist')) errors.push(`${name}: ${line} → ${r.output}`);
+      if (isCliError(r.output)) errors.push(`${name}: ${line} → ${r.output}`);
       session = r.session;
-      if (r.topology) t = r.topology;
+      if (r.topology) {
+        // Like the live UI: every committed command reaches the running simulation.
+        t = r.topology;
+        sim.setTopology(t);
+      }
     }
   }
   sim.setTopology(t);
   sim.runUntilIdle();
+  for (const [name, iface] of sol.flaps ?? []) {
+    for (const cmd of ['shutdown', 'no shutdown']) {
+      let session = newSession(byName(name).id);
+      for (const line of ['enable', 'configure terminal', `interface ${iface}`, cmd, 'end']) {
+        const r = execIos(line, session, { topology: t, sim, simulationMode: false });
+        if (isCliError(r.output)) errors.push(`${name}: ${line} → ${r.output}`);
+        session = r.session;
+        if (r.topology) t = r.topology;
+      }
+      sim.setTopology(t);
+      sim.runUntilIdle();
+    }
+  }
+  for (const h of sol.renew ?? []) {
+    sim.dhcpRenew(byName(h).id);
+    sim.runUntilIdle();
+  }
+  for (const [a, b] of sol.cuts ?? []) {
+    const ia = byName(a).id;
+    const ib = byName(b).id;
+    const l = t.links.find((x) => (x.a.deviceId === ia && x.b.deviceId === ib) || (x.a.deviceId === ib && x.b.deviceId === ia));
+    if (!l) throw new Error(`Solution cuts unknown link ${a}–${b}`);
+    sim.cutLink(l.id);
+    sim.runUntilIdle();
+  }
   for (const [src, dst] of sol.pings ?? []) {
     const ip = parseIpv4(dst);
     if (ip === null) throw new Error(`Bad ping target ${dst}`);
     sim.ping(byName(src).id, ip);
     sim.runUntilIdle();
   }
+  for (const [name, lines] of Object.entries(sol.hostCli ?? {})) {
+    for (const line of lines) {
+      execHost(line, byName(name), { sim, simulationMode: false });
+      sim.runUntilIdle();
+    }
+  }
   return { topology: t, errors };
+}
+
+/** Informational "%" lines IOS prints on success. */
+const INFO = /^% (Access VLAN does not exist|The key modulus|Generating \d+ bit RSA|OSPF: Reference bandwidth)/;
+
+function isCliError(output: string): boolean {
+  return output.split('\n').some((l) => l.startsWith('% ') && !INFO.test(l));
 }
 
 /** Readable text of a solution for the "show solution" panel. */
@@ -58,6 +106,13 @@ export function solutionText(sol: LabSolution): string {
   for (const [a, pa, b, pb] of sol.links ?? []) L.push(`Cable: ${a} ${pa} ↔ ${b} ${pb} (Cat6)`);
   for (const [n, h] of Object.entries(sol.hosts ?? {})) L.push(`${n}: IP ${h.ip} mask ${h.mask}${h.gateway ? ` gateway ${h.gateway}` : ''}`);
   for (const [n, lines] of Object.entries(sol.cli ?? {})) L.push('', `! ${n}`, ...lines);
+  for (const [n, ps] of Object.entries(sol.pools ?? {}))
+    for (const p of ps)
+      L.push(`${n}: DHCP pool ${p.name} ${p.network} ${p.mask}${p.gateway ? ` gw ${p.gateway}` : ''}${p.dns ? ` dns ${p.dns}` : ''}`);
+  for (const [n, i] of sol.flaps ?? []) L.push(`${n}: interface ${i} → shutdown, then no shutdown`);
+  for (const h of sol.renew ?? []) L.push(`${h}> ipconfig /renew`);
+  for (const [a, b] of sol.cuts ?? []) L.push(`Cut link ${a} – ${b} (select the link → Cut)`);
   for (const [s, d] of sol.pings ?? []) L.push(`${s}> ping ${d}`);
+  for (const [n, lines] of Object.entries(sol.hostCli ?? {})) for (const l of lines) L.push(`${n}> ${l}`);
   return L.join('\n').trim();
 }

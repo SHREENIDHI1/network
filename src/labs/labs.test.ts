@@ -6,6 +6,7 @@ import { buildSnapshot } from './framework/snapshot';
 import { applySolution } from './framework/solution';
 import type { Lab } from './framework/types';
 import { validateRegistry } from './framework/validate';
+import { challenges } from '../store/labStore';
 import { labLockReason, LABS } from './registry';
 
 const snap = (sim: Sim) => buildSnapshot(sim.topology, engineSections(sim));
@@ -17,11 +18,11 @@ async function start(lab: Lab) {
   return { topology, sim };
 }
 
-describe('foundation labs (A4–A8)', () => {
-  it('registry is valid and P2 labs are unlocked', () => {
+describe('labs A4–A15', () => {
+  it('registry is valid and P2/P3 labs are unlocked', () => {
     expect(validateRegistry(LABS, TOPOLOGY_IDS)).toEqual([]);
     for (const l of LABS) expect(labLockReason(l), l.id).toBeNull();
-    expect(LABS.map((l) => l.lessonId)).toEqual(['A4', 'A5', 'A6', 'A7', 'A8']);
+    expect(LABS.map((l) => l.lessonId)).toEqual(['A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A10', 'A11', 'A12', 'A13', 'A14', 'A15']);
   });
 
   for (const lab of LABS) {
@@ -45,16 +46,22 @@ describe('foundation labs (A4–A8)', () => {
         for (const t of lab.tasks) expect(t.check(s), `${lab.id} ${t.id}`).toMatchObject({ pass: true });
       });
 
-      it('break-fix: the fault breaks the service and the fix restores it', async () => {
+      it('break-fix: every fault breaks the service and its fix restores it', async () => {
         const { topology, sim } = await start(lab);
-        const solved = applySolution(topology, sim, lab.solution!).topology;
-        const broken = lab.breakFix!.apply(solved);
-        const sim2 = new Sim(broken);
-        sim2.runUntilIdle();
-        expect(lab.breakFix!.check(snap(sim2)).pass, `${lab.id} break should fail the check`).toBe(false);
-        const fixed = applySolution(broken, sim2, lab.breakFix!.fix);
-        expect(fixed.errors).toEqual([]);
-        expect(lab.breakFix!.check(snap(sim2)), `${lab.id} fix`).toMatchObject({ pass: true });
+        let current = applySolution(topology, sim, lab.solution!).topology;
+        const list = challenges(lab);
+        expect(list.length).toBeGreaterThan(0);
+        // Tickets are applied one after another to the learner's (fixed) network, as in the UI.
+        for (const [i, c] of list.entries()) {
+          const broken = c.apply(current);
+          const sim2 = new Sim(broken);
+          sim2.runUntilIdle();
+          expect(c.check(snap(sim2)).pass, `${lab.id} challenge ${i + 1} should fail the check`).toBe(false);
+          const fixed = applySolution(broken, sim2, c.fix);
+          expect(fixed.errors).toEqual([]);
+          expect(c.check(snap(sim2)), `${lab.id} challenge ${i + 1} fix`).toMatchObject({ pass: true });
+          current = fixed.topology;
+        }
       });
     });
   }
@@ -90,5 +97,53 @@ describe('practical quiz answers match the engine', () => {
     const out = await solvedCli('L8.1', 'MTD-SW-COUNTER', ['enable', 'show spanning-tree']);
     expect(out).toMatch(/Port\s+\d+ \(Port-channel1\)/);
     expect(out.split('\n').find((l) => l.startsWith('Po1'))).toMatch(/Root FWD/);
+  });
+  it('L9.1: Gi0/0.20 has the PRS gateway, up/up', async () => {
+    const out = await solvedCli('L9.1', 'MTD-R1', ['show ip interface brief']);
+    expect(out.split('\n').find((l) => l.startsWith('GigabitEthernet0/0.20'))).toMatch(/10\.52\.20\.1\s+YES manual up\s+up/);
+  });
+
+  it('L10.1: after the cut, JU-R1 reaches 10.4.1.0/24 via 10.255.1.13', async () => {
+    const out = await solvedCli('L10.1', 'JU-R1', ['show ip route']);
+    expect(out.split('\n').find((l) => l.includes('10.4.1.0/24'))).toContain('via 10.255.1.13');
+  });
+
+  it('L10.2: DNA-R1 is an L2 neighbour of MTD-R1', async () => {
+    const out = await solvedCli('L10.2', 'MTD-R1', ['show isis neighbors']);
+    const dna = out.split('\n').filter((l) => l.startsWith('DNA-R1'));
+    expect(dna).toHaveLength(1);
+    expect(dna[0]).toMatch(/^DNA-R1\s+L2\s/);
+  });
+
+  it('L11.1: inside global of JU-ADMIN is 203.0.113.2', async () => {
+    const out = await solvedCli('L11.1', 'JU-R1', ['enable', 'show ip nat translations']);
+    expect(out.split('\n').find((l) => l.includes('10.1.1.20'))).toMatch(/^icmp 203\.0\.113\.2:/);
+  });
+
+  it('L12.1: SSH from Railnet is refused', async () => {
+    const lab = LABS.find((l) => l.id === 'L12.1')!;
+    const { topology, sim } = await start(lab);
+    const t = applySolution(topology, sim, lab.solution!).topology;
+    const { execHost } = await import('../engine/cli/host');
+    const out = execHost('ssh admin@10.52.50.1', t.devices.find((d) => d.name === 'MTD-RAILNET-PC')!, { sim, simulationMode: false });
+    expect(out).toContain('Connection refused');
+  });
+
+  it('L13.1: after the cut MTD-R2 is Active', async () => {
+    const out = await solvedCli('L13.1', 'MTD-R2', ['show standby brief']);
+    expect(out.split('\n').find((l) => l.startsWith('Gi0/0'))).toMatch(/\b10\s+100 P Active/);
+  });
+
+  it('L14.1: the bottleneck at the start is MTD-R1 Gi0/1', async () => {
+    const lab = LABS.find((l) => l.id === 'L14.1')!;
+    const { sim } = await start(lab);
+    const { analyseTraffic } = await import('../engine/qos/analysis');
+    const r1 = sim.topology.devices.find((d) => d.name === 'MTD-R1')!.id;
+    for (const f of analyseTraffic(sim).flows) expect(f.bottleneck).toEqual({ deviceId: r1, iface: 'Gi0/1' });
+  });
+
+  it('L15.1: MTD-L3SW default route is O*E2', async () => {
+    const out = await solvedCli('L15.1', 'MTD-L3SW', ['show ip route']);
+    expect(out).toMatch(/^O\*E2\s+0\.0\.0\.0\/0/m);
   });
 });

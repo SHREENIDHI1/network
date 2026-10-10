@@ -17,6 +17,7 @@ import {
 } from '../../lessons/widgetMath';
 import { spans } from '../../topologies/data/jodhpur';
 import { MacLearning, RootElection, SubnetCalc, VlanTag, VlsmPlanner } from './widgets2';
+import { AclEvalWidget, HsrpWidget, LpmWidget, QueueSimWidget, SpfWidget } from './widgets3';
 
 export function Widget({ id }: { id: WidgetId }) {
   switch (id) {
@@ -38,6 +39,16 @@ export function Widget({ id }: { id: WidgetId }) {
       return <VlanTag />;
     case 'root-election':
       return <RootElection />;
+    case 'lpm':
+      return <LpmWidget />;
+    case 'spf':
+      return <SpfWidget />;
+    case 'acl-eval':
+      return <AclEvalWidget />;
+    case 'hsrp':
+      return <HsrpWidget />;
+    case 'queue-sim':
+      return <QueueSimWidget />;
   }
 }
 

@@ -29,6 +29,14 @@ export const TOPOLOGIES: readonly TopologyEntry[] = [
   { id: 'lab-mtd-vlsm', title: 'Lab A6: MTD VLSM plan', load: () => import('./basicsLabs').then((m) => m.mtdVlsm()) },
   { id: 'lab-mtd-vlans', title: 'Lab A7: VLANs per application at MTD', load: () => import('./basicsLabs').then((m) => m.mtdVlans()) },
   { id: 'lab-mtd-resilience', title: 'Lab A8: MTD switching resilience', load: () => import('./basicsLabs').then((m) => m.mtdResilience()) },
+  { id: 'lab-mtd-roas', title: 'Lab A9: MTD router-on-a-stick', load: () => import('./routingLabs').then((m) => m.mtdRouterOnAStick()) },
+  { id: 'lab-ospf-ring', title: 'Lab A10: OSPF ring JU–BNO–JWL–AAS', load: () => import('./routingLabs').then((m) => m.ospfRing()) },
+  { id: 'lab-isis-triangle', title: 'Lab A10: IS-IS triangle JU–MTD–DNA', load: () => import('./routingLabs').then((m) => m.isisTriangle()) },
+  { id: 'lab-ju-services', title: 'Lab A11: JU HQ network services', load: () => import('./routingLabs').then((m) => m.juServices()) },
+  { id: 'lab-mtd-security', title: 'Lab A12: MTD security', load: () => import('./routingLabs').then((m) => m.mtdSecurity()) },
+  { id: 'lab-mtd-hsrp', title: 'Lab A13: MTD gateway redundancy', load: () => import('./routingLabs').then((m) => m.mtdHsrp()) },
+  { id: 'lab-mtd-qos', title: 'Lab A14: QoS on the MTD–JU uplink', load: () => import('./routingLabs').then((m) => m.mtdQos()) },
+  { id: 'lab-capstone-mtd-ju', title: 'Lab A15: MTD + JU capstone', load: () => import('./routingLabs').then((m) => m.capstone()) },
 ];
 
 export const TOPOLOGY_IDS: ReadonlySet<string> = new Set(TOPOLOGIES.map((t) => t.id));

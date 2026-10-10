@@ -9,7 +9,7 @@ import type { Lab } from './types';
 export const QUIZ_SIZE = 5;
 export const QUIZ_MCQ = 4;
 export const QUIZ_PRACTICAL = 1;
-export const MAX_LEVEL = 12;
+export const MAX_LEVEL = 40;
 
 const LAB_ID = /^L(\d{1,2})\.(\d{1,2})$/;
 
@@ -40,6 +40,13 @@ export function validateLab(lab: Lab, topologyIds: ReadonlySet<string>): string[
     if (!h || !h.length || h.some((x) => !x.trim())) e.push(`${at}: task ${t.id} needs at least one non-empty hint`);
   });
   if (lab.hints.length !== lab.tasks.length) e.push(`${at}: hints must have one entry per task`);
+
+  // Break-fix challenges
+  if (lab.breakFix && lab.tickets) e.push(`${at}: use either breakFix or tickets, not both`);
+  for (const [i, b] of (lab.tickets ?? (lab.breakFix ? [lab.breakFix] : [])).entries()) {
+    if (!b.complaint.trim()) e.push(`${at}: challenge ${i + 1} has no complaint`);
+    if (!b.hints.length) e.push(`${at}: challenge ${i + 1} needs hints`);
+  }
 
   // Quiz: 4 MCQ + 1 practical
   if (lab.quiz.length !== QUIZ_SIZE) e.push(`${at}: quiz must have ${QUIZ_SIZE} questions`);

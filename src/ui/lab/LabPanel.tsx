@@ -5,7 +5,7 @@ import { buildSnapshot } from '../../labs/framework/snapshot';
 import { solutionText } from '../../labs/framework/solution';
 import type { Lab } from '../../labs/framework/types';
 import { useAppMode } from '../../store/appModeStore';
-import { BREAKFIX_POINTS, HINT_COST, labScore, maxLabScore, useLabStore } from '../../store/labStore';
+import { BREAKFIX_POINTS, challenges, HINT_COST, labScore, maxLabScore, useLabStore } from '../../store/labStore';
 import { useSimStore } from '../../store/simStore';
 import { useTopologyStore } from '../../store/topologyStore';
 import { FlashQuiz } from '../learn/FlashQuiz';
@@ -15,7 +15,7 @@ export default function LabPanel({ lab }: { lab: Lab }) {
   const sim = useSimStore((s) => s.sim);
   const version = useSimStore((s) => s.version);
   const topology = useTopologyStore((s) => s.topology);
-  const { hints, breakFix, quizScore } = useLabStore();
+  const { hints, breakFix, ticket, quizScore } = useLabStore();
   const openLesson = useAppMode((s) => s.openLesson);
 
   // Live checks: recomputed whenever the engine or the topology changes.
@@ -23,8 +23,11 @@ export default function LabPanel({ lab }: { lab: Lab }) {
   const results = useMemo(() => lab.tasks.map((t) => ({ task: t, r: t.check(snap) })), [lab, snap]);
   const passed = useMemo(() => new Set(results.filter((x) => x.r.pass).map((x) => x.task.id)), [results]);
   const allDone = passed.size === lab.tasks.length;
-  const bf = lab.breakFix && breakFix === 'active' ? lab.breakFix.check(snap) : undefined;
-  const score = labScore(lab, passed, hints, breakFix === 'done', quizScore);
+  const list = challenges(lab);
+  const multi = list.length > 1;
+  const current = list[ticket];
+  const bf = current && breakFix === 'active' ? current.check(snap) : undefined;
+  const score = labScore(lab, passed, hints, Math.min(ticket, list.length), quizScore);
 
   useEffect(() => {
     if (bf?.pass) useLabStore.getState().finishBreakFix();
@@ -149,34 +152,48 @@ export default function LabPanel({ lab }: { lab: Lab }) {
           </ol>
         </section>
 
-        {(allDone || breakFix !== 'idle') && lab.breakFix && (
+        {(allDone || breakFix !== 'idle' || ticket > 0) && list.length > 0 && (
           <section className="rounded-lg border border-red-900 bg-red-950/30 p-2">
             <h3 className="mb-1 flex items-center gap-1 font-semibold text-red-200">
-              <Siren className="h-4 w-4" /> Break-fix challenge (+{BREAKFIX_POINTS} pts)
+              <Siren className="h-4 w-4" /> {multi ? `Fault tickets ${Math.min(ticket, list.length)}/${list.length}` : 'Break-fix challenge'} (+
+              {BREAKFIX_POINTS} pts each)
             </h3>
-            {breakFix === 'idle' && (
+            {breakFix === 'idle' && current && (
               <>
-                <p className="text-xs text-slate-300">Sab tasks ho gaye. Ab ek field fault inject hoga — dhoondho aur theek karo.</p>
+                <p className="text-xs text-slate-300">
+                  {ticket === 0
+                    ? multi
+                      ? `Design poora. Ab ${list.length} fault tickets ek-ek karke aayenge — har ek ka root cause dhoondho aur theek karo.`
+                      : 'Sab tasks ho gaye. Ab ek field fault inject hoga — dhoondho aur theek karo.'
+                    : `Ticket ${ticket} band ✓. Agla ticket taiyaar hai.`}
+                </p>
                 <button type="button" className="rn-btn-danger mt-2" onClick={() => useLabStore.getState().startBreakFix()}>
-                  Inject fault
+                  {multi ? `Open ticket ${ticket + 1}` : 'Inject fault'}
                 </button>
               </>
             )}
-            {breakFix !== 'idle' && <p className="text-slate-200">📞 {lab.breakFix.complaint}</p>}
-            {breakFix === 'active' && bf && (
+            {breakFix === 'active' && current && (
               <>
-                <p className="mt-1 text-xs text-amber-300">{bf.detail}</p>
+                <p className="text-slate-200">
+                  📞 {multi && <span className="font-semibold">Ticket {ticket + 1}: </span>}
+                  {current.complaint}
+                </p>
+                {bf && <p className="mt-1 text-xs text-amber-300">{bf.detail}</p>}
                 <details className="mt-1 text-xs text-sky-200">
                   <summary className="cursor-pointer text-sky-400">Hints</summary>
                   <ul className="ml-4 list-disc">
-                    {lab.breakFix.hints.map((h) => (
+                    {current.hints.map((h) => (
                       <li key={h}>{h}</li>
                     ))}
                   </ul>
                 </details>
               </>
             )}
-            {breakFix === 'done' && <p className="mt-1 font-semibold text-emerald-300">Fixed ✓ — service restored.</p>}
+            {breakFix === 'done' && (
+              <p className="mt-1 font-semibold text-emerald-300">
+                {multi ? 'All tickets closed ✓ — service restored.' : 'Fixed ✓ — service restored.'}
+              </p>
+            )}
           </section>
         )}
 

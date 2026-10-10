@@ -12,8 +12,22 @@ export type WidgetId =
   | 'subnet-calc'
   | 'vlsm-planner'
   | 'vlan-tag'
-  | 'root-election';
-export type DiagramId = 'circuit-vs-packet' | 'osi-stack' | 'fibre-vs-copper' | 'ethernet-frame' | 'vlan-trunk' | 'stp-loop';
+  | 'root-election'
+  | 'lpm'
+  | 'spf'
+  | 'acl-eval'
+  | 'hsrp'
+  | 'queue-sim';
+export type DiagramId =
+  | 'circuit-vs-packet'
+  | 'osi-stack'
+  | 'fibre-vs-copper'
+  | 'ethernet-frame'
+  | 'vlan-trunk'
+  | 'stp-loop'
+  | 'router-on-a-stick'
+  | 'dhcp-dora'
+  | 'nat-pat';
 
 export type LessonBlock =
   | { kind: 'text'; heading?: string; body: string }

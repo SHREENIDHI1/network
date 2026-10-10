@@ -39,23 +39,33 @@ export const MODULES: Record<EngineModule, ModuleInfo> = {
   sim: { id: 'sim', label: 'Discrete-event engine (step/play)', phase: 2 },
   ethernet: { id: 'ethernet', label: 'Ethernet / 802.1Q VLAN / RSTP / port security', phase: 2 },
   ip: { id: 'ip', label: 'IPv4, ARP, static routes, ping/traceroute', phase: 2 },
-  ospf: { id: 'ospf', label: 'OSPF', phase: 3 },
-  services: { id: 'services', label: 'DHCP, NAT, ACL', phase: 3 },
+  ospf: { id: 'ospf', label: 'OSPF / IS-IS / RIP', phase: 3 },
+  services: { id: 'services', label: 'DHCP, DNS, NAT, ACL, NTP, syslog, SNMP, SSH', phase: 3 },
   qos: { id: 'qos', label: 'QoS (DSCP/EXP, queues)', phase: 3 },
   resilience: { id: 'resilience', label: 'HSRP/VRRP first-hop redundancy', phase: 3 },
   pdh: { id: 'pdh', label: 'PD-Mux / E1 (G.704) timeslots', phase: 4 },
   sdh: { id: 'sdh', label: 'SDH mapping, cross-connects, alarms, protection', phase: 4 },
-  mpls: { id: 'mpls', label: 'MPLS LDP / LFIB / PHP', phase: 5 },
+  mpls: { id: 'mpls', label: 'MPLS LDP / LFIB / PHP', phase: 4 },
   bgp: { id: 'bgp', label: 'VRF + MP-BGP VPNv4 + route reflector', phase: 5 },
-  l2vpn: { id: 'l2vpn', label: 'VPWS / VPLS / E1 emulation', phase: 5 },
-  te: { id: 'te', label: 'RSVP-TE + FRR', phase: 5 },
-  faults: { id: 'faults', label: 'Fault injection', phase: 6 },
-  nms: { id: 'nms', label: 'NMS dashboard, service status', phase: 6 },
+  l2vpn: { id: 'l2vpn', label: 'VPWS / VPLS / E1 emulation', phase: 6 },
+  te: { id: 'te', label: 'RSVP-TE + FRR', phase: 7 },
+  faults: { id: 'faults', label: 'Fault injection', phase: 8 },
+  nms: { id: 'nms', label: 'NMS dashboard, service status', phase: 8 },
   migration: { id: 'migration', label: 'SDH → IP-MPLS migration mode', phase: 6 },
 };
 
 /** Modules that actually exist in this build. */
-export const BUILT_MODULES: ReadonlySet<EngineModule> = new Set<EngineModule>(['topology', 'physical', 'sim', 'ethernet', 'ip']);
+export const BUILT_MODULES: ReadonlySet<EngineModule> = new Set<EngineModule>([
+  'topology',
+  'physical',
+  'sim',
+  'ethernet',
+  'ip',
+  'ospf',
+  'services',
+  'qos',
+  'resilience',
+]);
 
 export function missingModules(required: readonly EngineModule[], built: ReadonlySet<EngineModule> = BUILT_MODULES): EngineModule[] {
   return required.filter((m) => !built.has(m));

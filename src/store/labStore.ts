@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Lab } from '../labs/framework/types';
+import type { BreakFix, Lab } from '../labs/framework/types';
 import { recordLab } from '../lessons/progress';
 import { useProgress } from './progressStore';
 import { getTopologyEntry } from '../topologies';
@@ -20,7 +20,10 @@ interface LabState {
   lab: Lab | null;
   /** Number of hints revealed per task id. */
   hints: Record<string, number>;
+  /** State of the current challenge (break-fix fault or capstone ticket). */
   breakFix: 'idle' | 'active' | 'done';
+  /** Index of the current challenge; equals the number already solved. */
+  ticket: number;
   quizScore: number | null;
   loading: boolean;
 
@@ -40,6 +43,7 @@ export const useLabStore = create<LabState>((set, get) => ({
   lab: null,
   hints: {},
   breakFix: 'idle',
+  ticket: 0,
   quizScore: null,
   loading: false,
 
@@ -55,6 +59,7 @@ export const useLabStore = create<LabState>((set, get) => ({
         lab,
         hints: {},
         breakFix: 'idle',
+        ticket: 0,
         quizScore: null,
       });
       record(lab.id, { completed: false, score: 0, newAttempt: true });
@@ -63,15 +68,16 @@ export const useLabStore = create<LabState>((set, get) => ({
     }
   },
 
-  exit: () => set({ lab: null, hints: {}, breakFix: 'idle', quizScore: null }),
+  exit: () => set({ lab: null, hints: {}, breakFix: 'idle', ticket: 0, quizScore: null }),
 
   revealHint: (taskId) => set((s) => ({ hints: { ...s.hints, [taskId]: (s.hints[taskId] ?? 0) + 1 } })),
 
   startBreakFix: () => {
     const lab = get().lab;
-    if (!lab?.breakFix) return;
+    const challenge = lab ? challenges(lab)[get().ticket] : undefined;
+    if (!challenge) return;
     const ts = useTopologyStore.getState();
-    ts.loadTopology(lab.breakFix.apply(ts.topology));
+    ts.loadTopology(challenge.apply(ts.topology));
     // Old pings must not count: the learner has to test again after the fault.
     useSimStore.getState().resetSim();
     set({ breakFix: 'active' });
@@ -79,9 +85,11 @@ export const useLabStore = create<LabState>((set, get) => ({
 
   finishBreakFix: () => {
     const lab = get().lab;
-    if (!lab || get().breakFix === 'done') return;
-    set({ breakFix: 'done' });
-    record(lab.id, { completed: true, score: 0, breakFixDone: true });
+    if (!lab || get().breakFix !== 'active') return;
+    const next = get().ticket + 1;
+    const all = next >= challenges(lab).length;
+    set({ breakFix: all ? 'done' : 'idle', ticket: next });
+    if (all) record(lab.id, { completed: true, score: 0, breakFixDone: true });
   },
 
   setQuizScore: (n) => {
@@ -100,19 +108,24 @@ export const useLabStore = create<LabState>((set, get) => ({
   },
 }));
 
-/** Score = points of passed tasks − hint cost, + break-fix bonus, + quiz points. */
+/** Break-fix challenges of a lab: capstone tickets, or the single break-fix. */
+export function challenges(lab: Lab): BreakFix[] {
+  return lab.tickets ?? (lab.breakFix ? [lab.breakFix] : []);
+}
+
+/** Score = points of passed tasks − hint cost, + points per solved challenge, + quiz points. */
 export function labScore(
   lab: Lab,
   passed: ReadonlySet<string>,
   hints: Record<string, number>,
-  breakFixDone: boolean,
+  solvedChallenges: number,
   quizScore: number | null,
 ): number {
   const tasks = lab.tasks.reduce((a, t) => a + (passed.has(t.id) ? t.points : 0), 0);
   const hintCost = Object.values(hints).reduce((a, n) => a + n * HINT_COST, 0);
-  return Math.max(0, tasks - hintCost) + (breakFixDone ? BREAKFIX_POINTS : 0) + (quizScore ?? 0) * QUIZ_POINTS_EACH;
+  return Math.max(0, tasks - hintCost) + solvedChallenges * BREAKFIX_POINTS + (quizScore ?? 0) * QUIZ_POINTS_EACH;
 }
 
 export function maxLabScore(lab: Lab): number {
-  return lab.tasks.reduce((a, t) => a + t.points, 0) + (lab.breakFix ? BREAKFIX_POINTS : 0) + lab.quiz.length * QUIZ_POINTS_EACH;
+  return lab.tasks.reduce((a, t) => a + t.points, 0) + challenges(lab).length * BREAKFIX_POINTS + lab.quiz.length * QUIZ_POINTS_EACH;
 }

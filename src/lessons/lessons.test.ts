@@ -192,3 +192,80 @@ describe('P2 widget maths', () => {
     expect(electRoot([{ name: 'A', priority: 100, mac: '0000.0000.0001' }])).toBeNull();
   });
 });
+
+describe('P3 widget maths', () => {
+  it('longest prefix match, then AD, then metric', async () => {
+    const { lpmPick } = await import('./widgetMath3');
+    const routes = [
+      { prefix: '0.0.0.0/0', via: 'ISP', ad: 1, metric: 0 },
+      { prefix: '10.52.0.0/16', via: 'MTD', ad: 110, metric: 20 },
+      { prefix: '10.52.10.0/24', via: 'GOTN', ad: 110, metric: 30 },
+      { prefix: '10.52.10.0/24', via: 'static', ad: 1, metric: 0 },
+    ];
+    expect(lpmPick(routes, '10.52.10.5')).toMatchObject({ index: 3 });
+    expect(lpmPick(routes, '10.52.99.1')!.index).toBe(1);
+    expect(lpmPick(routes, '8.8.8.8')!.index).toBe(0);
+    expect(lpmPick(routes.slice(1), '8.8.8.8')).toBeNull();
+  });
+
+  it('SPF on the JU–BNO–JWL–AAS ring', async () => {
+    const { spf, pathTo } = await import('./widgetMath3');
+    const nodes = ['JU', 'BNO', 'JWL', 'AAS'];
+    const edges = [
+      { a: 'JU', b: 'BNO', cost: 10 },
+      { a: 'BNO', b: 'JWL', cost: 10 },
+      { a: 'JWL', b: 'AAS', cost: 10 },
+      { a: 'AAS', b: 'JU', cost: 40 },
+    ];
+    const r = spf(nodes, edges, 'JU');
+    expect(r.dist.AAS).toBe(30);
+    expect(pathTo(r.prev, 'JU', 'AAS')).toEqual(['JU', 'BNO', 'JWL', 'AAS']);
+    const cut = spf(
+      nodes,
+      edges.filter((e) => !(e.a === 'BNO' && e.b === 'JWL')),
+      'JU',
+    );
+    expect(pathTo(cut.prev, 'JU', 'JWL')).toEqual(['JU', 'AAS', 'JWL']);
+  });
+
+  it('HSRP election with priority, preempt and tracking', async () => {
+    const { hsrpElect } = await import('./widgetMath3');
+    const r = [
+      { name: 'MTD-R1', priority: 110, up: true, ip: '10.52.10.2' },
+      { name: 'MTD-R2', priority: 100, up: true, ip: '10.52.10.3' },
+    ];
+    expect(hsrpElect(r, true).active).toBe('MTD-R1');
+    expect(hsrpElect([{ ...r[0], trackDown: true, decrement: 20 }, r[1]], true).active).toBe('MTD-R2');
+    expect(hsrpElect(r, false, 'MTD-R2').active).toBe('MTD-R2'); // no preempt: R2 keeps the role
+    expect(hsrpElect([{ ...r[0], up: false }, r[1]], false, 'MTD-R1').active).toBe('MTD-R2');
+  });
+
+  it('ACL evaluator uses the engine: first match, implicit deny', async () => {
+    const { aclEvaluate } = await import('./widgetMath3');
+    const lines = ['deny ip 10.52.10.0 0.0.0.255 10.52.50.0 0.0.0.255', 'permit tcp any host 10.1.1.1 eq 22', 'permit ip any any'];
+    expect(aclEvaluate('extended', lines, { protocol: 'icmp', src: '10.52.10.11', dst: '10.52.50.5' })).toMatchObject({ verdict: 'deny', line: 1 });
+    expect(aclEvaluate('extended', lines, { protocol: 'tcp', src: '10.52.50.5', dst: '10.1.1.1', dstPort: 22 })).toMatchObject({
+      verdict: 'permit',
+      line: 2,
+    });
+    expect(aclEvaluate('extended', lines.slice(0, 2), { protocol: 'udp', src: '1.1.1.1', dst: '2.2.2.2', dstPort: 53 })).toMatchObject({
+      verdict: 'deny',
+      implicit: true,
+    });
+    expect(aclEvaluate('standard', ['permit 10.52.0.0 0.0.255.255'], { protocol: 'icmp', src: '10.52.3.3', dst: '1.1.1.1' }).verdict).toBe('permit');
+    expect(aclEvaluate('extended', ['allow everything'], { protocol: 'icmp', src: '1.1.1.1', dst: '2.2.2.2' }).error).toBeDefined();
+  });
+
+  it('queue simulator: FIFO loses evenly, LLQ protects voice', async () => {
+    const { queueSim } = await import('./widgetMath3');
+    const flows = [
+      { name: 'Voice', rateMbps: 2, dscp: 46 },
+      { name: 'CCTV', rateMbps: 18, dscp: 34 },
+    ];
+    const fifo = queueSim(10, flows, null);
+    expect(fifo[0].lossPct).toBeCloseTo(50, 0);
+    const llq = queueSim(10, flows, [{ name: 'VOICE', dscp: [46], priorityPercent: 30 }]);
+    expect(llq[0].lossPct).toBeCloseTo(0, 5);
+    expect(llq[1].deliveredMbps).toBeCloseTo(8, 5);
+  });
+});

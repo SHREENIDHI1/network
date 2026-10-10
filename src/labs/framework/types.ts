@@ -58,7 +58,7 @@ export interface MacEntry {
   port: string;
 }
 
-export type RouteProtocol = 'connected' | 'static' | 'ospf' | 'bgp';
+export type RouteProtocol = 'connected' | 'static' | 'ospf' | 'isis' | 'rip' | 'bgp';
 
 export interface RouteEntry {
   prefix: string; // CIDR, e.g. "10.20.1.0/24"
@@ -82,6 +82,47 @@ export interface OspfNeighbor {
   neighbor: string;
   state: OspfState;
   area: string;
+}
+
+export interface IsisAdjacencyInfo {
+  device: string;
+  neighbor: string;
+  level: 1 | 2;
+}
+
+export interface FhrpGroupInfo {
+  protocol: 'hsrp' | 'vrrp';
+  group: number;
+  vip?: string;
+  active?: string;
+  standby?: string;
+  members: string[];
+}
+
+export interface AppResult {
+  src: string;
+  kind: 'dns' | 'ntp' | 'ssh' | 'telnet';
+  /** Target device name when known, else the address / name. */
+  target: string;
+  status: 'ok' | 'fail' | 'pending';
+  result: string;
+}
+
+export interface QosFlowInfo {
+  src: string;
+  dst: string;
+  app: string;
+  dscp: number;
+  offeredMbps: number;
+  deliveredMbps: number;
+  lossPct: number;
+}
+
+export interface AclBinding {
+  device: string;
+  iface: string;
+  dir: 'in' | 'out';
+  acl: string;
 }
 
 export interface LdpNeighbor {
@@ -214,8 +255,20 @@ export interface SimSnapshot {
   readonly interfaceIps?: readonly InterfaceIp[];
   readonly routingTables?: Readonly<Record<string, readonly RouteEntry[]>>;
   readonly pings?: readonly PingResult[];
-  // ospf (Phase 3)
+  // ospf / IS-IS / services (Phase 3)
   readonly ospfNeighbors?: readonly OspfNeighbor[];
+  readonly isisAdjacencies?: readonly IsisAdjacencyInfo[];
+  readonly fhrpGroups?: readonly FhrpGroupInfo[];
+  readonly natTranslations?: Readonly<Record<string, readonly { insideLocal: string; insideGlobal: string }[]>>;
+  readonly dhcpStates?: Readonly<Record<string, string>>;
+  readonly aclBindings?: readonly AclBinding[];
+  readonly ntp?: Readonly<Record<string, { synced: boolean; stratum?: number }>>;
+  readonly nmsInbox?: Readonly<Record<string, { syslog: number; traps: number }>>;
+  readonly vty?: Readonly<Record<string, { transport: string; login: string; sshEnabled: boolean; accessClass?: string }>>;
+  readonly appResults?: readonly AppResult[];
+  readonly qosFlows?: readonly QosFlowInfo[];
+  /** Links cut with "Cut fibre/cable", as [device A, device B] names. */
+  readonly cutLinks?: ReadonlyArray<readonly [string, string]>;
   // qos (Phase 3)
   readonly qosMaps?: readonly QosMapping[];
   // pdh / sdh (Phase 4)
@@ -285,11 +338,21 @@ export interface LabSolution {
   pings?: Array<[string, string]>;
   /** Cables to connect, [device, port, device, port]. */
   links?: Array<[string, string, string, string]>;
+  /** DHCP pools to add on DNS/DHCP server devices (properties panel). */
+  pools?: Record<string, Array<{ name: string; network: string; mask: string; gateway?: string; dns?: string }>>;
+  /** Links to cut (fibre-cut simulation), [device A, device B]. Applied before the pings. */
+  cuts?: Array<[string, string]>;
+  /** Interfaces to bounce (shutdown, then no shutdown) after the CLI, [device, interface] — e.g. to raise syslog/traps. */
+  flaps?: Array<[string, string]>;
+  /** Hosts that run "ipconfig /renew" after the configuration. */
+  renew?: string[];
+  /** Host command-prompt lines (nslookup, ssh, telnet…) run last, per device name. */
+  hostCli?: Record<string, string[]>;
 }
 
 export interface Lab {
   id: string; // e.g. "L3.2"
-  level: number; // 0..12
+  level: number; // lesson number (A9 → 9)
   order: number; // position within level
   title: string;
   /** Hinglish, railway-realistic. */
@@ -312,5 +375,7 @@ export interface Lab {
   /** Lesson this lab practises, e.g. "A7". */
   lessonId?: string;
   breakFix?: BreakFix;
+  /** Several faults in sequence (capstone fault tickets); used instead of breakFix. */
+  tickets?: BreakFix[];
   solution?: LabSolution;
 }

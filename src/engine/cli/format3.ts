@@ -19,7 +19,9 @@ export function showOspfNeighbor(sim: Sim, device: Device): string {
   const L = [`${pad('Neighbor ID', 17)}${pad('Pri', 5)}${pad('State', 17)}${pad('Dead Time', 12)}${pad('Address', 16)}Interface`];
   for (const n of ns) {
     const role = n.state === '2WAY' ? 'DROTHER' : n.neighborRole;
-    L.push(`${pad(formatIpv4(n.neighborRid), 17)}${pad(n.neighborPriority, 5)}${pad(`${n.state}/${role}`, 17)}${pad('00:00:35', 12)}${pad(formatIpv4(n.neighborIp), 16)}${longIfName(n.iface)}`);
+    L.push(
+      `${pad(formatIpv4(n.neighborRid), 17)}${pad(n.neighborPriority, 5)}${pad(`${n.state}/${role}`, 17)}${pad('00:00:35', 12)}${pad(formatIpv4(n.neighborIp), 16)}${longIfName(n.iface)}`,
+    );
   }
   if (!sim.ospf.routerIds.has(device.id)) L.push('', '% OSPF is not running on this device.');
   return L.join('\n');
@@ -31,7 +33,9 @@ export function showOspfIntBrief(sim: Sim, device: Device): string {
   const pid = sim.config(device.id)?.ospf?.processId ?? 1;
   for (const o of ois) {
     const state = o.passive ? 'DR' : o.neighbors === 0 ? 'DR' : o.role === 'DROTHER' ? 'DROTH' : o.role;
-    L.push(`${pad(o.iface, 11)}${pad(pid, 5)}${pad(o.area, 12)}${pad(`${formatIpv4(o.ip)}/${o.prefixLen}`, 20)}${pad(o.cost, 6)}${pad(state, 6)}${o.fullNeighbors}/${o.neighbors}`);
+    L.push(
+      `${pad(o.iface, 11)}${pad(pid, 5)}${pad(o.area, 12)}${pad(`${formatIpv4(o.ip)}/${o.prefixLen}`, 20)}${pad(o.cost, 6)}${pad(state, 6)}${o.fullNeighbors}/${o.neighbors}`,
+    );
   }
   return L.join('\n');
 }
@@ -96,25 +100,31 @@ export function showAccessLists(sim: Sim, device: Device, cfg: NetConfig, only?:
 // ---------------------------------------------------------------- NAT
 
 export function showNatTranslations(sim: Sim, device: Device): string {
-  const L = [`${pad('Pro', 4)}${pad('Inside global', 22)}${pad('Inside local', 22)}${pad('Outside local', 22)}Outside global`];
+  const L = [`${pad('Pro', 5)}${pad('Inside global', 22)}${pad('Inside local', 22)}${pad('Outside local', 22)}Outside global`];
   for (const t of sim.natTranslations(device.id)) {
     const g = t.globalId !== undefined ? `${formatIpv4(t.insideGlobal)}:${t.globalId}` : formatIpv4(t.insideGlobal);
     const l = t.localId !== undefined ? `${formatIpv4(t.insideLocal)}:${t.localId}` : formatIpv4(t.insideLocal);
     const o = t.outside !== undefined ? `${formatIpv4(t.outside)}:${t.globalId}` : '---';
-    L.push(`${pad(t.static ? '---' : 'icmp', 4)}${pad(g, 22)}${pad(l, 22)}${pad(o, 22)}${o}`);
+    L.push(`${pad(t.static ? '---' : 'icmp', 5)}${pad(g, 22)}${pad(l, 22)}${pad(o, 22)}${o}`);
   }
   return L.join('\n');
 }
 
 export function showNatStatistics(sim: Sim, device: Device, cfg: NetConfig): string {
   const all = sim.natTranslations(device.id);
-  const inside = Object.entries(cfg.interfaces).filter(([, c]) => c.natRole === 'inside').map(([n]) => longIfName(n));
-  const outside = Object.entries(cfg.interfaces).filter(([, c]) => c.natRole === 'outside').map(([n]) => longIfName(n));
+  const inside = Object.entries(cfg.interfaces)
+    .filter(([, c]) => c.natRole === 'inside')
+    .map(([n]) => longIfName(n));
+  const outside = Object.entries(cfg.interfaces)
+    .filter(([, c]) => c.natRole === 'outside')
+    .map(([n]) => longIfName(n));
   return [
     `Total active translations: ${all.length} (${all.filter((t) => t.static).length} static, ${all.filter((t) => !t.static).length} dynamic; ${all.filter((t) => !t.static).length} extended)`,
     `Outside interfaces:\n  ${outside.join(', ') || '(none)'}`,
     `Inside interfaces:\n  ${inside.join(', ') || '(none)'}`,
-    ...cfg.nat.overload.map((o) => `-- Inside Source\n[Id: 1] access-list ${o.acl} interface ${longIfName(o.iface)} refcount ${all.filter((t) => !t.static).length}`),
+    ...cfg.nat.overload.map(
+      (o) => `-- Inside Source\n[Id: 1] access-list ${o.acl} interface ${longIfName(o.iface)} refcount ${all.filter((t) => !t.static).length}`,
+    ),
   ].join('\n');
 }
 
@@ -127,7 +137,10 @@ export function showDhcpBinding(sim: Sim, device: Device): string {
     `${pad('', 18)}${pad('Hardware address/', 21)}`,
     `${pad('', 18)}${pad('User name', 21)}`,
   ];
-  for (const b of sim.bindings(device.id)) L.push(`${pad(formatIpv4(b.ip), 18)}${pad(`01${ciscoMac(b.mac).replace(/\./g, '.')}`, 21)}${pad('(lease timers not simulated)', 26)}${pad('Automatic', 10)}Active`);
+  for (const b of sim.bindings(device.id))
+    L.push(
+      `${pad(formatIpv4(b.ip), 18)}${pad(`01${ciscoMac(b.mac).replace(/\./g, '.')}`, 21)}${pad('(lease timers not simulated)', 26)}${pad('Automatic', 10)}Active`,
+    );
   return L.join('\n');
 }
 
@@ -154,8 +167,14 @@ export function showDhcpPool(sim: Sim, device: Device, cfg: NetConfig): string {
 export function showFhrpBrief(sim: Sim, device: Device, proto: 'hsrp' | 'vrrp'): string {
   const L =
     proto === 'hsrp'
-      ? ['                     P indicates configured to preempt.', '                     |', `${pad('Interface', 11)}${pad('Grp', 5)}${pad('Pri', 4)}${pad('P', 2)}${pad('State', 9)}${pad('Active', 16)}${pad('Standby', 16)}Virtual IP`]
-      : [`${pad('Interface', 15)}${pad('Grp', 5)}${pad('Pri', 5)}${pad('Own', 5)}${pad('Pre', 5)}${pad('State', 8)}${pad('Master addr', 16)}Group addr`];
+      ? [
+          '                     P indicates configured to preempt.',
+          '                     |',
+          `${pad('Interface', 11)}${pad('Grp', 5)}${pad('Pri', 4)}${pad('P', 2)}${pad('State', 9)}${pad('Active', 16)}${pad('Standby', 16)}Virtual IP`,
+        ]
+      : [
+          `${pad('Interface', 15)}${pad('Grp', 5)}${pad('Pri', 5)}${pad('Own', 5)}${pad('Pre', 5)}${pad('State', 8)}${pad('Master addr', 16)}Group addr`,
+        ];
   for (const [k, entries] of sim.fhrp.byIface) {
     if (!k.startsWith(`${device.id}|`)) continue;
     for (const { group: g, member: m } of entries) {
@@ -163,8 +182,14 @@ export function showFhrpBrief(sim: Sim, device: Device, proto: 'hsrp' | 'vrrp'):
       const active = g.active ? (g.active === m ? 'local' : formatIpv4(g.active.ip)) : 'unknown';
       const standby = g.standby ? (g.standby === m ? 'local' : formatIpv4(g.standby.ip)) : 'unknown';
       const vip = g.vip !== undefined ? formatIpv4(g.vip) : 'unknown';
-      if (proto === 'hsrp') L.push(`${pad(m.iface, 11)}${pad(g.group, 5)}${pad(m.priority, 4)}${pad(m.preempt ? 'P' : '', 2)}${pad(m.role, 9)}${pad(active, 16)}${pad(standby, 16)}${vip}`);
-      else L.push(`${pad(m.iface, 15)}${pad(g.group, 5)}${pad(m.priority, 5)}${pad(m.configuredPriority === 255 ? 'Y' : 'N', 5)}${pad(m.preempt ? 'Y' : 'N', 5)}${pad(m.role, 8)}${pad(g.active ? formatIpv4(g.active.ip) : '-', 16)}${vip}`);
+      if (proto === 'hsrp')
+        L.push(
+          `${pad(m.iface, 11)}${pad(g.group, 5)}${pad(m.priority, 4)}${pad(m.preempt ? 'P' : '', 2)}${pad(m.role, 9)}${pad(active, 16)}${pad(standby, 16)}${vip}`,
+        );
+      else
+        L.push(
+          `${pad(m.iface, 15)}${pad(g.group, 5)}${pad(m.priority, 5)}${pad(m.configuredPriority === 255 ? 'Y' : 'N', 5)}${pad(m.preempt ? 'Y' : 'N', 5)}${pad(m.role, 8)}${pad(g.active ? formatIpv4(g.active.ip) : '-', 16)}${vip}`,
+        );
     }
   }
   return L.join('\n');
@@ -175,7 +200,11 @@ export function showFhrpBrief(sim: Sim, device: Device, proto: 'hsrp' | 'vrrp'):
 export function showClassMaps(cfg: NetConfig): string {
   const L: string[] = [];
   for (const [n, c] of Object.entries(cfg.qos.classMaps)) {
-    L.push(` Class Map ${c.matchAll ? 'match-all' : 'match-any'} ${n} (id ${L.length + 1})`, `   Match dscp ${c.dscp.map(dscpName).join(' ') || '(none)'}`, '');
+    L.push(
+      ` Class Map ${c.matchAll ? 'match-all' : 'match-any'} ${n} (id ${L.length + 1})`,
+      `   Match dscp ${c.dscp.map(dscpName).join(' ') || '(none)'}`,
+      '',
+    );
   }
   L.push(' Class Map match-any class-default (id 0)', '   Match any');
   return L.join('\n');
@@ -207,10 +236,17 @@ export function showPolicyInterface(sim: Sim, device: Device, iface: string): st
     L.push(`  Service-policy output: ${ic.servicePolicyOut}`, '');
     if (!q) L.push('    (no configured traffic flows use this interface — add flows on hosts to see the steady-state result)');
     else {
-      L.push(`    Interface capacity ${q.capacityMbps} Mbit/s, offered ${q.offeredMbps.toFixed(2)} Mbit/s${q.offeredMbps > q.capacityMbps ? ' — CONGESTED' : ''}`, '');
+      L.push(
+        `    Interface capacity ${q.capacityMbps} Mbit/s, offered ${q.offeredMbps.toFixed(2)} Mbit/s${q.offeredMbps > q.capacityMbps ? ' — CONGESTED' : ''}`,
+        '',
+      );
       for (const c of q.classes) {
         const drop = Math.max(0, c.offeredMbps - c.deliveredMbps);
-        L.push(`    Class-map: ${c.name} (${c.kind})`, `      offered ${c.offeredMbps.toFixed(2)} Mbit/s, sent ${c.deliveredMbps.toFixed(2)} Mbit/s, dropped ${drop.toFixed(2)} Mbit/s`, '');
+        L.push(
+          `    Class-map: ${c.name} (${c.kind})`,
+          `      offered ${c.offeredMbps.toFixed(2)} Mbit/s, sent ${c.deliveredMbps.toFixed(2)} Mbit/s, dropped ${drop.toFixed(2)} Mbit/s`,
+          '',
+        );
       }
     }
   }
@@ -226,10 +262,14 @@ export function showLogging(sim: Sim, device: Device): string {
   for (const g of sim.fhrp.groups) {
     if (!g.members.some((m) => m.deviceId === device.id)) continue;
     for (const pr of g.problems) lines.push(`%${g.protocol.toUpperCase()}: group ${g.group}: ${pr}`);
-    if (g.active) lines.push(`%${g.protocol.toUpperCase()}-5-STATECHANGE: group ${g.group} ${g.protocol === 'hsrp' ? 'Active' : 'Master'} is ${sim.device(g.active.deviceId)?.name} ${g.active.iface}`);
+    if (g.active)
+      lines.push(
+        `%${g.protocol.toUpperCase()}-5-STATECHANGE: group ${g.group} ${g.protocol === 'hsrp' ? 'Active' : 'Master'} is ${sim.device(g.active.deviceId)?.name} ${g.active.iface}`,
+      );
   }
   for (const p of sim.topology.devices.find((d) => d.id === device.id)?.ports ?? []) {
-    if (sim.isErrDisabled(device.id, p.id)) lines.push(`%PM-4-ERR_DISABLE: psecure-violation error detected on ${longIfName(p.id)}, putting ${longIfName(p.id)} in err-disable state`);
+    if (sim.isErrDisabled(device.id, p.id))
+      lines.push(`%PM-4-ERR_DISABLE: psecure-violation error detected on ${longIfName(p.id)}, putting ${longIfName(p.id)} in err-disable state`);
   }
   const hosts = sim.config(device.id)?.mgmt.loggingHosts ?? [];
   const buffer = sim.deviceLog(device.id).map((l) => `*${(l.at / 1000).toFixed(3)}s: ${l.text}`);
@@ -297,7 +337,12 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
     if (p.leaseDays !== 1) L.push(` lease ${p.leaseDays}`);
   }
   if (L.length) L.push('!');
-  for (const [n, c] of Object.entries(cfg.qos.classMaps)) L.push(`class-map ${c.matchAll ? 'match-all' : 'match-any'} ${n}`, ...(c.dscp.length ? [` match dscp ${c.dscp.map(dscpName).join(' ')}`] : []), '!');
+  for (const [n, c] of Object.entries(cfg.qos.classMaps))
+    L.push(
+      `class-map ${c.matchAll ? 'match-all' : 'match-any'} ${n}`,
+      ...(c.dscp.length ? [` match dscp ${c.dscp.map(dscpName).join(' ')}`] : []),
+      '!',
+    );
   for (const [n, p] of Object.entries(cfg.qos.policyMaps)) {
     L.push(`policy-map ${n}`);
     for (const c of p.classes) {

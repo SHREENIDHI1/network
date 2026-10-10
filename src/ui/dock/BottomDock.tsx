@@ -5,11 +5,13 @@ import { useSimStore, type DockTab } from '../../store/simStore';
 const CliPanel = lazy(() => import('./CliPanel'));
 const PacketInspector = lazy(() => import('./PacketInspector'));
 const EventList = lazy(() => import('./EventList'));
+const QosPanel = lazy(() => import('./QosPanel'));
 
 const TABS: Array<{ id: DockTab; label: string }> = [
   { id: 'cli', label: 'CLI' },
   { id: 'inspector', label: 'Packet Inspector' },
   { id: 'events', label: 'Events' },
+  { id: 'qos', label: 'QoS' },
 ];
 
 /** Bottom dock with the device CLI, packet inspector and event queue. Lazy-loaded panels. */
@@ -30,7 +32,12 @@ export function BottomDock() {
             {t.label}
           </button>
         ))}
-        <button type="button" className="ml-auto p-1.5 text-slate-400 hover:text-slate-100" onClick={() => useSimStore.getState().toggleDock()} aria-label="Close dock">
+        <button
+          type="button"
+          className="ml-auto p-1.5 text-slate-400 hover:text-slate-100"
+          onClick={() => useSimStore.getState().toggleDock()}
+          aria-label="Close dock"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -39,6 +46,7 @@ export function BottomDock() {
           {tab === 'cli' && <CliPanel />}
           {tab === 'inspector' && <PacketInspector />}
           {tab === 'events' && <EventList />}
+          {tab === 'qos' && <QosPanel />}
         </Suspense>
       </div>
     </section>
