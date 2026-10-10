@@ -1,5 +1,5 @@
 import type { Device, Topology } from '../model/types';
-import { effectivePort, getNetConfig, isBridgeRole, roleOf, type DeviceRole, type NetConfig } from './config/netConfig';
+import { effectivePort, getNetConfig, isBridgeRole, longIfName, roleOf, type DeviceRole, type NetConfig } from './config/netConfig';
 import { EventQueue } from './core/eventQueue';
 import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet } from './core/types';
 import { computeSegments, type Segment } from './ethernet/segments';
@@ -10,7 +10,7 @@ import { computeIsis, emptyIsis, type IsisResult } from './igp/isis';
 import { computeRip, emptyRip, type RipResult } from './igp/rip';
 import { computeFhrp, type FhrpResult } from './fhrp/fhrp';
 import { evaluateAcl } from './security/acl';
-import type { DhcpMessage } from './core/types';
+import type { AppMessage, DhcpMessage } from './core/types';
 import { broadcastOf, maskToPrefix, networkOf, parseIpv4, prefixToMask } from './ip/ipv4';
 import { deriveL3Interfaces, portCarriesVlan, vlanExists, type L3Interface } from './ip/interfaces';
 import { formatIpv4, inSubnet } from './ip/ipv4';
@@ -169,7 +169,44 @@ type SimEvent =
   | { type: 'dhcp-timeout'; deviceId: string; iface: string; xid: number }
   | { type: 'probe-send'; sessionId: number }
   | { type: 'probe-timeout'; sessionId: number; index: number }
-  | { type: 'arp-expire'; deviceId: string; ip: number };
+  | { type: 'arp-expire'; deviceId: string; ip: number }
+  | { type: 'app-send'; sessionId: number }
+  | { type: 'app-timeout'; sessionId: number; attempt: number };
+
+/** DNS lookup, NTP poll or SSH/Telnet connection attempt started from a device. */
+export interface AppSession {
+  id: number;
+  kind: 'dns' | 'ntp' | 'ssh' | 'telnet';
+  deviceId: string;
+  /** Server / target address. */
+  target: number;
+  name?: string;
+  user?: string;
+  status: 'pending' | 'ok' | 'fail';
+  /** Human-readable outcome (login result, refusal reason, timeout…). */
+  result?: string;
+  /** DNS answer. */
+  address?: number;
+  attempts: number;
+  flowId: number;
+}
+
+export interface LogLine {
+  at: number;
+  text: string;
+}
+
+export interface InboxItem {
+  at: number;
+  from: number;
+  kind: 'syslog' | 'trap';
+  text: string;
+  community?: string;
+}
+
+/** Wait for an answer before retrying (DNS/NTP/TCP SYN), and how many tries. */
+export const APP_TIMEOUT_MS = 1_500;
+export const APP_ATTEMPTS = 3;
 
 interface PendingArp {
   iface: string;
@@ -220,6 +257,14 @@ export class Sim {
   phys: PhysicalState = { ports: new Map(), links: new Map() };
   stp: StpState = { bridges: new Map(), ports: new Map() };
   ec: EtherChannelState = emptyEtherChannel();
+  appSessions = new Map<number, AppSession>();
+  private nextApp = 1;
+  /** NTP association per client device: server, own stratum, time of sync. */
+  ntpState = new Map<string, { server: number; stratum: number; at: number }>();
+  /** Local log buffer per device ("show logging"). */
+  logs = new Map<string, LogLine[]>();
+  /** Syslog messages and SNMP traps received by NMS servers. */
+  inbox = new Map<string, InboxItem[]>();
   /** Frames sent per link with a duplex mismatch (deterministic loss pattern). */
   private duplexSeq = new Map<string, number>();
   l3 = new Map<string, L3Interface[]>();
@@ -326,6 +371,7 @@ export class Sim {
   private recompute(): void {
     this.applyLeases();
     const oldStp = this.stp;
+    const oldPhys = this.phys;
     this.phys = computePhysical(this.topology, this.configs, this.cuts, this.errDisabled);
     this.ec = computeEtherChannel(this.topology, this.configs, this.phys);
     this.stp = computeStp(this.topology, this.configs, this.phys, this.ec);
@@ -378,6 +424,7 @@ export class Sim {
         }
       }
     }
+    this.logLinkChanges(oldPhys);
     const stpChanged = [...this.stp.ports].some(([k, p]) => oldStp.ports.get(k)?.state !== p.state);
 
     // Flush MAC entries on ports that are no longer forwarding; a spanning-tree
@@ -407,6 +454,10 @@ export class Sim {
     this.dhcpClients.clear();
     this.dhcpBindings.clear();
     this.fhrpActive.clear();
+    this.appSessions.clear();
+    this.ntpState.clear();
+    this.logs.clear();
+    this.inbox.clear();
     this.now = 0;
     this.lastEvent = undefined;
     this.recompute();
@@ -543,6 +594,11 @@ export class Sim {
           return { time: e.time, text: `DHCP client start on ${this.name(d.deviceId)} ${d.iface}`, deviceId: d.deviceId };
         case 'dhcp-timeout':
           return { time: e.time, text: `DHCP timeout check on ${this.name(d.deviceId)} ${d.iface}`, deviceId: d.deviceId };
+        case 'app-send':
+        case 'app-timeout': {
+          const a = this.appSessions.get(d.sessionId);
+          return { time: e.time, text: `${a?.kind.toUpperCase() ?? 'APP'} ${d.type === 'app-send' ? 'request' : 'timeout check'} from ${this.name(a?.deviceId ?? '')}`, deviceId: a?.deviceId };
+        }
       }
     });
   }
@@ -661,6 +717,17 @@ export class Sim {
         this.lastEvent = { time: this.now, description: `DHCP timeout on ${this.name(ev.deviceId)}`, deviceId: ev.deviceId };
         if (c.attempts < 2) this.dhcpDiscover(ev.deviceId, ev.iface);
         else this.dhcpApipa(ev.deviceId, ev.iface);
+        break;
+      }
+      case 'app-send':
+        this.appSend(ev.sessionId);
+        break;
+      case 'app-timeout': {
+        const a = this.appSessions.get(ev.sessionId);
+        if (!a || a.status !== 'pending' || a.attempts !== ev.attempt) break;
+        this.lastEvent = { time: this.now, description: `${a.kind.toUpperCase()} request from ${this.name(a.deviceId)} timed out (try ${a.attempts})` };
+        if (a.attempts < APP_ATTEMPTS) this.queue.push(this.now, { type: 'app-send', sessionId: a.id });
+        else this.finishApp(a, 'fail', `% Connection timed out; remote host not responding (${a.attempts} attempts)`);
         break;
       }
       case 'arp-expire': {
@@ -1143,7 +1210,9 @@ export class Sim {
     const directedBcast = iface.network !== undefined && iface.prefixLen !== undefined && pkt.dst === broadcastOf(iface.network, iface.prefixLen);
     if (this.isLocalAddress(deviceId, pkt.dst) || pkt.dst === 0xffffffff || directedBcast) {
       this.trace(frame.flowId, { deviceId, portId: portId === 'cpu' ? undefined : portId, iface: iface.name, action: 'deliver', table: 'Host stack', detail: `Packet for ${formatIpv4(pkt.dst)} is for this device.` }, frame);
-      if (pkt.udp) this.localUdp(deviceId, iface, pkt, frame.flowId);
+      if (pkt.tcp) this.localTcp(deviceId, iface, pkt, frame.flowId);
+      else if (pkt.udp?.app) this.localApp(deviceId, iface, pkt, frame.flowId);
+      else if (pkt.udp) this.localUdp(deviceId, iface, pkt, frame.flowId);
       else this.localIcmp(deviceId, pkt, frame.flowId);
       return;
     }
@@ -1238,6 +1307,261 @@ export class Sim {
   }
 
   // -------------------------------------------------------------- DHCP --
+
+  // ------------------------------------------------- management services --
+
+  appSession(id: number): AppSession | undefined {
+    return this.appSessions.get(id);
+  }
+
+  deviceLog(deviceId: string): LogLine[] {
+    return this.logs.get(deviceId) ?? [];
+  }
+
+  nmsInbox(deviceId: string): InboxItem[] {
+    return this.inbox.get(deviceId) ?? [];
+  }
+
+  private mgmt(deviceId: string) {
+    return this.configs.get(deviceId)!.mgmt;
+  }
+
+  /** Name servers in use: configured, else learned by DHCP (hosts). */
+  nameServersOf(deviceId: string): number[] {
+    const cfg = this.mgmt(deviceId).nameServers.map((n) => parseIpv4(n)).filter((n): n is number => n !== null);
+    if (cfg.length) return cfg;
+    const leases = [...this.dhcpClients.entries()].filter(([k]) => k.startsWith(`${deviceId}|`)).map(([, c]) => c.lease?.dns);
+    return leases.filter((d): d is number => d !== undefined);
+  }
+
+  private newApp(kind: AppSession['kind'], deviceId: string, target: number, extra: Partial<AppSession> = {}): AppSession {
+    const a: AppSession = { id: this.nextApp++, kind, deviceId, target, status: 'pending', attempts: 0, flowId: 0, ...extra };
+    this.appSessions.set(a.id, a);
+    return a;
+  }
+
+  private finishApp(a: AppSession, status: 'ok' | 'fail', result: string, address?: number): void {
+    a.status = status;
+    a.result = result;
+    if (address !== undefined) a.address = address;
+    this.changed();
+  }
+
+  /** Resolves a host name: static host table first, then DNS (UDP 53). */
+  resolveName(deviceId: string, name: string): number {
+    const m = this.mgmt(deviceId);
+    const n = name.toLowerCase();
+    const local = m.hosts[n] ?? (m.domainName ? m.hosts[n.replace(new RegExp(`\\.${m.domainName.replace(/\./g, '\\.')}$`, 'i'), '')] : undefined);
+    if (local) {
+      const a = this.newApp('dns', deviceId, 0, { name: n });
+      this.finishApp(a, 'ok', `${n} is ${local} (static host table)`, parseIpv4(local)!);
+      return a.id;
+    }
+    const role = this.role(deviceId);
+    const servers = this.nameServersOf(deviceId);
+    if (role !== 'host' && !m.domainLookup) {
+      const a = this.newApp('dns', deviceId, 0, { name: n });
+      this.finishApp(a, 'fail', '% Unrecognized host or address (DNS lookup is disabled: no ip domain-lookup)');
+      return a.id;
+    }
+    if (!servers.length) {
+      const a = this.newApp('dns', deviceId, 0, { name: n });
+      this.finishApp(a, 'fail', role === 'host' ? 'No DNS server configured.' : '% Unrecognized host or address (no ip name-server configured)');
+      return a.id;
+    }
+    const a = this.newApp('dns', deviceId, servers[0], { name: n });
+    this.queue.push(this.now, { type: 'app-send', sessionId: a.id });
+    return a.id;
+  }
+
+  /** Polls the first configured NTP server (UDP 123). */
+  ntpPoll(deviceId: string): number | undefined {
+    const server = this.mgmt(deviceId).ntpServers.map((n) => parseIpv4(n)).find((n): n is number => n !== null);
+    if (server === undefined) return undefined;
+    const a = this.newApp('ntp', deviceId, server);
+    this.queue.push(this.now, { type: 'app-send', sessionId: a.id });
+    return a.id;
+  }
+
+  /** Opens an SSH/Telnet connection (TCP 22/23); the far device decides from its vty settings. */
+  remoteLogin(deviceId: string, target: number, proto: 'ssh' | 'telnet', user?: string): number {
+    const a = this.newApp(proto, deviceId, target, { user });
+    this.queue.push(this.now, { type: 'app-send', sessionId: a.id });
+    return a.id;
+  }
+
+  private appSend(id: number): void {
+    const a = this.appSessions.get(id);
+    if (!a || a.status !== 'pending') return;
+    a.attempts++;
+    const eg = this.egressFor(a.deviceId, a.target);
+    if (!eg) {
+      this.finishApp(a, 'fail', `% No route to ${formatIpv4(a.target)}`);
+      return;
+    }
+    let pkt: Ipv4Packet;
+    let label: string;
+    if (a.kind === 'dns') {
+      pkt = { kind: 'ipv4', src: eg.srcIp, dst: a.target, ttl: 64, dscp: 0, protocol: 'udp', udp: { srcPort: 49152 + a.id, dstPort: 53, app: { kind: 'dns-query', id: a.id, name: a.name! } }, sizeBytes: 74 };
+      label = `DNS ${this.name(a.deviceId)}: ${a.name}?`;
+    } else if (a.kind === 'ntp') {
+      pkt = { kind: 'ipv4', src: eg.srcIp, dst: a.target, ttl: 64, dscp: 0, protocol: 'udp', udp: { srcPort: 123, dstPort: 123, app: { kind: 'ntp-request', id: a.id } }, sizeBytes: 76 };
+      label = `NTP ${this.name(a.deviceId)} → ${formatIpv4(a.target)}`;
+    } else {
+      const port = a.kind === 'ssh' ? 22 : 23;
+      pkt = { kind: 'ipv4', src: eg.srcIp, dst: a.target, ttl: 64, dscp: 16, protocol: 'tcp', tcp: { srcPort: 49152 + a.id, dstPort: port, flags: 'SYN', id: a.id }, sizeBytes: 60 };
+      label = `${a.kind === 'ssh' ? 'SSH' : 'Telnet'} ${this.name(a.deviceId)} → ${formatIpv4(a.target)}`;
+    }
+    a.flowId = this.newFlow(`${label}${a.attempts > 1 ? ` (retry ${a.attempts - 1})` : ''}`);
+    this.lastEvent = { time: this.now, description: label, deviceId: a.deviceId };
+    this.routeAndSend(a.deviceId, pkt, a.flowId, { originated: true });
+    this.queue.push(this.now + APP_TIMEOUT_MS, { type: 'app-timeout', sessionId: a.id, attempt: a.attempts });
+  }
+
+  /** Sends a one-way UDP message (syslog / SNMP trap) from a device. */
+  private sendOneWay(deviceId: string, dst: number, dstPort: number, app: AppMessage): void {
+    const eg = this.egressFor(deviceId, dst);
+    if (!eg) return;
+    const flow = this.newFlow(`${app.kind === 'syslog' ? 'Syslog' : 'SNMP trap'} ${this.name(deviceId)} → ${formatIpv4(dst)}`);
+    this.routeAndSend(deviceId, { kind: 'ipv4', src: eg.srcIp, dst, ttl: 64, dscp: 0, protocol: 'udp', udp: { srcPort: dstPort === 514 ? 514 : 49999, dstPort, app }, sizeBytes: 120 }, flow, { originated: true });
+  }
+
+  private log(deviceId: string, text: string): void {
+    const l = this.logs.get(deviceId) ?? [];
+    l.push({ at: this.now, text });
+    if (l.length > 200) l.shift();
+    this.logs.set(deviceId, l);
+  }
+
+  /** Link up/down messages to the local log, syslog hosts and SNMP trap receivers. */
+  private logLinkChanges(old: PhysicalState): void {
+    if (!old.ports.size) return;
+    for (const d of this.topology.devices) {
+      const role = roleOf(d.kind);
+      if (role === 'host' || role === 'hub' || role === 'opaque') continue;
+      const m = this.mgmt(d.id);
+      for (const p of d.ports) {
+        const before = old.ports.get(portKey(d.id, p.id));
+        const now = this.phys.ports.get(portKey(d.id, p.id));
+        if (!before || !now || before.operUp === now.operUp) continue;
+        const st = now.operUp ? 'up' : 'down';
+        const msgs = [`%LINK-3-UPDOWN: Interface ${longIfName(p.id)}, changed state to ${st}`, `%LINEPROTO-5-UPDOWN: Line protocol on Interface ${longIfName(p.id)}, changed state to ${st}`];
+        for (const t of msgs) this.log(d.id, t);
+        for (const h of m.loggingHosts) {
+          const ip = parseIpv4(h);
+          if (ip !== null) for (const t of msgs) this.sendOneWay(d.id, ip, 514, { kind: 'syslog', text: `${d.name}: ${t}` });
+        }
+        if (m.snmpTraps)
+          for (const th of m.snmpTrapHosts) {
+            const ip = parseIpv4(th.ip);
+            if (ip !== null) this.sendOneWay(d.id, ip, 162, { kind: 'snmp-trap', community: th.community, text: `${d.name}: ${now.operUp ? 'linkUp' : 'linkDown'} ${longIfName(p.id)}` });
+          }
+      }
+    }
+  }
+
+  private reply(deviceId: string, toward: number, from: number, pkt: Ipv4Packet, flowId: number): void {
+    this.routeAndSend(deviceId, { ...pkt, src: from, dst: toward, ttl: 64 }, flowId, { originated: true });
+  }
+
+  /** UDP application messages: DNS, NTP, syslog, SNMP traps. */
+  private localApp(deviceId: string, iface: L3Interface, pkt: Ipv4Packet, flowId: number): void {
+    const app = pkt.udp!.app!;
+    const kind = this.devices.get(deviceId)!.kind;
+    const role = this.role(deviceId);
+    const m = this.mgmt(deviceId);
+    const notListening = (what: string) => this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Host stack', detail: `UDP ${pkt.udp!.dstPort} (${what}) is not served by this device — dropped.` });
+    switch (app.kind) {
+      case 'dns-query': {
+        const isServer = kind === 'dns-dhcp' || ((role === 'router' || role === 'l3switch') && m.dnsServer);
+        if (!isServer) return notListening('DNS');
+        const n = app.name.toLowerCase();
+        const hit = m.hosts[n] ?? (m.domainName ? m.hosts[n.split('.')[0]] : undefined);
+        const address = hit ? parseIpv4(hit) ?? undefined : undefined;
+        this.trace(flowId, { deviceId, iface: iface.name, action: 'reply', table: 'Host stack', detail: `DNS server: ${n} → ${hit ?? 'NXDOMAIN (no such record)'}.` });
+        this.reply(deviceId, pkt.src, pkt.dst, { ...pkt, udp: { srcPort: 53, dstPort: pkt.udp!.srcPort, app: { kind: 'dns-reply', id: app.id, name: n, address } } }, flowId);
+        return;
+      }
+      case 'ntp-request': {
+        const synced = this.ntpState.get(deviceId);
+        const stratum = m.ntpMaster ?? (kind === 'dns-dhcp' ? 2 : synced ? synced.stratum : undefined);
+        if (stratum === undefined) {
+          this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Host stack', detail: 'NTP request ignored: this device has no reliable clock (not ntp master, not synchronised).' });
+          return;
+        }
+        this.trace(flowId, { deviceId, iface: iface.name, action: 'reply', table: 'Host stack', detail: `NTP server reply, stratum ${stratum}.` });
+        this.reply(deviceId, pkt.src, pkt.dst, { ...pkt, udp: { srcPort: 123, dstPort: 123, app: { kind: 'ntp-reply', id: app.id, stratum } } }, flowId);
+        return;
+      }
+      case 'syslog':
+      case 'snmp-trap': {
+        if (kind !== 'nms') return notListening(app.kind === 'syslog' ? 'syslog' : 'SNMP trap');
+        const list = this.inbox.get(deviceId) ?? [];
+        list.push({ at: this.now, from: pkt.src, kind: app.kind === 'syslog' ? 'syslog' : 'trap', text: app.text, community: app.kind === 'snmp-trap' ? app.community : undefined });
+        if (list.length > 500) list.shift();
+        this.inbox.set(deviceId, list);
+        this.trace(flowId, { deviceId, iface: iface.name, action: 'deliver', table: 'Host stack', detail: `NMS stored ${app.kind === 'syslog' ? 'syslog message' : 'SNMP trap'}.` });
+        this.changed();
+        return;
+      }
+      case 'dns-reply':
+      case 'ntp-reply': {
+        const a = this.appSessions.get(app.id);
+        if (!a || a.deviceId !== deviceId || a.status !== 'pending') return;
+        if (app.kind === 'dns-reply') {
+          if (app.address !== undefined) this.finishApp(a, 'ok', `${app.name} is ${formatIpv4(app.address)} (DNS server ${formatIpv4(pkt.src)})`, app.address);
+          else this.finishApp(a, 'fail', `*** ${formatIpv4(pkt.src)} can't find ${app.name}: Non-existent domain`);
+        } else {
+          this.ntpState.set(deviceId, { server: pkt.src, stratum: Math.min(16, app.stratum + 1), at: this.now });
+          this.finishApp(a, 'ok', `Clock is synchronized, stratum ${Math.min(16, app.stratum + 1)}, reference is ${formatIpv4(pkt.src)}`);
+        }
+        this.trace(flowId, { deviceId, iface: iface.name, action: 'deliver', table: 'Host stack', detail: a.result ?? '' });
+        return;
+      }
+    }
+  }
+
+  /** TCP SYN to the SSH/Telnet vty lines, and the client side of the answer. */
+  private localTcp(deviceId: string, iface: L3Interface, pkt: Ipv4Packet, flowId: number): void {
+    const tcp = pkt.tcp!;
+    if (tcp.flags !== 'SYN') {
+      const a = this.appSessions.get(tcp.id);
+      if (!a || a.deviceId !== deviceId || a.status !== 'pending') return;
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'deliver', table: 'Host stack', detail: tcp.note ?? tcp.flags });
+      this.finishApp(a, tcp.flags === 'SYN-ACK' ? 'ok' : 'fail', tcp.note ?? (tcp.flags === 'RST' ? '% Connection refused by remote host' : 'Open'));
+      return;
+    }
+    const proto = tcp.dstPort === 22 ? 'ssh' : tcp.dstPort === 23 ? 'telnet' : undefined;
+    const role = this.role(deviceId);
+    const answer = (flags: 'SYN-ACK' | 'RST', note: string, payload?: string) => {
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'reply', table: 'Host stack', detail: `${flags}: ${note}` });
+      this.reply(deviceId, pkt.src, pkt.dst, { ...pkt, tcp: { srcPort: tcp.dstPort, dstPort: tcp.srcPort, flags, id: tcp.id, note, payload } }, flowId);
+    };
+    if (!proto || role === 'host' || role === 'hub' || role === 'opaque') return answer('RST', '% Connection refused by remote host (port closed)');
+    const m = this.mgmt(deviceId);
+    const vty = m.vty;
+    if (vty.accessClass) {
+      const acl = this.configs.get(deviceId)!.acls[vty.accessClass];
+      if (!acl || !this.aclPermits(deviceId, vty.accessClass, pkt, flowId, 'vty', 'in'))
+        return answer('RST', `% Connection refused by remote host (vty access-class ${vty.accessClass} denies ${formatIpv4(pkt.src)})`);
+    }
+    if (vty.transport === 'none' || (vty.transport !== 'all' && vty.transport !== proto)) return answer('RST', `% Connection refused by remote host (transport input ${vty.transport})`);
+    if (proto === 'ssh' && (!m.rsaModulus || !m.domainName))
+      return answer('RST', '% Connection refused by remote host (SSH is not enabled: needs ip domain-name and crypto key generate rsa)');
+    const a = this.appSessions.get(tcp.id);
+    const user = a?.user;
+    const wire = (secret: string) => (proto === 'telnet' ? `cleartext on the wire: ${secret}` : 'encrypted (SSH-2.0) — contents not readable');
+    if (vty.login === 'none') return answer('SYN-ACK', 'Open — no login required (insecure: anyone can configure this device)', wire('session in cleartext'));
+    if (vty.login === 'line') {
+      if (!vty.passwordSet) return answer('SYN-ACK', 'Password required, but none set — connection closed by foreign host');
+      return answer('SYN-ACK', 'Open — line password prompt (interactive session not simulated)', wire('Password: <line password visible>'));
+    }
+    const users = Object.keys(m.users);
+    if (!users.length) return answer('SYN-ACK', '% Login invalid — login local is set but no usernames exist (nobody can log in)');
+    if (!user) return answer('SYN-ACK', 'Open — Username: prompt (interactive session not simulated)', wire('Username/Password typed by the user'));
+    if (!m.users[user]) return answer('SYN-ACK', `% Login invalid — no local user "${user}"`, wire(`Username: ${user}`));
+    return answer('SYN-ACK', `Logged in as ${user} (privilege ${m.users[user].privilege}) — interactive session not simulated; use this device's console`, wire(`Username: ${user} Password: <visible>`));
+  }
 
   private dhcpKey(deviceId: string, iface: string): string {
     return `${deviceId}|${iface}`;
@@ -1553,7 +1877,9 @@ export class Sim {
 
     // ARP needed.
     const pend = rt.pending.get(r.nextHop);
-    const routing = routesPackets(this.devices.get(deviceId)!.kind, this.configs.get(deviceId)!);
+    // Locally generated management traffic (DNS, NTP, syslog, SNMP, SSH/Telnet) waits for ARP like a host;
+    // transit packets and pings follow the IOS "drop the packet that triggers ARP" behaviour.
+    const routing = routesPackets(this.devices.get(deviceId)!.kind, this.configs.get(deviceId)!) && !(o.originated && !pkt.icmp);
     if (!pend || this.now - pend.requestedAt >= ARP_RETRY_MS) {
       const arpFlow = this.newFlow(`ARP ${this.name(deviceId)}: who has ${formatIpv4(r.nextHop)}?`, flowId);
       const req: Frame = {
@@ -1603,20 +1929,28 @@ export function viewFrame(f: Frame): FrameView {
   }
   const ip = p as Ipv4Packet;
   const dhcp = ip.udp?.dhcp;
+  const app = ip.udp?.app;
+  const appText = app ? describeApp(app) : '';
   const l4 = ip.icmp
     ? `${ip.icmp.type}${ip.icmp.code ? ` (${ip.icmp.code})` : ''} id=${ip.icmp.id} seq=${ip.icmp.seq}`
-    : `UDP ${ip.udp?.srcPort} → ${ip.udp?.dstPort}${dhcp ? ` DHCP ${dhcp.op.toUpperCase()} xid=0x${dhcp.xid.toString(16)}${dhcp.yiaddr !== undefined ? ` yiaddr=${formatIpv4(dhcp.yiaddr)}` : ''}${dhcp.giaddr ? ` giaddr=${formatIpv4(dhcp.giaddr)}` : ''}` : ''}`;
+    : ip.tcp
+      ? `TCP ${ip.tcp.srcPort} → ${ip.tcp.dstPort} [${ip.tcp.flags}]${ip.tcp.payload ? ` — ${ip.tcp.payload}` : ''}`
+      : `UDP ${ip.udp?.srcPort} → ${ip.udp?.dstPort}${dhcp ? ` DHCP ${dhcp.op.toUpperCase()} xid=0x${dhcp.xid.toString(16)}${dhcp.yiaddr !== undefined ? ` yiaddr=${formatIpv4(dhcp.yiaddr)}` : ''}${dhcp.giaddr ? ` giaddr=${formatIpv4(dhcp.giaddr)}` : ''}` : ''}${appText ? ` ${appText}` : ''}`;
   return {
     ...base,
     summary: ip.icmp
       ? `ICMP ${ip.icmp.type} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)} TTL ${ip.ttl}`
-      : `DHCP ${dhcp?.op.toUpperCase() ?? 'UDP'} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`,
+      : ip.tcp
+        ? `${ip.tcp.dstPort === 22 || ip.tcp.srcPort === 22 ? 'SSH' : ip.tcp.dstPort === 23 || ip.tcp.srcPort === 23 ? 'Telnet' : 'TCP'} ${ip.tcp.flags} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`
+        : app
+          ? `${appText} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`
+          : `DHCP ${dhcp?.op.toUpperCase() ?? 'UDP'} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`,
     ip: {
       src: formatIpv4(ip.src),
       dst: formatIpv4(ip.dst),
       ttl: ip.ttl,
       dscp: ip.dscp,
-      protocol: ip.protocol === 'icmp' ? 'ICMP (1)' : 'UDP (17)',
+      protocol: ip.protocol === 'icmp' ? 'ICMP (1)' : ip.protocol === 'tcp' ? 'TCP (6)' : 'UDP (17)',
       icmp: l4,
       sizeBytes: ip.sizeBytes,
     },
@@ -1625,4 +1959,21 @@ export function viewFrame(f: Frame): FrameView {
 
 export function isInSubnetOf(iface: L3Interface, ip: number): boolean {
   return iface.network !== undefined && inSubnet(ip, iface.network, iface.prefixLen!);
+}
+
+function describeApp(a: AppMessage): string {
+  switch (a.kind) {
+    case 'dns-query':
+      return `DNS query A? ${a.name}`;
+    case 'dns-reply':
+      return `DNS reply ${a.name} → ${a.address !== undefined ? formatIpv4(a.address) : 'NXDOMAIN'}`;
+    case 'ntp-request':
+      return 'NTP client request';
+    case 'ntp-reply':
+      return `NTP server reply (stratum ${a.stratum})`;
+    case 'syslog':
+      return `Syslog "${a.text}"`;
+    case 'snmp-trap':
+      return `SNMP trap (community ${a.community}) "${a.text}"`;
+  }
 }

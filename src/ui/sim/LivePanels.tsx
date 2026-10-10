@@ -4,7 +4,7 @@ import { formatIpv4 } from '../../engine/ip/ipv4';
 import { portKey } from '../../engine/physical/linkState';
 import type { Device, Link } from '../../model/types';
 import { useSimStore } from '../../store/simStore';
-import { DhcpServerForm, HostIpForm, TrafficFlowsForm } from './HostPanels';
+import { DhcpServerForm, DnsRecordsForm, HostDnsForm, HostIpForm, NmsInbox, TrafficFlowsForm } from './HostPanels';
 
 /** Live engine state for the selected device / link, shown in the properties panel. */
 
@@ -40,7 +40,10 @@ export function DeviceSimSection({ device }: { device: Device }) {
         )}
       </Section>
       {role === 'host' && <HostIpForm device={device} />}
+      {role === 'host' && <HostDnsForm device={device} />}
       {device.kind === 'dns-dhcp' && <DhcpServerForm device={device} />}
+      {device.kind === 'dns-dhcp' && <DnsRecordsForm device={device} />}
+      {device.kind === 'nms' && <NmsInbox device={device} />}
       {role === 'host' && <TrafficFlowsForm device={device} />}
       <Section title="Interfaces (live)">
         <table className="w-full text-xs">

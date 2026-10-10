@@ -181,6 +181,38 @@ const staticRouteSchema = z.object({
   distance: z.number().int().min(1).max(255).optional(),
 });
 
+const vtySchema = z.object({
+  /** "transport input ssh|telnet|all|none" (IOS classic default: all). */
+  transport: z.enum(['all', 'ssh', 'telnet', 'none']).default('all'),
+  /** "login" (line password), "login local" (usernames) or "no login". IOS default: login. */
+  login: z.enum(['line', 'local', 'none']).default('line'),
+  passwordSet: z.boolean().default(false),
+  /** Standard ACL applied with "access-class N in". */
+  accessClass: z.string().optional(),
+});
+
+const mgmtSchema = z.object({
+  domainName: z.string().optional(),
+  domainLookup: z.boolean().default(true),
+  /** "ip name-server" (routers) / DNS server field (hosts). */
+  nameServers: z.array(dotted).default([]),
+  /** "ip host NAME A.B.C.D" static table; on a DNS server device these are its records. */
+  hosts: z.record(dotted).default({}),
+  /** "ip dns server": router answers DNS queries from its host table. */
+  dnsServer: z.boolean().default(false),
+  rsaModulus: z.number().int().min(360).max(4096).optional(),
+  sshVersion: z.union([z.literal(1), z.literal(2)]).optional(),
+  users: z.record(z.object({ privilege: z.number().int().min(0).max(15).default(1) })).default({}),
+  vty: vtySchema.default({}),
+  ntpServers: z.array(dotted).default([]),
+  /** "ntp master N": authoritative clock with this stratum. */
+  ntpMaster: z.number().int().min(1).max(15).optional(),
+  loggingHosts: z.array(dotted).default([]),
+  snmpCommunities: z.record(z.enum(['ro', 'rw'])).default({}),
+  snmpTrapHosts: z.array(z.object({ ip: dotted, community: z.string() })).default([]),
+  snmpTraps: z.boolean().default(false),
+});
+
 const baseConfigSchema = z.object({
   interfaces: z.record(interfaceSchema).default({}),
   vlans: z.record(z.object({ name: z.string().max(32) })).default({}),
@@ -191,6 +223,7 @@ const baseConfigSchema = z.object({
   ospf: ospfSchema.optional(),
   isis: isisSchema.optional(),
   rip: ripSchema.optional(),
+  mgmt: mgmtSchema.default({}),
   acls: z.record(aclSchema).default({}),
   nat: natSchema.default({}),
   dhcp: dhcpSchema.default({}),
@@ -211,6 +244,7 @@ export type PortSecurityConfig = z.infer<typeof portSecuritySchema>;
 export type OspfConfig = z.infer<typeof ospfSchema>;
 export type IsisConfig = z.infer<typeof isisSchema>;
 export type RipConfig = z.infer<typeof ripSchema>;
+export type MgmtConfig = z.infer<typeof mgmtSchema>;
 export type AclConfig = z.infer<typeof aclSchema>;
 export type AclEntry = z.infer<typeof aclEntrySchema>;
 export type FhrpConfig = z.infer<typeof fhrpSchema>;
@@ -235,6 +269,7 @@ export function defaultNetConfig(kind: DeviceKind): NetConfig {
     dhcp: { excluded: [], pools: {} },
     qos: { classMaps: {}, policyMaps: {} },
     traffic: [],
+    mgmt: mgmtSchema.parse({}),
   };
 }
 

@@ -175,6 +175,9 @@ export function capabilities(device: Pick<Device, 'kind'>): Capability[] {
   }
   if (role === 'host') {
     add('Static IP or DHCP client (DORA), APIPA fallback', 'simulated');
+    add('DNS client (nslookup, ping by name), Telnet/SSH client', 'simulated');
+    if (device.kind === 'dns-dhcp') add('DHCP server pools, DNS server (A records), NTP server (stratum 2)', 'simulated', 'records are set in the properties panel');
+    if (device.kind === 'nms') add('Syslog (UDP 514) and SNMP trap (UDP 162) receiver', 'simulated', 'polling/graphs arrive with the NMS dashboard in P8');
     add('ARP, ping, tracert', 'simulated');
     add('Application traffic (web, video, ticketing)', 'not-modelled', 'QoS analysis uses traffic profiles instead');
     if (device.kind === 'wifi-ap') add('Radio / SSIDs / roaming', 'not-modelled');
@@ -187,12 +190,12 @@ export function capabilities(device: Pick<Device, 'kind'>): Capability[] {
     add('EtherChannel / LACP', 'planned', 'later phase');
   }
   if (role === 'l3switch' || role === 'router') {
-    add('IPv4 routing: connected, static, OSPF (single/multi-area)', 'simulated');
+    add('IPv4 routing: connected, static, OSPF (single/multi-area), IS-IS (L1/L2), RIPv2 (demo), loopbacks', 'simulated');
     add('ACLs, NAT/PAT, DHCP server/relay, HSRP/VRRP, QoS (fluid analysis)', 'simulated');
+    add('Management: DNS client/server, NTP, syslog, SNMP traps, SSH/Telnet login checks', 'simulated', 'interactive remote shells are not simulated');
   }
   if (fam === 'firewall') add('Stateful inspection, zones', 'not-modelled', 'Use ACLs (stateless)');
   if (fam === 'mpls') {
-    add('IS-IS', 'planned', 'P4');
     add('MPLS labels, LDP', 'planned', 'P4');
     add('MP-BGP, L3VPN', 'planned', 'P5');
     add('L2VPN (VPWS/VPLS), TDM pseudowire', 'planned', 'P6');

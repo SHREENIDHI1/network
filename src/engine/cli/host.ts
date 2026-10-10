@@ -27,6 +27,9 @@ const HELP = [
   '  ipconfig /release   Release the DHCP address',
   '  ping <ip> [-n N]    Send ICMP echo requests (default 4)',
   '  tracert <ip>        Trace the route to a host',
+  '  nslookup <name>     Ask the DNS server for a name',
+  '  telnet <ip|name>    Open a Telnet connection (connection + login check only)',
+  '  ssh user@<ip|name>  Open an SSH connection (connection + login check only)',
   '  arp -a              Show the ARP cache',
   '  arp -d              Clear the ARP cache',
   '  cls                 Clear the screen',
@@ -84,10 +87,51 @@ export function execHost(input: string, device: Device, ctx: HostContext): strin
     return out.join('\n');
   }
 
+  /** Runs an app session; returns null while queued in Simulation mode. */
+  const finish = (id: number) => {
+    if (!ctx.simulationMode) sim.runUntilIdle();
+    const a = sim.appSession(id)!;
+    return a.status === 'pending' ? null : a;
+  };
+  const QUEUED = 'Queued (Simulation mode): press Step or Play, then run the command again.';
+
+  if (cmd === 'nslookup') {
+    const name = words[1];
+    if (!name) return 'Usage: nslookup <name>';
+    const servers = sim.nameServersOf(device.id);
+    const a = finish(sim.resolveName(device.id, name));
+    if (!a) return QUEUED;
+    const head = [`Server:  ${servers[0] !== undefined ? formatIpv4(servers[0]) : 'UnKnown'}`, `Address:  ${servers[0] !== undefined ? formatIpv4(servers[0]) : '-'}`, ''];
+    if (a.status === 'ok' && a.address !== undefined) return [...head, `Name:    ${name}`, `Address:  ${formatIpv4(a.address)}`].join('\n');
+    return [...head, a.result?.startsWith('***') ? a.result : `*** Request to ${servers[0] !== undefined ? formatIpv4(servers[0]) : 'UnKnown'} failed: ${a.result}`].join('\n');
+  }
+
+  if (cmd === 'telnet' || cmd === 'ssh') {
+    const arg = words[1];
+    if (!arg) return cmd === 'ssh' ? 'usage: ssh user@host' : 'Usage: telnet <host>';
+    const [user, host] = cmd === 'ssh' && arg.includes('@') ? arg.split('@') : [undefined, arg];
+    let dst = parseIpv4(host);
+    if (dst === null) {
+      const r = finish(sim.resolveName(device.id, host));
+      if (!r) return QUEUED;
+      if (r.status !== 'ok' || r.address === undefined) return cmd === 'ssh' ? `ssh: Could not resolve hostname ${host}: No such host is known.` : `Connecting To ${host}...Could not open connection to the host`;
+      dst = r.address;
+    }
+    const a = finish(sim.remoteLogin(device.id, dst, cmd, user));
+    if (!a) return QUEUED;
+    if (a.status !== 'ok') return cmd === 'ssh' ? `ssh: connect to host ${formatIpv4(dst)} port 22: ${a.result}` : `Connecting To ${formatIpv4(dst)}...Could not open connection to the host, on port 23: ${a.result}`;
+    return `Connecting To ${formatIpv4(dst)}...\n${a.result}`;
+  }
+
   if (cmd === 'ping' || cmd === 'tracert') {
     const target = words[1];
-    const dst = target ? parseIpv4(target) : null;
-    if (dst === null) return target ? `Ping request could not find host ${target}. Please check the name and try again.` : 'Usage: ping <ip address> [-n count]';
+    let dst = target ? parseIpv4(target) : null;
+    if (dst === null && target && !target.startsWith('-')) {
+      const r = finish(sim.resolveName(device.id, target));
+      if (!r) return QUEUED;
+      if (r.status === 'ok' && r.address !== undefined) dst = r.address;
+    }
+    if (dst === null) return target ? `Ping request could not find host ${target}. Please check the name and try again.` : 'Usage: ping <ip address|name> [-n count]';
     let count = 4;
     const n = words.indexOf('-n');
     if (cmd === 'ping' && n > 0) {

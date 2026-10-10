@@ -123,7 +123,7 @@ export function entryMatches(e: AclEntry, pkt: Ipv4Packet): boolean {
   if (e.protocol !== 'ip' && e.protocol !== pkt.protocol) return false;
   if (!addrMatch(pkt.src, e.src)) return false;
   if (!addrMatch(pkt.dst, e.dst)) return false;
-  if (e.dstPort !== undefined && pkt.udp?.dstPort !== e.dstPort) return false;
+  if (e.dstPort !== undefined && (pkt.udp?.dstPort ?? pkt.tcp?.dstPort) !== e.dstPort) return false;
   if (e.icmpType && (!pkt.icmp || ICMP_OF[pkt.icmp.type] !== e.icmpType)) return false;
   return true;
 }

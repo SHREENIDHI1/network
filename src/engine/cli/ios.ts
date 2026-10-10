@@ -21,6 +21,7 @@ import type { Sim } from '../sim';
 import * as F from './format';
 import { phase3Cmds } from './ios3';
 import { igpCmds } from './iosIgp';
+import { mgmtCmds } from './iosMgmt';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -42,6 +43,7 @@ export type CliMode =
   | 'config-router'
   | 'config-router-isis'
   | 'config-router-rip'
+  | 'config-line'
   | 'config-std-nacl'
   | 'config-ext-nacl'
   | 'dhcp-config'
@@ -116,7 +118,7 @@ export const EXEC: CliMode[] = ['user', 'priv'];
 export const PRIV: CliMode[] = ['priv'];
 export const CONF: CliMode[] = ['config'];
 export const IFM: CliMode[] = ['config-if', 'config-subif'];
-export const ANYCONF: CliMode[] = ['config', 'config-if', 'config-subif', 'config-vlan', 'config-router', 'config-router-isis', 'config-router-rip', 'config-std-nacl', 'config-ext-nacl', 'dhcp-config', 'config-cmap', 'config-pmap', 'config-pmap-c'];
+export const ANYCONF: CliMode[] = ['config', 'config-if', 'config-subif', 'config-vlan', 'config-router', 'config-router-isis', 'config-router-rip', 'config-line', 'config-std-nacl', 'config-ext-nacl', 'dhcp-config', 'config-cmap', 'config-pmap', 'config-pmap-c'];
 
 const INVALID = "% Invalid input detected at '^' marker.";
 
@@ -426,7 +428,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -679,6 +681,8 @@ export function prompt(session: CliSession, topology: Topology): string {
     case 'config-router-isis':
     case 'config-router-rip':
       return `${name}(config-router)#`;
+    case 'config-line':
+      return `${name}(config-line)#`;
     case 'config-std-nacl':
       return `${name}(config-std-nacl)#`;
     case 'config-ext-nacl':

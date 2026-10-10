@@ -231,7 +231,17 @@ export function showLogging(sim: Sim, device: Device): string {
   for (const p of sim.topology.devices.find((d) => d.id === device.id)?.ports ?? []) {
     if (sim.isErrDisabled(device.id, p.id)) lines.push(`%PM-4-ERR_DISABLE: psecure-violation error detected on ${longIfName(p.id)}, putting ${longIfName(p.id)} in err-disable state`);
   }
-  return ['Syslog logging: enabled (RailMPLS Lab derived messages)', '', 'Log Buffer:', ...(lines.length ? lines : ['(no messages)'])].join('\n');
+  const hosts = sim.config(device.id)?.mgmt.loggingHosts ?? [];
+  const buffer = sim.deviceLog(device.id).map((l) => `*${(l.at / 1000).toFixed(3)}s: ${l.text}`);
+  return [
+    'Syslog logging: enabled',
+    `    Trap logging: level informational${hosts.length ? '' : ' (no logging host)'}`,
+    ...hosts.map((h) => `        Logging to ${h}  (udp port 514)`),
+    '',
+    `Log Buffer (${buffer.length} messages):`,
+    ...(buffer.length ? buffer : ['(no messages)']),
+    ...(lines.length ? ['', 'Current protocol state (RailMPLS Lab derived, not timestamped):', ...lines] : []),
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------- running-config sections
@@ -270,6 +280,14 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
 /** Global sections placed before the interfaces. */
 export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
   const L: string[] = [];
+  const m = cfg.mgmt;
+  for (const [u, v] of Object.entries(m.users)) L.push(`username ${u}${v.privilege !== 1 ? ` privilege ${v.privilege}` : ''} secret <hidden>`);
+  if (m.domainName) L.push(`ip domain-name ${m.domainName}`);
+  if (!m.domainLookup) L.push('no ip domain-lookup');
+  for (const n of m.nameServers) L.push(`ip name-server ${n}`);
+  if (m.dnsServer) L.push('ip dns server');
+  if (m.sshVersion) L.push(`ip ssh version ${m.sshVersion}`);
+  if (L.length) L.push('!');
   for (const r of cfg.dhcp.excluded) L.push(`ip dhcp excluded-address ${r.from}${r.to !== r.from ? ` ${r.to}` : ''}`);
   for (const [n, p] of Object.entries(cfg.dhcp.pools)) {
     L.push(`ip dhcp pool ${n}`);
@@ -323,6 +341,23 @@ export function globalLinesAfterInterfaces(cfg: NetConfig): string[] {
     for (const n of r.networks) L.push(` network ${n}`);
     if (r.defaultOriginate) L.push(' default-information originate');
     L.push(r.autoSummary ? ' auto-summary' : ' no auto-summary', '!');
+  }
+  const m = cfg.mgmt;
+  for (const [h, a] of Object.entries(m.hosts)) L.push(`ip host ${h} ${a}`);
+  for (const h of m.loggingHosts) L.push(`logging host ${h}`);
+  for (const [c, a] of Object.entries(m.snmpCommunities)) L.push(`snmp-server community ${c} ${a.toUpperCase()}`);
+  if (m.snmpTraps) L.push('snmp-server enable traps');
+  for (const t of m.snmpTrapHosts) L.push(`snmp-server host ${t.ip} version 2c ${t.community}`);
+  if (m.ntpMaster) L.push(`ntp master ${m.ntpMaster}`);
+  for (const s of m.ntpServers) L.push(`ntp server ${s}`);
+  const v = m.vty;
+  if (v.transport !== 'all' || v.login !== 'line' || v.passwordSet || v.accessClass) {
+    L.push('line vty 0 4');
+    if (v.accessClass) L.push(` access-class ${v.accessClass} in`);
+    if (v.passwordSet) L.push(' password <hidden>');
+    L.push(v.login === 'local' ? ' login local' : v.login === 'none' ? ' no login' : ' login');
+    if (v.transport !== 'all') L.push(` transport input ${v.transport}`);
+    L.push('!');
   }
   for (const st of cfg.nat.statics) L.push(`ip nat inside source static ${st.local} ${st.global}`);
   for (const r of cfg.nat.overload) L.push(`ip nat inside source list ${r.acl} interface ${longIfName(r.iface)} overload`);

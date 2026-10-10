@@ -284,3 +284,106 @@ export function TrafficFlowsForm({ device }: { device: Device }) {
     </Section>
   );
 }
+
+// ---------------------------------------------------------------------------
+
+/** DNS server used by a host for nslookup / ping by name (DHCP-learned server is used when empty). */
+export function HostDnsForm({ device }: { device: Device }) {
+  const sim = useSimStore((s) => s.sim);
+  useSimStore((s) => s.version);
+  const cfg = getNetConfig(device);
+  const [value, setValue] = useState(cfg.mgmt.nameServers[0] ?? '');
+  useEffect(() => setValue(cfg.mgmt.nameServers[0] ?? ''), [device.id, cfg.mgmt.nameServers]);
+  const learned = sim.nameServersOf(device.id);
+  const bad = value.trim() !== '' && parseIpv4(value.trim()) === null;
+  return (
+    <Section title="DNS server">
+      <div className="flex gap-2">
+        <input className={`rn-input font-mono ${bad ? 'border-red-600' : ''}`} value={value} placeholder={learned.length ? `from DHCP: ${formatIpv4(learned[0])}` : 'e.g. 10.1.1.53'} onChange={(e) => setValue(e.target.value)} />
+        <button
+          type="button"
+          className="rn-btn"
+          disabled={bad}
+          onClick={() => saveNet(device, (c) => (c.mgmt.nameServers = value.trim() ? [value.trim()] : []))}
+        >
+          Apply
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">Used by nslookup, ping &lt;name&gt;, telnet/ssh &lt;name&gt; in this device’s console.</p>
+    </Section>
+  );
+}
+
+/** A-records served by the DNS/DHCP/NTP server (UDP 53). */
+export function DnsRecordsForm({ device }: { device: Device }) {
+  const cfg = getNetConfig(device);
+  const [name, setName] = useState('');
+  const [addr, setAddr] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const add = () => {
+    const n = name.trim().toLowerCase();
+    if (!/^[a-z][a-z0-9.-]*$/.test(n)) return setError('Name: letters, digits, dot and dash; start with a letter.');
+    if (parseIpv4(addr.trim()) === null) return setError('Invalid IPv4 address.');
+    setError(null);
+    saveNet(device, (c) => (c.mgmt.hosts = { ...c.mgmt.hosts, [n]: addr.trim() }));
+    setName('');
+    setAddr('');
+  };
+  return (
+    <Section title="DNS records (A)">
+      <ul className="mb-2 space-y-1 text-xs">
+        {Object.entries(cfg.mgmt.hosts).map(([n, a]) => (
+          <li key={n} className="flex items-center gap-2 font-mono text-slate-200">
+            {n} → {a}
+            <button
+              type="button"
+              className="ml-auto text-slate-500 hover:text-red-400"
+              aria-label={`Delete record ${n}`}
+              onClick={() =>
+                saveNet(device, (c) => {
+                  const h = { ...c.mgmt.hosts };
+                  delete h[n];
+                  c.mgmt.hosts = h;
+                })
+              }
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+        {!Object.keys(cfg.mgmt.hosts).length && <li className="text-slate-500">No records yet.</li>}
+      </ul>
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-1">
+        <input className="rn-input" placeholder="name, e.g. uts-server" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="rn-input font-mono" placeholder="10.1.1.20" value={addr} onChange={(e) => setAddr(e.target.value)} />
+        <button type="button" className="rn-btn" onClick={add} aria-label="Add record">
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+      <p className="mt-1 text-xs text-slate-500">This server also answers NTP as a stratum 2 clock (teaching assumption: GPS-referenced).</p>
+    </Section>
+  );
+}
+
+/** Syslog messages and SNMP traps received by the NMS server. */
+export function NmsInbox({ device }: { device: Device }) {
+  const sim = useSimStore((s) => s.sim);
+  useSimStore((s) => s.version);
+  const items = sim.nmsInbox(device.id);
+  return (
+    <Section title={`NMS inbox (${items.length})`}>
+      {!items.length ? (
+        <p className="text-xs text-slate-500">Nothing received yet. On routers/switches: logging host &lt;this IP&gt;, snmp-server host &lt;this IP&gt; version 2c &lt;community&gt; and snmp-server enable traps.</p>
+      ) : (
+        <ul className="max-h-48 space-y-0.5 overflow-y-auto font-mono text-[11px]">
+          {[...items].reverse().map((i, k) => (
+            <li key={k} className={i.kind === 'trap' ? 'text-amber-200' : 'text-slate-300'}>
+              {(i.at / 1000).toFixed(1)}s {i.kind === 'trap' ? `TRAP(${i.community})` : 'SYSLOG'} {formatIpv4(i.from)}: {i.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}

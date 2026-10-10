@@ -46,10 +46,35 @@ export interface DhcpMessage {
   leaseSec?: number;
 }
 
+/** Application payloads carried over UDP (P3 management services). */
+export type AppMessage =
+  | { kind: 'dns-query'; id: number; name: string }
+  | { kind: 'dns-reply'; id: number; name: string; address?: number }
+  | { kind: 'ntp-request'; id: number }
+  | { kind: 'ntp-reply'; id: number; stratum: number }
+  | { kind: 'syslog'; text: string }
+  | { kind: 'snmp-trap'; community: string; text: string };
+
 export interface UdpDatagram {
   srcPort: number;
   dstPort: number;
   dhcp?: DhcpMessage;
+  app?: AppMessage;
+}
+
+/**
+ * TCP, reduced to connection set-up for SSH/Telnet management access:
+ * SYN, then SYN-ACK (accepted, with the login outcome) or RST (refused).
+ */
+export interface TcpSegment {
+  srcPort: number;
+  dstPort: number;
+  flags: 'SYN' | 'SYN-ACK' | 'RST';
+  id: number;
+  /** Login outcome / refusal reason carried back to the client. */
+  note?: string;
+  /** What an eavesdropper sees: Telnet = cleartext, SSH = encrypted. */
+  payload?: string;
 }
 
 export interface Ipv4Packet {
@@ -59,9 +84,10 @@ export interface Ipv4Packet {
   ttl: number;
   /** Differentiated Services Code Point (0–63). */
   dscp: number;
-  protocol: 'icmp' | 'udp';
+  protocol: 'icmp' | 'udp' | 'tcp';
   icmp?: IcmpMessage;
   udp?: UdpDatagram;
+  tcp?: TcpSegment;
   sizeBytes: number;
 }
 
