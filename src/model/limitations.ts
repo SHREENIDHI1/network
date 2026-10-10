@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), and OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3). MPLS, VPNs and fault/NMS correlation are not simulated yet.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), and MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4). BGP/VPNs, pseudowires, TE and fault/NMS correlation are not simulated yet.',
   },
   // ---------------- Physical ----------------
   {
@@ -203,6 +203,37 @@ export const LIMITATIONS: Limitation[] = [
     status: 'active',
     phase: 3,
     text: 'Capstone fault tickets are injected one at a time into your working network; each ticket closes only when the complaint’s own test (ping, DHCP lease, DNS lookup, neighbour state) passes again. Tasks that depend on a planned fibre cut accept the post-cut state. The QoS tab traffic flows are preset in the lab topology.',
+  },
+  // ---------------- Phase 4 ----------------
+  {
+    area: 'MPLS',
+    status: 'active',
+    phase: 4,
+    text: 'LDP state is computed from config and routing tables (no Hello/Init/Label-Mapping messages, timers, session flaps or graceful restart). Modelled: discovery on "mpls ip" interfaces, sessions that need the peer LDP router-ID routable (and unique), downstream-unsolicited bindings with liberal retention for every IGP/connected/static prefix, implicit-null (PHP) or explicit-null for own prefixes, LFIB from the routing next hop, LDP-IGP sync (max OSPF cost) and "mpls ldp autoconfig" for OSPF. Not modelled: targeted LDP, label filtering/allocation for host routes only, session protection, IS-IS sync/autoconfig, MPLS MTU.',
+  },
+  {
+    area: 'MPLS',
+    status: 'active',
+    phase: 4,
+    text: 'Local labels are allocated from 16 upwards on each router in route-install order (connected first, then nearest IGP routes) — real routers allocate in learning order, so exact numbers differ; only their meaning matters. The data plane does real push/swap/pop with label TTL (uniform with propagate-ttl, pipe without) and RFC 4950 labels in traceroute; an expired label TTL answers ICMP directly instead of forwarding the error along the LSP. EXP/TC is copied from DSCP at imposition but no MPLS QoS queuing is applied yet (Phase 7).',
+  },
+  {
+    area: 'MPLS',
+    status: 'active',
+    phase: 4,
+    text: 'LSP ping / traceroute (RFC 8029) send real MPLS echo packets (UDP 3503, IP destination 127.0.0.1) and return the codes ! L B Q f. Downstream mapping (DDMAP), MRU, multipath discovery, reply modes and the full return-code set are not simulated.',
+  },
+  {
+    area: 'IP',
+    status: 'active',
+    phase: 4,
+    text: 'Routers with a FULL OSPF adjacency or an LDP session already know each other’s MAC (their unicast DBD/LSU and TCP exchanges resolved ARP), so the first transit packet is not dropped for ARP between them. /31 point-to-point links (RFC 3021) are supported.',
+  },
+  {
+    area: 'Jodhpur division data',
+    status: 'active',
+    phase: 4,
+    text: 'J1–J4 are generated from the TRACK map: OFC is assumed to follow the track, so they are a teaching design, not the real RailTel / NWR network. Layout is schematic (directions per section, very short spans drawn at a minimum length — not to scale). Unknown chainages are interpolated and marked "estimated". J1 links are logical express paths whose optics are not modelled. Boundary hand-offs to adjacent divisions are placeholders until the inter-division labs (Phase 8). The IP plan and OSPF area design (core area 0, one area per control board) are a teaching plan.',
   },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {

@@ -14,7 +14,8 @@ import type { OspfResult } from '../ospf/ospf';
  *  - discovery: link hellos between interfaces with "mpls ip" on one segment
  *  - session: needs both routers' LDP router-IDs (transport addresses)
  *    reachable through the routing table
- *  - bindings: every LSR gives each IGP prefix a local label (downstream
+ *  - bindings: every LSR gives each IGP prefix a local label (in install
+ *    order: connected, then nearest IGP routes first; downstream
  *    unsolicited, liberal retention); its own connected prefixes get
  *    implicit-null (3), or explicit-null (0) with "mpls ldp explicit-null"
  *  - LFIB: out label = the binding learned from the routing next hop's LSR
@@ -195,7 +196,9 @@ export function computeLdp(
   for (const [devId] of res.routers) {
     const cfg = configs.get(devId)!;
     const table = (routes.get(devId) ?? []).filter((r) => r.protocol !== 'L' && !r.isGateway);
-    const sorted = [...table].sort((x, y) => x.network - y.network || x.prefixLen - y.prefixLen);
+    // Like a real LSR, labels follow the order routes are installed: connected first, then by IGP distance.
+    const rank = (r: Route) => (r.protocol === 'C' ? 0 : 1);
+    const sorted = [...table].sort((x, y) => rank(x) - rank(y) || x.metric - y.metric || x.network - y.network || x.prefixLen - y.prefixLen);
     const m = new Map<string, number>();
     let next = FIRST_DYNAMIC_LABEL;
     for (const r of sorted) {

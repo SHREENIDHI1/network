@@ -426,7 +426,7 @@ const b3: Lab = {
   ],
   estMinutes: 50,
   fieldNote:
-    'Real gear: labels here are allocated from 16 upwards in prefix order per router; real routers allocate in learning order, so numbers differ — only their meaning matters. LDP is computed (no Hello/Init/Mapping messages or timers).\nInterview questions: "PHP kya hai?", "LIB vs LFIB?", "MPLS label header ke fields?"',
+    'Real gear: labels here are allocated from 16 upwards per router in route-install order; real routers allocate in learning order, so numbers differ — only their meaning matters. LDP is computed (no Hello/Init/Mapping messages or timers).\nInterview questions: "PHP kya hai?", "LIB vs LFIB?", "MPLS label header ke fields?"',
   solution: {
     cli: Object.fromEntries(PATH.map((n) => [n, [...CONF, 'mpls ldp router-id loopback0 force', 'router ospf 1', 'mpls ldp autoconfig', 'end']])),
     pings: [['JU-LSR', lo('DNA')]],

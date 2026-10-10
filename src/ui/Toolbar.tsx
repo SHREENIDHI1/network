@@ -54,7 +54,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
         <TrainFront className="h-5 w-5 text-amber-400" />
         <span className="whitespace-nowrap font-semibold tracking-tight">RailMPLS Lab</span>
         <span className="hidden whitespace-nowrap rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400 2xl:inline">
-          P3 · Routing & services
+          P4 · MPLS + Jodhpur
         </span>
       </div>
       <ModeSwitch />

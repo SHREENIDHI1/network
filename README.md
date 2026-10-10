@@ -24,9 +24,10 @@ Click any device (or the ⓘ on a palette item, or double-click a device) for it
 |---|---|---|
 | P1 | Scaffold, canvas, device catalog (basics, NEON and vendor profiles), links, save/load, Model Limitations, device detail panel, LEARN framework + lessons A0–A3, Jodhpur station data (M0) | ✅ Done |
 | P2 | Engine core, physical (duplex), Ethernet/VLAN/STP, EtherChannel/LACP, CLI (incl. interface range), consoles, packet walk, Lab mode, lessons + labs A4–A8, Glossary, Command Reference, "Ask why" | ✅ Done |
-| P3 | Loopbacks, OSPF, IS-IS (L1/L2), RIPv2 (comparison), DHCP/DNS/NAT/NTP/syslog/SNMP traps/SSH-Telnet as real packets, ACL + vty security, HSRP/VRRP, QoS tab; lessons A9–A15 and labs L9.1–L15.1 (capstone with 5 fault tickets) | ✅ Done — awaiting review |
-| P4 | Jodhpur topologies + IP plan, MPLS/LDP | Next |
-| P5–P10 | BGP/L3VPN, L2VPN/TDM PW, MPLS QoS/TE, NMS/automation, capstone | Planned |
+| P3 | Loopbacks, OSPF, IS-IS (L1/L2), RIPv2 (comparison), DHCP/DNS/NAT/NTP/syslog/SNMP traps/SSH-Telnet as real packets, ACL + vty security, HSRP/VRRP, QoS tab; lessons A9–A15 and labs L9.1–L15.1 (capstone with 5 fault tickets) | ✅ Done |
+| P4 | Jodhpur generators J1–J4 + IP plan + schematic map layout; MPLS + LDP (PHP, explicit-null, LDP-IGP sync), label data plane, LSP ping/trace, MPLS LIVE panel; lessons B0–B4 and labs LB1.1–LB4.1 | ✅ Done — awaiting review |
+| P5 | BGP + route reflectors + L3VPN; B5–B6 | Next |
+| P6–P10 | L2VPN/TDM PW, MPLS QoS/TE, NMS/automation, grand capstone, final docs | Planned |
 
 Everything a lab checks is engine state (tables, sessions, packets) — the simulator never fakes show output. Simplifications are listed in the in-app **Model Limitations** panel.
 
@@ -46,7 +47,7 @@ Open the URL it prints (usually <http://localhost:5173>). macOS/Linux: same comm
 
 ### Localhost par purane items dikh rahe hain?
 
-1. **Status bar ke right corner** mein `v0.3.0 · <commit>` dekho. Agar commit GitHub ke latest se purana hai, to code purana hai:
+1. **Status bar ke right corner** mein `v0.4.0 · <commit>` dekho. Agar commit GitHub ke latest se purana hai, to code purana hai:
    ```powershell
    git pull origin claude/railnet-sim-simulator-le2oq2
    npm install
@@ -100,6 +101,8 @@ No server, database or API key is needed. Progress and autosave live in the visi
 - **Test**: `ping`, `traceroute` on routers/switches; `ping`, `tracert`, `ipconfig`, `nslookup`, `ssh user@host`, `telnet`, `arp -a` on hosts.
 - **Routing (P3)**: `router ospf 1` / `network … area 0`, `router isis` / `net 49.0001.0000.0000.0001.00` + `ip router isis`, `router rip` / `version 2`. Check with `show ip route`, `show ip ospf neighbor`, `show ip ospf interface`, `show isis neighbors`.
 - **Services (P3)**: DHCP pools and DNS records on the DNS/DHCP server (properties panel), `ip helper-address`, `ip nat inside/outside` + `ip nat inside source list … overload`, `ntp server`, `logging host`, `snmp-server host`, SSH (`ip domain-name`, `crypto key generate rsa`, `username`, `line vty 0 4` → `login local`, `transport input ssh`). The NMS server shows received syslog/traps in its panel.
+- **Jodhpur division (P4)**: toolbar → *Load* → J1 core / J2 JU–FL / J3 per control board / J4 full division, with a config level (cabled, IP plan, + OSPF, + OSPF + MPLS). Learn → *Jodhpur* shows the sites, spans, OSPF areas and the generated IP plan with its overlap check. Track-map teaching design, not the real RailTel/NWR network.
+- **MPLS (P4)**: `mpls ip` on core interfaces (or `mpls ldp autoconfig` under `router ospf`), `mpls ldp router-id loopback0 force`, `mpls ldp sync`, `mpls ldp explicit-null`, `no mpls ip propagate-ttl`. Check with `show mpls ldp neighbor`, `show mpls ldp bindings`, `show mpls forwarding-table`, `ping mpls ipv4 10.0.2.6/32`, `traceroute mpls ipv4 …`. The Packet Inspector shows the label stack; a router's LIVE panel lists LDP peers and the LFIB.
 - **QoS tab** (bottom dock): offered vs delivered rate and loss per traffic flow, and which interface is the bottleneck.
 - **Packet Inspector** (Console dock): each probe/ARP exchange as a flow; step hop by hop and see Ethernet / 802.1Q / ARP / IPv4 / ICMP headers and which table decided (MAC table, VLAN, STP, ARP cache, routing table).
 - **Realtime vs Simulation mode** (toolbar): Realtime runs commands instantly; Simulation queues events — use Step ⏭ / Play ▶ / speed and watch frames move on the canvas (yellow glow) and in the *Events* tab.

@@ -384,6 +384,67 @@ const ENTRIES: Array<{ pattern: string[]; host?: boolean; ex: ShowExplain }> = [
     },
   },
   {
+    pattern: ['show', 'mpls', 'forwarding-table'],
+    ex: {
+      title: 'show mpls forwarding-table',
+      fields: [
+        f('Local Label', 'Label this router gave the FEC; packets arrive with it.', 'Is router ka label — packet isi ke saath aata hai.'),
+        f(
+          'Outgoing Label',
+          'Label learned from the next hop. "Pop Label" = next hop is the egress (PHP); "No Label" = next hop gave no binding (LSP broken here).',
+          'Next hop ka label. Pop = PHP; No Label = LSP yahan toota.',
+        ),
+        f('Prefix', 'The FEC (usually a loopback /32).', 'FEC (aksar loopback /32).'),
+        f('Bytes Label Switched', 'Simulated bytes switched with this local label.', 'Is label se switch hue bytes.'),
+        f('Outgoing interface / Next Hop', 'Where the packet goes (from the routing table).', 'Kahan jaayega.'),
+      ],
+      lookFor: {
+        en: '"No Label" on a core router = LDP problem towards that next hop. "Pop Label" should appear only on the hop before the FEC’s owner.',
+        hi: '"No Label" = us next hop se LDP problem. "Pop Label" sirf aakhri se pehle hop par.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'mpls', 'ldp', 'neighbor'],
+    ex: {
+      title: 'show mpls ldp neighbor',
+      fields: [
+        f('Peer LDP Ident', 'Peer router-ID:label space (":0" = per-platform).', 'Peer ka LDP ID.'),
+        f('TCP connection', 'Session between the two transport addresses (TCP 646).', 'Transport addresses ke beech session.'),
+        f('State: Oper', 'Session established; labels are exchanged.', 'Session chalu.'),
+        f('LDP discovery sources', 'Interfaces where hellos from this peer are heard.', 'Kin interfaces par hellos.'),
+        f(
+          'Addresses bound',
+          'Peer’s interface addresses — used to match the routing next hop to this peer.',
+          'Peer ke addresses — next hop pehchaanne ke liye.',
+        ),
+      ],
+      lookFor: {
+        en: 'A neighbour missing here but OSPF FULL: check "mpls ip" on both ends and that the peer’s router-ID is routable (see the RailMPLS Lab note below the list).',
+        hi: 'OSPF FULL par LDP neighbour nahi: dono taraf "mpls ip" aur peer router-ID ka route check karo.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'mpls', 'ldp', 'bindings'],
+    ex: {
+      title: 'show mpls ldp bindings',
+      fields: [
+        f('lib entry', 'One FEC (prefix).', 'Ek FEC.'),
+        f(
+          'local binding',
+          'Label this router advertises for it (imp-null for its own connected prefixes).',
+          'Is router ka label (apne prefix ke liye imp-null).',
+        ),
+        f('remote binding', 'Label each LDP peer advertised (liberal retention keeps all of them).', 'Har peer ka label.'),
+      ],
+      lookFor: {
+        en: 'If the next hop’s label is missing from the remote bindings, the LFIB shows "No Label".',
+        hi: 'Next hop ka remote label nahi = LFIB mein "No Label".',
+      },
+    },
+  },
+  {
     pattern: ['ipconfig'],
     host: true,
     ex: {
