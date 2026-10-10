@@ -25,7 +25,9 @@ export type WidgetId =
   | 'pw-mtu'
   | 'tdm-pw'
   | 'dscp-exp'
-  | 'cspf';
+  | 'cspf'
+  | 'alarm-layers'
+  | 'template';
 export type DiagramId =
   | 'circuit-vs-packet'
   | 'osi-stack'

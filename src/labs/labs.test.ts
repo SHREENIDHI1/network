@@ -18,7 +18,7 @@ async function start(lab: Lab) {
   return { topology, sim };
 }
 
-describe('labs A4–A15 and B1–B10', () => {
+describe('labs A4–A15 and B1–B13', () => {
   it('registry is valid and P2/P3 labs are unlocked', () => {
     expect(validateRegistry(LABS, TOPOLOGY_IDS)).toEqual([]);
     for (const l of LABS) expect(labLockReason(l), l.id).toBeNull();
@@ -49,6 +49,9 @@ describe('labs A4–A15 and B1–B10', () => {
       'B9',
       'B10',
       'B10',
+      'B11',
+      'B12',
+      'B13',
     ]);
   });
 
@@ -260,5 +263,24 @@ describe('practical quiz answers match the engine', () => {
   it('LB10.2: after reoptimize Tunnel1 runs MTD → DNA → JU', async () => {
     const out = await solvedCli('LB10.2', 'MTD-LSR', ['enable', 'mpls traffic-eng reoptimize', 'show mpls traffic-eng tunnels tunnel1']);
     expect(out).toContain('Path: MTD-LSR → DNA-LSR → JU-LSR');
+  });
+
+  it('LB11.1: the NMS manages four devices', async () => {
+    const lab = LABS.find((l) => l.id === 'LB11.1')!;
+    const { topology, sim } = await start(lab);
+    applySolution(topology, sim, lab.solution!);
+    expect(sim.nmsView().devices.filter((d) => d.state === 'managed')).toHaveLength(4);
+  });
+
+  it('LB12.1: {{loopback}} renders to 10.0.1.13 on MTD-LSR', async () => {
+    const { templateVars } = await import('../engine/automation/automation');
+    const lab = LABS.find((l) => l.id === 'LB12.1')!;
+    const { sim } = await start(lab);
+    expect(templateVars(sim, sim.deviceByName('MTD-LSR')!).loopback).toBe('10.0.1.13');
+  });
+
+  it('LB13.1: JU learns the Jaipur UTS LAN from FL over iBGP', async () => {
+    const out = await solvedCli('LB13.1', 'JU-LSR', ['show ip route vrf UTS']);
+    expect(out).toMatch(/^B\s+10\.150\.1\.0\/24 \[200\/0\] via 10\.0\.3\.10/m);
   });
 });

@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6), and MPLS QoS (EXP marking and core classes) with RSVP-TE tunnels and fast reroute (Phase 7). Fault/NMS correlation and automation are not simulated yet.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6), MPLS QoS (EXP marking and core classes) with RSVP-TE tunnels and fast reroute (Phase 7), and operations: NMS view with alarms and railway services, power / card / fibre fault drills, an automation tab and the Option A inter-division hand-off (Phase 8). Segment Routing and the grand capstone come next.',
   },
   // ---------------- Physical ----------------
   {
@@ -297,6 +297,37 @@ export const LIMITATIONS: Limitation[] = [
     status: 'active',
     phase: 7,
     text: 'Autoroute announce moves the head end\'s IGP routes whose path passes through the tail into the tunnel. FRR is facility backup with link protection (merge at the next hop or next-next hop); the switchover is immediate in the model, and an LSP stays on its backup until "mpls traffic-eng reoptimize" is run on the head end so the FRR state can be studied — real head ends re-signal on their own within seconds (make-before-break). Established LSPs keep their path while it stays valid (no periodic re-optimisation). The JU–DNA lease in the B10 labs is a teaching assumption: the J1 core is a tree.',
+  },
+  // ---------------- Phase 8 ----------------
+  {
+    area: 'NMS',
+    status: 'active',
+    phase: 8,
+    text: 'The NMS tab is computed from simulator state, not from SNMP traffic: a router is "managed" when it has an SNMP community equal to the NMS polling community and the NMS has a path to one of its addresses (path check, no SNMP packets, no MIB walk, no poll interval). Alarms are raised for managed devices (plus node unreachable / not managed) and split by layer: root causes (power, card, link, err-disabled, OSPF, LDP) and impact (BGP, pseudowire, TE, congestion, services). Correlation is rule-based — every impact alarm lists the root causes present at the same time; there is no timing, flapping, acknowledgement or topology-aware correlation.',
+  },
+  {
+    area: 'NMS',
+    status: 'active',
+    phase: 8,
+    text: 'Railway services are path checks (the same hop walk as the QoS tab: routing, VRFs, labels, TE, pseudowires) or pseudowire states; they do not evaluate ACLs, NAT or firewalls, so confirm with a real ping. DEGRADED means a configured traffic flow on that path loses more than 1%. Link utilisation comes from the configured traffic flows (no counters over time, no graphs history).',
+  },
+  {
+    area: 'Faults',
+    status: 'active',
+    phase: 8,
+    text: 'Fault injection: fibre cut on a link (not saved in the file), power failure and line-card failure on a device (saved with the topology until repaired; a card is a port-name prefix such as Te0/0/). A powered-off device takes all its interfaces down; there is no boot time, redundancy switchover (dual control card / PSU) or partial card failure.',
+  },
+  {
+    area: 'Automation',
+    status: 'active',
+    phase: 8,
+    text: 'The Automation tab is a teaching tool modelled on Ansible-style workflows: {{hostname}}, {{station}}, {{loopback}}, {{router_id}} variables, push through the simulator CLI with per-device errors, and regex compliance over the running-config. No inventory files, idempotency, dry-run diff, rollback, NETCONF/RESTCONF/YANG or telemetry.',
+  },
+  {
+    area: 'Inter-AS',
+    status: 'active',
+    phase: 8,
+    text: 'Only Inter-AS Option A (back-to-back VRFs on dot1Q sub-interfaces with per-VRF eBGP) is simulated. Options B and C (labelled VPNv4 between ASes) are taught in lesson B13 only. JP-ASBR and AS 65002 are a teaching stand-in for the Jaipur division.',
   },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {

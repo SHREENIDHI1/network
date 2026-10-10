@@ -3,7 +3,7 @@ import { execIos, newSession } from '../../engine/cli/ios';
 import { parseIpv4 } from '../../engine/ip/ipv4';
 import type { Sim } from '../../engine/sim';
 import { configure, setIf } from '../../engine/testing/fixtures';
-import { addLink } from '../../model/topologyOps';
+import { addLink, updateDevice } from '../../model/topologyOps';
 import type { Topology } from '../../model/types';
 import type { LabSolution } from './types';
 
@@ -20,6 +20,7 @@ export function applySolution(topology: Topology, sim: Sim, sol: LabSolution): {
     if (!d) throw new Error(`Solution names unknown device ${n}`);
     return d;
   };
+  for (const n of sol.repair ?? []) t = updateDevice(t, byName(n).id, { fault: undefined });
   for (const [a, pa, b, pb] of sol.links ?? []) {
     const res = addLink(t, { kind: 'cat6', a: { deviceId: byName(a).id, portId: pa }, b: { deviceId: byName(b).id, portId: pb } });
     if (!res.ok) errors.push(`link ${a} ${pa} – ${b} ${pb}: ${res.reason}`);
@@ -116,6 +117,7 @@ function isCliError(output: string): boolean {
 /** Readable text of a solution for the "show solution" panel. */
 export function solutionText(sol: LabSolution): string {
   const L: string[] = [];
+  for (const n of sol.repair ?? []) L.push(`${n}: repair the hardware fault (device properties → Fault injection)`);
   for (const [a, pa, b, pb] of sol.links ?? []) L.push(`Cable: ${a} ${pa} ↔ ${b} ${pb} (Cat6)`);
   for (const [n, h] of Object.entries(sol.hosts ?? {})) L.push(`${n}: IP ${h.ip} mask ${h.mask}${h.gateway ? ` gateway ${h.gateway}` : ''}`);
   for (const [n, lines] of Object.entries(sol.cli ?? {})) L.push('', `! ${n}`, ...lines);

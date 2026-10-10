@@ -8,7 +8,7 @@ import { formatIpv4 } from '../../engine/ip/ipv4';
 import { portKey } from '../../engine/physical/linkState';
 import type { Device, Link } from '../../model/types';
 import { useSimStore } from '../../store/simStore';
-import { DhcpServerForm, DnsRecordsForm, HostDnsForm, HostIpForm, NmsInbox, TrafficFlowsForm } from './HostPanels';
+import { DhcpServerForm, DnsRecordsForm, HardwareFaults, HostDnsForm, HostIpForm, NmsInbox, NmsSettingsForm, TrafficFlowsForm } from './HostPanels';
 
 /** Live engine state for the selected device / link, shown in the properties panel. */
 
@@ -55,12 +55,14 @@ export function DeviceSimSection({ device }: { device: Device }) {
       {role === 'host' && <HostDnsForm device={device} />}
       {device.kind === 'dns-dhcp' && <DhcpServerForm device={device} />}
       {device.kind === 'dns-dhcp' && <DnsRecordsForm device={device} />}
+      {device.kind === 'nms' && <NmsSettingsForm device={device} />}
       {device.kind === 'nms' && <NmsInbox device={device} />}
       {role === 'host' && <TrafficFlowsForm device={device} />}
       {(role === 'router' || role === 'l3switch') && <MplsPanel device={device} />}
       {(role === 'router' || role === 'l3switch') && <BgpPanel device={device} />}
       {role === 'router' && <L2vpnPanel device={device} />}
       {role === 'router' && <TePanel device={device} />}
+      <HardwareFaults device={device} />
       <Section title="Interfaces (live)">
         <table className="w-full text-xs">
           <thead className="text-left text-slate-500">

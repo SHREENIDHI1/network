@@ -22,6 +22,7 @@ import { LabelHeaderWidget, LspWalkWidget } from './widgets4';
 import { IbgpMeshWidget, RtMatcherWidget } from './widgets5';
 import { PwMtuWidget, TdmPwWidget } from './widgets6';
 import { CspfWidget, DscpExpWidget } from './widgets7';
+import { AlarmLayersWidget, TemplateWidget } from './widgets8';
 
 export function Widget({ id }: { id: WidgetId }) {
   switch (id) {
@@ -69,6 +70,10 @@ export function Widget({ id }: { id: WidgetId }) {
       return <DscpExpWidget />;
     case 'cspf':
       return <CspfWidget />;
+    case 'alarm-layers':
+      return <AlarmLayersWidget />;
+    case 'template':
+      return <TemplateWidget />;
   }
 }
 

@@ -15,8 +15,8 @@ describe('curriculum', () => {
     expect(isAvailable('A0')).toBe(true);
     expect(['A4', 'A5', 'A6', 'A7', 'A8'].every(isAvailable)).toBe(true);
     expect(['B0', 'B1', 'B2', 'B3', 'B4'].every(isAvailable)).toBe(true);
-    expect(['B5', 'B6', 'B7', 'B8', 'B9', 'B10'].every(isAvailable)).toBe(true);
-    expect(isAvailable('B11')).toBe(false);
+    expect(['B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11', 'B12', 'B13'].every(isAvailable)).toBe(true);
+    expect(isAvailable('B14')).toBe(false);
   });
 
   for (const id of Object.keys(LESSON_LOADERS)) {
@@ -370,5 +370,23 @@ describe('P7 widget maths', () => {
     expect(cspf(ring, 'MTD', 'JU', 100)?.path).toEqual(['MTD', 'PPR', 'JU']);
     expect(cspf(ring, 'MTD', 'JU', 1000)).toEqual({ path: ['MTD', 'DNA', 'JU'], cost: 60, pruned: ['PPR–JU'] });
     expect(cspf(ring, 'MTD', 'JU', 20000)).toBeNull();
+  });
+});
+
+describe('P8 widget maths', () => {
+  it('alarm layers put the lowest failed layer first', async () => {
+    const { alarmLayers } = await import('./widgetMath8');
+    expect(alarmLayers('none')).toEqual([]);
+    for (const f of ['fibre-cut', 'card', 'power', 'ldp'] as const) {
+      const a = alarmLayers(f);
+      expect(a[0].layer).toBe('root');
+      expect(a[a.length - 1].text).toMatch(/SERVICE-DOWN/);
+    }
+  });
+
+  it('templates render per device', async () => {
+    const { renderForSamples } = await import('./widgetMath8');
+    const r = renderForSamples('hostname {{hostname}}\nntp source {{ loopback }}\n{{oops}}');
+    expect(r[1]).toEqual({ hostname: 'MTD-LSR', lines: ['hostname MTD-LSR', 'ntp source 10.0.1.13'], errors: ['unknown variable {{oops}}'] });
   });
 });

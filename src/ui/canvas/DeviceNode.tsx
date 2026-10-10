@@ -41,7 +41,10 @@ function DeviceNodeImpl({ data }: NodeProps<DeviceFlowNode>) {
   const accent = CATEGORY_ACCENT[t.category];
 
   return (
-    <div className={`rn-device w-[150px] rounded-lg border bg-slate-900/95 px-2 py-1.5 shadow-lg ${accent}`} title={t.description}>
+    <div
+      className={`rn-device w-[150px] rounded-lg border ${device.fault?.power ? 'opacity-60' : ''} bg-slate-900/95 px-2 py-1.5 shadow-lg ${accent}`}
+      title={t.description}
+    >
       {HANDLES.map((h) => (
         <Handle key={h.id} id={h.id} type="source" position={h.pos} className="rn-handle" />
       ))}
@@ -60,9 +63,15 @@ function DeviceNodeImpl({ data }: NodeProps<DeviceFlowNode>) {
         ) : (
           <span />
         )}
-        <span>
-          {usedPorts}/{device.ports.length} ports
-        </span>
+        {device.fault?.power ? (
+          <span className="rounded bg-red-600 px-1 font-bold text-white">POWER OFF</span>
+        ) : device.fault?.cards?.length ? (
+          <span className="rounded bg-orange-500 px-1 font-bold text-slate-950">CARD FAIL</span>
+        ) : (
+          <span>
+            {usedPorts}/{device.ports.length} ports
+          </span>
+        )}
       </div>
     </div>
   );

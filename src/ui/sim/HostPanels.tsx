@@ -115,7 +115,9 @@ export function HostIpForm({ device }: { device: Device }) {
               Release
             </button>
           </div>
-          {useSimStore.getState().mode === 'simulation' && <p className="text-slate-500">Simulation mode: press Step / Play to run the DHCP exchange.</p>}
+          {useSimStore.getState().mode === 'simulation' && (
+            <p className="text-slate-500">Simulation mode: press Step / Play to run the DHCP exchange.</p>
+          )}
         </div>
       ) : (
         <>
@@ -165,7 +167,8 @@ export function DhcpServerForm({ device }: { device: Device }) {
     if (net === null || len === null) return setError('Enter a valid network and mask.');
     if (gw.trim() && parseIpv4(gw.trim()) === null) return setError('Invalid default router.');
     if (dns.trim() && parseIpv4(dns.trim()) === null) return setError('Invalid DNS server.');
-    if ((exFrom.trim() || exTo.trim()) && (parseIpv4(exFrom.trim()) === null || parseIpv4(exTo.trim() || exFrom.trim()) === null)) return setError('Invalid excluded range.');
+    if ((exFrom.trim() || exTo.trim()) && (parseIpv4(exFrom.trim()) === null || parseIpv4(exTo.trim() || exFrom.trim()) === null))
+      return setError('Invalid excluded range.');
     setError(null);
     saveNet(device, (c) => {
       c.dhcp.pools[n] = {
@@ -186,14 +189,22 @@ export function DhcpServerForm({ device }: { device: Device }) {
 
   return (
     <Section title="DHCP server pools">
-      {Object.entries(cfg.dhcp.pools).length === 0 && <p className="mb-2 text-xs text-slate-500">No pools. Routers on other subnets need "ip helper-address" pointing to this server.</p>}
+      {Object.entries(cfg.dhcp.pools).length === 0 && (
+        <p className="mb-2 text-xs text-slate-500">No pools. Routers on other subnets need "ip helper-address" pointing to this server.</p>
+      )}
       <ul className="mb-2 space-y-1 text-xs">
         {Object.entries(cfg.dhcp.pools).map(([n, p]) => (
           <li key={n} className="flex items-center gap-2">
             <span className="font-mono text-slate-200">
-              {n}: {p.network}/{maskToPrefix(p.mask ?? '') ?? '?'} gw {p.defaultRouter ?? '—'} · {sim.bindings(device.id).filter((b) => b.pool === n).length} leased
+              {n}: {p.network}/{maskToPrefix(p.mask ?? '') ?? '?'} gw {p.defaultRouter ?? '—'} ·{' '}
+              {sim.bindings(device.id).filter((b) => b.pool === n).length} leased
             </span>
-            <button type="button" className="ml-auto text-slate-500 hover:text-red-400" aria-label={`Delete pool ${n}`} onClick={() => saveNet(device, (c) => delete c.dhcp.pools[n])}>
+            <button
+              type="button"
+              className="ml-auto text-slate-500 hover:text-red-400"
+              aria-label={`Delete pool ${n}`}
+              onClick={() => saveNet(device, (c) => delete c.dhcp.pools[n])}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </li>
@@ -201,7 +212,12 @@ export function DhcpServerForm({ device }: { device: Device }) {
         {cfg.dhcp.excluded.map((r, i) => (
           <li key={`ex${i}`} className="flex items-center gap-2 text-slate-400">
             excluded {r.from}–{r.to}
-            <button type="button" className="ml-auto text-slate-500 hover:text-red-400" aria-label="Delete excluded range" onClick={() => saveNet(device, (c) => c.dhcp.excluded.splice(i, 1))}>
+            <button
+              type="button"
+              className="ml-auto text-slate-500 hover:text-red-400"
+              aria-label="Delete excluded range"
+              onClick={() => saveNet(device, (c) => c.dhcp.excluded.splice(i, 1))}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </li>
@@ -209,13 +225,37 @@ export function DhcpServerForm({ device }: { device: Device }) {
       </ul>
       <div className="grid grid-cols-2 gap-2 text-xs">
         <input className="rn-input" placeholder="Pool name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Pool name" />
-        <input className="rn-input font-mono" placeholder="Network 10.20.10.0" value={network} onChange={(e) => setNetwork(e.target.value)} aria-label="Pool network" />
+        <input
+          className="rn-input font-mono"
+          placeholder="Network 10.20.10.0"
+          value={network}
+          onChange={(e) => setNetwork(e.target.value)}
+          aria-label="Pool network"
+        />
         <input className="rn-input font-mono" placeholder="Mask" value={mask} onChange={(e) => setMask(e.target.value)} aria-label="Pool mask" />
-        <input className="rn-input font-mono" placeholder="Default router" value={gw} onChange={(e) => setGw(e.target.value)} aria-label="Default router" />
+        <input
+          className="rn-input font-mono"
+          placeholder="Default router"
+          value={gw}
+          onChange={(e) => setGw(e.target.value)}
+          aria-label="Default router"
+        />
         <input className="rn-input font-mono" placeholder="DNS server" value={dns} onChange={(e) => setDns(e.target.value)} aria-label="DNS server" />
         <span />
-        <input className="rn-input font-mono" placeholder="Exclude from" value={exFrom} onChange={(e) => setExFrom(e.target.value)} aria-label="Exclude from" />
-        <input className="rn-input font-mono" placeholder="Exclude to" value={exTo} onChange={(e) => setExTo(e.target.value)} aria-label="Exclude to" />
+        <input
+          className="rn-input font-mono"
+          placeholder="Exclude from"
+          value={exFrom}
+          onChange={(e) => setExFrom(e.target.value)}
+          aria-label="Exclude from"
+        />
+        <input
+          className="rn-input font-mono"
+          placeholder="Exclude to"
+          value={exTo}
+          onChange={(e) => setExTo(e.target.value)}
+          aria-label="Exclude to"
+        />
       </div>
       {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
       <button type="button" className="rn-btn mt-2" onClick={addPool}>
@@ -251,12 +291,19 @@ export function TrafficFlowsForm({ device }: { device: Device }) {
             <span className="text-slate-200">
               {appClass(f.app)?.label ?? f.app} → {f.dst}, {f.rateMbps} Mbit/s, DSCP {dscpName(f.dscp)}
             </span>
-            <button type="button" className="ml-auto text-slate-500 hover:text-red-400" aria-label="Delete flow" onClick={() => saveNet(device, (c) => c.traffic.splice(i, 1))}>
+            <button
+              type="button"
+              className="ml-auto text-slate-500 hover:text-red-400"
+              aria-label="Delete flow"
+              onClick={() => saveNet(device, (c) => c.traffic.splice(i, 1))}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </li>
         ))}
-        {!cfg.traffic.length && <li className="text-slate-500">No flows. Add one to see congestion and QoS results in Console → Traffic &amp; QoS.</li>}
+        {!cfg.traffic.length && (
+          <li className="text-slate-500">No flows. Add one to see congestion and QoS results in Console → Traffic &amp; QoS.</li>
+        )}
       </ul>
       <div className="grid grid-cols-3 gap-2 text-xs">
         <select
@@ -274,8 +321,22 @@ export function TrafficFlowsForm({ device }: { device: Device }) {
             </option>
           ))}
         </select>
-        <input className="rn-input col-span-2 font-mono" placeholder="Destination IP" value={dst} onChange={(e) => setDst(e.target.value)} aria-label="Destination IP" />
-        <input className="rn-input font-mono" type="number" min={0} step="any" value={rate} onChange={(e) => setRate(e.target.value)} aria-label="Rate Mbit/s" />
+        <input
+          className="rn-input col-span-2 font-mono"
+          placeholder="Destination IP"
+          value={dst}
+          onChange={(e) => setDst(e.target.value)}
+          aria-label="Destination IP"
+        />
+        <input
+          className="rn-input font-mono"
+          type="number"
+          min={0}
+          step="any"
+          value={rate}
+          onChange={(e) => setRate(e.target.value)}
+          aria-label="Rate Mbit/s"
+        />
       </div>
       {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
       <button type="button" className="rn-btn mt-2" onClick={add}>
@@ -299,7 +360,12 @@ export function HostDnsForm({ device }: { device: Device }) {
   return (
     <Section title="DNS server">
       <div className="flex gap-2">
-        <input className={`rn-input font-mono ${bad ? 'border-red-600' : ''}`} value={value} placeholder={learned.length ? `from DHCP: ${formatIpv4(learned[0])}` : 'e.g. 10.1.1.53'} onChange={(e) => setValue(e.target.value)} />
+        <input
+          className={`rn-input font-mono ${bad ? 'border-red-600' : ''}`}
+          value={value}
+          placeholder={learned.length ? `from DHCP: ${formatIpv4(learned[0])}` : 'e.g. 10.1.1.53'}
+          onChange={(e) => setValue(e.target.value)}
+        />
         <button
           type="button"
           className="rn-btn"
@@ -374,7 +440,10 @@ export function NmsInbox({ device }: { device: Device }) {
   return (
     <Section title={`NMS inbox (${items.length})`}>
       {!items.length ? (
-        <p className="text-xs text-slate-500">Nothing received yet. On routers/switches: logging host &lt;this IP&gt;, snmp-server host &lt;this IP&gt; version 2c &lt;community&gt; and snmp-server enable traps.</p>
+        <p className="text-xs text-slate-500">
+          Nothing received yet. On routers/switches: logging host &lt;this IP&gt;, snmp-server host &lt;this IP&gt; version 2c &lt;community&gt; and
+          snmp-server enable traps.
+        </p>
       ) : (
         <ul className="max-h-48 space-y-0.5 overflow-y-auto font-mono text-[11px]">
           {[...items].reverse().map((i, k) => (
@@ -384,6 +453,128 @@ export function NmsInbox({ device }: { device: Device }) {
           ))}
         </ul>
       )}
+    </Section>
+  );
+}
+
+/** NMS server settings: SNMP polling community and the railway services it watches. */
+export function NmsSettingsForm({ device }: { device: Device }) {
+  const cfg = getNetConfig(device);
+  const nms = cfg.nms ?? { services: [] };
+  const topo = useTopologyStore((s) => s.topology);
+  const [community, setCommunity] = useState(nms.pollCommunity ?? '');
+  const [svc, setSvc] = useState({ name: '', src: '', dst: '', safety: false });
+  const [error, setError] = useState<string | null>(null);
+  const hosts = topo.devices.filter((d) => d.id !== device.id).map((d) => d.name);
+  const addSvc = () => {
+    if (!svc.name.trim() || !svc.src || parseIpv4(svc.dst.trim()) === null)
+      return setError('Name, source device and a valid destination IP are needed.');
+    setError(null);
+    saveNet(
+      device,
+      (c) =>
+        (c.nms = {
+          ...(c.nms ?? { services: [] }),
+          services: [
+            ...(c.nms?.services ?? []),
+            { name: svc.name.trim(), kind: 'path', src: svc.src, dst: svc.dst.trim(), safety: svc.safety || undefined },
+          ],
+        }),
+    );
+    setSvc({ name: '', src: '', dst: '', safety: false });
+  };
+  return (
+    <Section title="NMS settings">
+      <label className="mb-2 flex items-center gap-2 text-xs text-slate-400">
+        SNMP polling community
+        <input className="rn-input w-32 font-mono" value={community} onChange={(e) => setCommunity(e.target.value)} />
+        <button
+          type="button"
+          className="rn-btn"
+          onClick={() => saveNet(device, (c) => (c.nms = { ...(c.nms ?? { services: [] }), pollCommunity: community.trim() || undefined }))}
+        >
+          Save
+        </button>
+      </label>
+      <p className="text-xs text-slate-400">Railway services (end-to-end path checks):</p>
+      <ul className="mb-2 space-y-1 text-xs">
+        {nms.services.map((s, i) => (
+          <li key={`${s.name}${i}`} className="flex items-center gap-2 text-slate-200">
+            {s.name} <span className="font-mono text-slate-400">{s.kind === 'path' ? `${s.src} → ${s.dst}` : `${s.a} VC ${s.vcId}`}</span>
+            {s.safety && <span className="text-[10px] text-red-300">SAFETY</span>}
+            <button
+              type="button"
+              className="ml-auto text-slate-500 hover:text-red-400"
+              aria-label={`Delete service ${s.name}`}
+              onClick={() => saveNet(device, (c) => (c.nms = { ...c.nms!, services: c.nms!.services.filter((_, k) => k !== i) }))}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+        {!nms.services.length && <li className="text-slate-500">No services yet.</li>}
+      </ul>
+      <div className="grid grid-cols-2 gap-1 text-xs">
+        <input
+          className="rn-input"
+          placeholder="Service name, e.g. UTS MTD → JU"
+          value={svc.name}
+          onChange={(e) => setSvc({ ...svc, name: e.target.value })}
+        />
+        <select className="rn-input" value={svc.src} onChange={(e) => setSvc({ ...svc, src: e.target.value })}>
+          <option value="">source device…</option>
+          {hosts.map((h) => (
+            <option key={h}>{h}</option>
+          ))}
+        </select>
+        <input
+          className="rn-input font-mono"
+          placeholder="destination IP"
+          value={svc.dst}
+          onChange={(e) => setSvc({ ...svc, dst: e.target.value })}
+        />
+        <label className="flex items-center gap-1 text-slate-400">
+          <input type="checkbox" checked={svc.safety} onChange={(e) => setSvc({ ...svc, safety: e.target.checked })} /> safety circuit
+        </label>
+      </div>
+      <button type="button" className="rn-btn mt-1" onClick={addSvc}>
+        <Plus className="h-4 w-4" /> Add service
+      </button>
+      {error && <p className="mt-1 text-xs text-amber-300">{error}</p>}
+      <p className="mt-1 text-[11px] text-slate-500">The NMS tab (bottom dock) shows managed devices, alarms and these services.</p>
+    </Section>
+  );
+}
+
+/** Hardware fault drill: power failure and line-card failure (saved in the topology until repaired). */
+export function HardwareFaults({ device }: { device: Device }) {
+  const slots = [...new Set(device.ports.map((p) => p.id.slice(0, p.id.lastIndexOf('/') + 1)).filter((s) => s.length > 0))];
+  const f = device.fault ?? {};
+  const update = (fault: Device['fault']) =>
+    useTopologyStore.getState().updateDevice(device.id, { fault: fault && (fault.power || fault.cards?.length) ? fault : undefined });
+  return (
+    <Section title="Fault injection (drill)">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={f.power ? 'rn-btn' : 'rn-btn-danger'} onClick={() => update({ ...f, power: !f.power })}>
+          {f.power ? 'Restore power' : 'Power failure'}
+        </button>
+        {slots.map((s) => {
+          const failed = f.cards?.includes(s);
+          return (
+            <button
+              key={s}
+              type="button"
+              className={failed ? 'rn-btn' : 'rn-btn-danger'}
+              onClick={() => update({ ...f, cards: failed ? f.cards!.filter((c) => c !== s) : [...(f.cards ?? []), s] })}
+            >
+              {failed ? `Repair card ${s}x` : `Fail card ${s}x`}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">
+        Faults are saved with the topology (shown as alarms in the NMS tab) until repaired here. Fibre cuts are on the link.
+      </p>
     </Section>
   );
 }

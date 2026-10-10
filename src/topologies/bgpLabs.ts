@@ -113,7 +113,7 @@ export function b5Core(): Topology {
   });
 }
 
-const vrfLines = (code: string, vrf: string, imports: string[] = [rtOf(vrf)]) => [
+export const vrfLines = (code: string, vrf: string, imports: string[] = [rtOf(vrf)]) => [
   `vrf definition ${vrf}`,
   `rd ${rdOf(code, vrf)}`,
   'address-family ipv4',
@@ -124,7 +124,7 @@ const vrfLines = (code: string, vrf: string, imports: string[] = [rtOf(vrf)]) =>
 ];
 
 /** JU as VPNv4 route reflector for the given client loopbacks. */
-const rrLines = (clients: string[]) => [
+export const rrLines = (clients: string[]) => [
   `router bgp ${ASN}`,
   'no bgp default ipv4-unicast',
   ...clients.flatMap((c) => [`neighbor ${lo(c)} remote-as ${ASN}`, `neighbor ${lo(c)} update-source loopback0`]),

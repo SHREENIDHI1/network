@@ -112,7 +112,12 @@ export function computeNms(sim: Sim): NmsView {
     if (reach) {
       managed.add(d.id);
       view.devices.push({ deviceId: d.id, state: 'managed' });
-    } else view.devices.push({ deviceId: d.id, state: 'unreachable', reason: d.fault?.power ? 'no response (device is down)' : 'no path from the NMS to any of its addresses' });
+    } else
+      view.devices.push({
+        deviceId: d.id,
+        state: 'unreachable',
+        reason: d.fault?.power ? 'no response (device is down)' : 'no path from the NMS to any of its addresses',
+      });
   }
 
   const alarms: NmsAlarm[] = [];
@@ -121,13 +126,21 @@ export function computeNms(sim: Sim): NmsView {
   for (const dv of view.devices) {
     if (dv.state === 'unreachable')
       add({ deviceId: dv.deviceId, type: 'NODE-UNREACHABLE', severity: 'critical', layer: 'root', text: `${name(dv.deviceId)}: ${dv.reason}` });
-    if (dv.state === 'not-managed') add({ deviceId: dv.deviceId, type: 'NOT-MANAGED', severity: 'warning', layer: 'info', text: `${name(dv.deviceId)} is not managed: ${dv.reason}` });
+    if (dv.state === 'not-managed')
+      add({
+        deviceId: dv.deviceId,
+        type: 'NOT-MANAGED',
+        severity: 'warning',
+        layer: 'info',
+        text: `${name(dv.deviceId)} is not managed: ${dv.reason}`,
+      });
   }
 
   // ------------------------------------------------- physical / ports
   for (const d of sim.topology.devices) {
     if (!managed.has(d.id)) continue;
-    for (const c of d.fault?.cards ?? []) add({ deviceId: d.id, object: c, type: 'CARD-FAIL', severity: 'major', layer: 'root', text: `${name(d.id)}: line card ${c}x failed` });
+    for (const c of d.fault?.cards ?? [])
+      add({ deviceId: d.id, object: c, type: 'CARD-FAIL', severity: 'major', layer: 'root', text: `${name(d.id)}: line card ${c}x failed` });
     for (const p of d.ports) {
       const st = sim.phys.ports.get(`${d.id}|${p.id}`);
       if (!st?.linkId || !st.adminUp || st.operUp) continue;
@@ -138,13 +151,29 @@ export function computeNms(sim: Sim): NmsView {
       }
       const peer = st.peer ? sim.device(st.peer.deviceId) : undefined;
       const why = st.reason === 'peer down' && peer?.fault?.power ? `${peer.name} has no power` : (st.reason ?? 'down');
-      add({ deviceId: d.id, object: p.id, type: 'LINK-DOWN', severity: 'major', layer: 'root', text: `${name(d.id)} ${p.id}${peer ? ` → ${peer.name}` : ''} down (${why})` });
+      add({
+        deviceId: d.id,
+        object: p.id,
+        type: 'LINK-DOWN',
+        severity: 'major',
+        layer: 'root',
+        text: `${name(d.id)} ${p.id}${peer ? ` → ${peer.name}` : ''} down (${why})`,
+      });
     }
   }
   for (const d of sim.topology.devices)
     if (d.fault?.power) {
-      const nb = sim.topology.links.some((l) => (l.a.deviceId === d.id && managed.has(l.b.deviceId)) || (l.b.deviceId === d.id && managed.has(l.a.deviceId)));
-      if (nb) add({ deviceId: d.id, type: 'POWER-FAIL', severity: 'critical', layer: 'root', text: `${name(d.id)}: power failure suspected (neighbours report the links to it down)` });
+      const nb = sim.topology.links.some(
+        (l) => (l.a.deviceId === d.id && managed.has(l.b.deviceId)) || (l.b.deviceId === d.id && managed.has(l.a.deviceId)),
+      );
+      if (nb)
+        add({
+          deviceId: d.id,
+          type: 'POWER-FAIL',
+          severity: 'critical',
+          layer: 'root',
+          text: `${name(d.id)}: power failure suspected (neighbours report the links to it down)`,
+        });
     }
 
   // ------------------------------------------------------ protocols
@@ -156,12 +185,41 @@ export function computeNms(sim: Sim): NmsView {
     if (!st?.peer) continue;
     const peerRouter = ['router', 'l3switch'].includes(roleOf(sim.device(st.peer.deviceId)?.kind ?? 'pc'));
     if (peerRouter && oi.fullNeighbors === 0)
-      add({ deviceId: oi.deviceId, object: oi.iface, type: 'OSPF-DOWN', severity: 'major', layer: 'root', text: `${name(oi.deviceId)} ${oi.iface}: no FULL OSPF neighbour on an up link` });
+      add({
+        deviceId: oi.deviceId,
+        object: oi.iface,
+        type: 'OSPF-DOWN',
+        severity: 'major',
+        layer: 'root',
+        text: `${name(oi.deviceId)} ${oi.iface}: no FULL OSPF neighbour on an up link`,
+      });
+  }
+  // LDP: an "mpls ip" link with a FULL OSPF neighbour but no LDP hello from it.
+  for (const n of sim.ospf.neighbors) {
+    if (n.state !== 'FULL' || !managed.has(n.deviceId)) continue;
+    const me = sim.ldp.routers.get(n.deviceId);
+    if (!me?.mplsIfaces.includes(n.iface)) continue;
+    if (sim.ldp.discoveries.some((x) => x.deviceId === n.deviceId && x.iface === n.iface)) continue;
+    add({
+      deviceId: n.deviceId,
+      object: n.iface,
+      type: 'LDP-DOWN',
+      severity: 'major',
+      layer: 'root',
+      text: `${name(n.deviceId)} ${n.iface}: OSPF FULL with ${name(n.neighborDeviceId)} but no LDP hello from it (MPLS not enabled at the far end?)`,
+    });
   }
   for (const s of sim.ldp.sessions) {
     if (s.state === 'OPERATIONAL' || (!managed.has(s.a) && !managed.has(s.b))) continue;
     const dev = managed.has(s.a) ? s.a : s.b;
-    add({ deviceId: dev, object: `${name(s.a)}–${name(s.b)}`, type: 'LDP-DOWN', severity: 'major', layer: 'root', text: `LDP ${name(s.a)}–${name(s.b)} not operational${s.reason ? ` (${s.reason})` : ''}` });
+    add({
+      deviceId: dev,
+      object: `${name(s.a)}–${name(s.b)}`,
+      type: 'LDP-DOWN',
+      severity: 'major',
+      layer: 'root',
+      text: `LDP ${name(s.a)}–${name(s.b)} not operational${s.reason ? ` (${s.reason})` : ''}`,
+    });
   }
   for (const p of sim.bgp.peerings) {
     if (p.state === 'Established' || p.state === 'Idle (Admin)' || !managed.has(p.dev)) continue;
@@ -176,14 +234,35 @@ export function computeNms(sim: Sim): NmsView {
   }
   for (const e of sim.pw.endpoints) {
     if (e.status === 'UP' || !managed.has(e.deviceId)) continue;
-    add({ deviceId: e.deviceId, object: `${e.ac} VC ${e.vcId}`, type: 'PW-DOWN', severity: 'major', layer: 'impact', text: `${name(e.deviceId)} ${e.ac} VC ${e.vcId} → ${formatIpv4(e.peer)} DOWN: ${e.reason}` });
+    add({
+      deviceId: e.deviceId,
+      object: `${e.ac} VC ${e.vcId}`,
+      type: 'PW-DOWN',
+      severity: 'major',
+      layer: 'impact',
+      text: `${name(e.deviceId)} ${e.ac} VC ${e.vcId} → ${formatIpv4(e.peer)} DOWN: ${e.reason}`,
+    });
   }
   for (const l of sim.te.lsps) {
     if (!managed.has(l.head)) continue;
     if (l.state !== 'up' && !l.reason?.includes('administratively'))
-      add({ deviceId: l.head, object: l.tunnel, type: 'TE-DOWN', severity: 'major', layer: 'impact', text: `${name(l.head)} ${l.tunnel} down: ${l.reason}` });
+      add({
+        deviceId: l.head,
+        object: l.tunnel,
+        type: 'TE-DOWN',
+        severity: 'major',
+        layer: 'impact',
+        text: `${name(l.head)} ${l.tunnel} down: ${l.reason}`,
+      });
     if (l.frr.state === 'active')
-      add({ deviceId: l.head, object: l.tunnel, type: 'TE-FRR-ACTIVE', severity: 'minor', layer: 'impact', text: `${name(l.head)} ${l.tunnel} is running on its FRR backup — re-optimise` });
+      add({
+        deviceId: l.head,
+        object: l.tunnel,
+        type: 'TE-FRR-ACTIVE',
+        severity: 'minor',
+        layer: 'impact',
+        text: `${name(l.head)} ${l.tunnel} is running on its FRR backup — re-optimise`,
+      });
   }
 
   // ----------------------------------------------------- utilisation
@@ -193,9 +272,23 @@ export function computeNms(sim: Sim): NmsView {
     const pct = (q.offeredMbps / q.capacityMbps) * 100;
     view.loads.push({ deviceId: q.deviceId, iface: q.iface, capacityMbps: q.capacityMbps, offeredMbps: q.offeredMbps, pct });
     if (pct > 100)
-      add({ deviceId: q.deviceId, object: q.iface, type: 'CONGESTION', severity: 'major', layer: 'impact', text: `${name(q.deviceId)} ${q.iface}: ${pct.toFixed(0)}% offered — traffic is dropped` });
+      add({
+        deviceId: q.deviceId,
+        object: q.iface,
+        type: 'CONGESTION',
+        severity: 'major',
+        layer: 'impact',
+        text: `${name(q.deviceId)} ${q.iface}: ${pct.toFixed(0)}% offered — traffic is dropped`,
+      });
     else if (pct > 90)
-      add({ deviceId: q.deviceId, object: q.iface, type: 'CONGESTION', severity: 'minor', layer: 'impact', text: `${name(q.deviceId)} ${q.iface}: ${pct.toFixed(0)}% utilised` });
+      add({
+        deviceId: q.deviceId,
+        object: q.iface,
+        type: 'CONGESTION',
+        severity: 'minor',
+        layer: 'impact',
+        text: `${name(q.deviceId)} ${q.iface}: ${pct.toFixed(0)}% utilised`,
+      });
   }
   view.loads.sort((a, b) => b.pct - a.pct);
 
@@ -232,9 +325,23 @@ export function computeNms(sim: Sim): NmsView {
     }
     view.services.push(svc);
     if (svc.status === 'DOWN')
-      add({ deviceId: nms.id, object: s.name, type: 'SERVICE-DOWN', severity: svc.safety ? 'critical' : 'major', layer: 'impact', text: `Service "${s.name}" DOWN: ${svc.detail}` });
+      add({
+        deviceId: nms.id,
+        object: s.name,
+        type: 'SERVICE-DOWN',
+        severity: svc.safety ? 'critical' : 'major',
+        layer: 'impact',
+        text: `Service "${s.name}" DOWN: ${svc.detail}`,
+      });
     if (svc.status === 'DEGRADED')
-      add({ deviceId: nms.id, object: s.name, type: 'SERVICE-DEGRADED', severity: 'minor', layer: 'impact', text: `Service "${s.name}" degraded: ${svc.detail}` });
+      add({
+        deviceId: nms.id,
+        object: s.name,
+        type: 'SERVICE-DEGRADED',
+        severity: 'minor',
+        layer: 'impact',
+        text: `Service "${s.name}" degraded: ${svc.detail}`,
+      });
   }
 
   // ---------------------------------------------------- correlation

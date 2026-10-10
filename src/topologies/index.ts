@@ -58,6 +58,9 @@ export const TOPOLOGIES: readonly TopologyEntry[] = [
     title: 'Lab B10: fast reroute on the ring',
     load: () => import('./teLabs').then((m) => m.b10Ring({ congested: false, teOnMtd: true })),
   },
+  { id: 'lab-b11-nms', title: 'Lab B11: NMS drill', load: () => import('./opsLabs').then((m) => m.B11()) },
+  { id: 'lab-b12-auto', title: 'Lab B12: automate the management baseline', load: () => import('./opsLabs').then((m) => m.B12()) },
+  { id: 'lab-b13-handoff', title: 'Lab B13: inter-division hand-off at Phulera', load: () => import('./opsLabs').then((m) => m.b13Handoff()) },
 ];
 
 export const TOPOLOGY_IDS: ReadonlySet<string> = new Set(TOPOLOGIES.map((t) => t.id));

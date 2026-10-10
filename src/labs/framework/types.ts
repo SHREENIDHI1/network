@@ -410,6 +410,8 @@ export interface LabSolution {
   lspTrace?: Array<[string, string]>;
   /** Host command-prompt lines (nslookup, ssh, telnet…) run last, per device name. */
   hostCli?: Record<string, string[]>;
+  /** Devices whose injected hardware faults (power, cards) are repaired first. */
+  repair?: string[];
 }
 
 export interface Lab {

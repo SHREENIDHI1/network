@@ -686,7 +686,11 @@ export function nmsManaged(dev: string): Check {
     const x = d.find((y) => y.device === dev);
     if (!x) return fail(`${dev} is not a device the NMS can poll.`);
     if (x.state === 'managed') return pass();
-    return fail(x.state === 'unreachable' ? `${dev} has the SNMP community but the NMS cannot reach it.` : `${dev} is not managed — the NMS polling community is not configured on it.`);
+    return fail(
+      x.state === 'unreachable'
+        ? `${dev} has the SNMP community but the NMS cannot reach it.`
+        : `${dev} is not managed — the NMS polling community is not configured on it.`,
+    );
   };
 }
 
@@ -710,6 +714,20 @@ export function configHasLines(devices: string[], patterns: string[]): Check {
       const text = rc.find((r) => r.device === dev)?.text ?? '';
       const miss = patterns.find((p) => !new RegExp(p, 'm').test(text));
       if (miss !== undefined) return fail(`${dev} is not compliant: no line matching /${miss}/.`);
+    }
+    return pass();
+  };
+}
+
+/** No line of these devices' running-config matches any of the patterns. */
+export function configLacksLines(devices: string[], patterns: string[]): Check {
+  return (snap) => {
+    const rc = section(snap, 'runningConfigs', 'nms');
+    if (isResult(rc)) return rc;
+    for (const dev of devices) {
+      const text = rc.find((r) => r.device === dev)?.text ?? '';
+      const hit = patterns.find((p) => new RegExp(p, 'm').test(text));
+      if (hit !== undefined) return fail(`${dev} still has a line matching /${hit}/.`);
     }
     return pass();
   };

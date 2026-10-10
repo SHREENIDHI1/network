@@ -10,7 +10,7 @@ import { useTopologyStore } from './topologyStore';
  */
 
 export type SimMode = 'realtime' | 'simulation';
-export type DockTab = 'cli' | 'inspector' | 'events' | 'qos';
+export type DockTab = 'cli' | 'inspector' | 'events' | 'qos' | 'nms' | 'auto';
 
 interface SimState {
   sim: Sim;

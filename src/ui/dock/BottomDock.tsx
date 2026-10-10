@@ -6,12 +6,16 @@ const CliPanel = lazy(() => import('./CliPanel'));
 const PacketInspector = lazy(() => import('./PacketInspector'));
 const EventList = lazy(() => import('./EventList'));
 const QosPanel = lazy(() => import('./QosPanel'));
+const NmsPanel = lazy(() => import('./NmsPanel'));
+const AutomationPanel = lazy(() => import('./AutomationPanel'));
 
 const TABS: Array<{ id: DockTab; label: string }> = [
   { id: 'cli', label: 'CLI' },
   { id: 'inspector', label: 'Packet Inspector' },
   { id: 'events', label: 'Events' },
   { id: 'qos', label: 'QoS' },
+  { id: 'nms', label: 'NMS' },
+  { id: 'auto', label: 'Automation' },
 ];
 
 /** Bottom dock with the device CLI, packet inspector and event queue. Lazy-loaded panels. */
@@ -47,6 +51,8 @@ export function BottomDock() {
           {tab === 'inspector' && <PacketInspector />}
           {tab === 'events' && <EventList />}
           {tab === 'qos' && <QosPanel />}
+          {tab === 'nms' && <NmsPanel />}
+          {tab === 'auto' && <AutomationPanel />}
         </Suspense>
       </div>
     </section>

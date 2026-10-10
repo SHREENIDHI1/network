@@ -246,6 +246,13 @@ export function computePseudowires(
     e.status = 'UP';
     e.reason = undefined;
   }
+  // PW status signalling: a fault seen by one PE (no LSP, AC down) brings the VC down on both.
+  const firstPass = new Map(res.endpoints.map((e) => [e, e.status]));
+  for (const e of res.endpoints)
+    if (e.status === 'UP' && e.remote && firstPass.get(e.remote) === 'DOWN') {
+      e.status = 'DOWN';
+      e.reason = `remote PE reports a fault: ${e.remote.reason}`;
+    }
   for (const e of res.endpoints) res.byLabel.set(`${e.deviceId}|${e.localLabel}`, e);
   return res;
 }
