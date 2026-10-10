@@ -18,7 +18,7 @@ async function start(lab: Lab) {
   return { topology, sim };
 }
 
-describe('labs A4–A15 and B1–B8', () => {
+describe('labs A4–A15 and B1–B10', () => {
   it('registry is valid and P2/P3 labs are unlocked', () => {
     expect(validateRegistry(LABS, TOPOLOGY_IDS)).toEqual([]);
     for (const l of LABS) expect(labLockReason(l), l.id).toBeNull();
@@ -46,6 +46,9 @@ describe('labs A4–A15 and B1–B8', () => {
       'B7',
       'B7',
       'B8',
+      'B9',
+      'B10',
+      'B10',
     ]);
   });
 
@@ -236,5 +239,24 @@ describe('practical quiz answers match the engine', () => {
   it('LB8.1: the BPAC circuit on KQW is SATOP E1', async () => {
     const out = await solvedCli('LB8.1', 'KQW-LER', ['show mpls l2transport vc']);
     expect(out).toMatch(/^CE0\/2\/0\s+SATOP E1\s+\S+\s+2101\s+UP$/m);
+  });
+
+  it('LB9.1: only Railnet loses traffic on the MTD–PPR span', async () => {
+    const { analyseTraffic } = await import('../engine/qos/analysis');
+    const lab = LABS.find((l) => l.id === 'LB9.1')!;
+    const { topology, sim } = await start(lab);
+    applySolution(topology, sim, lab.solution!);
+    const lossy = analyseTraffic(sim).flows.filter((f) => f.lossPct > 0.1).map((f) => f.app);
+    expect(lossy).toEqual(['Railnet / Internet']);
+  });
+
+  it('LB10.1: DNA-LSR is a midpoint of MTD-LSR_t1', async () => {
+    const out = await solvedCli('LB10.1', 'DNA-LSR', ['show mpls traffic-eng tunnels brief']);
+    expect(out).toMatch(/^MTD-LSR_t1\s+10\.0\.1\.1\s+Te0\/0\/0\s+Te0\/0\/1\s+up\/up$/m);
+  });
+
+  it('LB10.2: after reoptimize Tunnel1 runs MTD → DNA → JU', async () => {
+    const out = await solvedCli('LB10.2', 'MTD-LSR', ['enable', 'mpls traffic-eng reoptimize', 'show mpls traffic-eng tunnels tunnel1']);
+    expect(out).toContain('Path: MTD-LSR → DNA-LSR → JU-LSR');
   });
 });

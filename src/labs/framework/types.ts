@@ -116,6 +116,19 @@ export interface QosFlowInfo {
   offeredMbps: number;
   deliveredMbps: number;
   lossPct: number;
+  /** L3 hops: device, egress interface and the MPLS EXP when the packet leaves labelled. */
+  hops?: Array<{ device: string; iface: string; exp?: number }>;
+}
+
+export interface TeTunnelInfo {
+  head: string;
+  tunnel: string;
+  state: 'up' | 'down';
+  reason?: string;
+  /** Device names along the LSP (head … tail). */
+  path: string[];
+  bandwidthKbps: number;
+  frr: 'none' | 'ready' | 'active';
 }
 
 export interface AclBinding {
@@ -291,6 +304,7 @@ export interface SimSnapshot {
   readonly vty?: Readonly<Record<string, { transport: string; login: string; sshEnabled: boolean; accessClass?: string }>>;
   readonly appResults?: readonly AppResult[];
   readonly qosFlows?: readonly QosFlowInfo[];
+  readonly teTunnels?: readonly TeTunnelInfo[];
   /** Links cut with "Cut fibre/cable", as [device A, device B] names. */
   readonly cutLinks?: ReadonlyArray<readonly [string, string]>;
   // qos (Phase 3)

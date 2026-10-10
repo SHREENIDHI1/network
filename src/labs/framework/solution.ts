@@ -123,6 +123,7 @@ export function solutionText(sol: LabSolution): string {
     for (const p of ps)
       L.push(`${n}: DHCP pool ${p.name} ${p.network} ${p.mask}${p.gateway ? ` gw ${p.gateway}` : ''}${p.dns ? ` dns ${p.dns}` : ''}`);
   for (const [n, i] of sol.flaps ?? []) L.push(`${n}: interface ${i} → shutdown, then no shutdown`);
+  for (const [a, b] of sol.cuts ?? []) L.push(`Cut the fibre ${a} – ${b}`);
   for (const h of sol.renew ?? []) L.push(`${h}> ipconfig /renew`);
   for (const [a, b] of sol.cuts ?? []) L.push(`Cut link ${a} – ${b} (select the link → Cut)`);
   for (const [s, d] of sol.pings ?? []) L.push(`${s}> ping ${d}`);

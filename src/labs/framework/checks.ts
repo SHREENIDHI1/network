@@ -826,6 +826,47 @@ export function appFails(src: string, kind: 'ssh' | 'telnet', target: string): C
   };
 }
 
+/** On `atDevice`'s egress, the flow of `app` from `src` leaves labelled with EXP `exp`. */
+export function qosFlowExp(src: string, app: string, atDevice: string, exp: number): Check {
+  return (snap) => {
+    const q = section(snap, 'qosFlows', 'qos');
+    if (isResult(q)) return q;
+    const f = q.find((x) => x.src === src && x.app === app);
+    if (!f) return fail(`No ${app} traffic flow from ${src} is defined.`);
+    const h = (f.hops ?? []).find((x) => x.device === atDevice && x.exp !== undefined);
+    if (!h) return fail(`${app} from ${src} does not leave ${atDevice} labelled.`);
+    return h.exp === exp ? pass() : fail(`${app} from ${src} leaves ${atDevice} with EXP ${h.exp} (needs ${exp}).`);
+  };
+}
+
+/** Flow of `app` from `src` passes through (or avoids) `device`. */
+export function qosFlowVia(src: string, app: string, device: string, avoid = false): Check {
+  return (snap) => {
+    const q = section(snap, 'qosFlows', 'qos');
+    if (isResult(q)) return q;
+    const f = q.find((x) => x.src === src && x.app === app);
+    if (!f) return fail(`No ${app} traffic flow from ${src} is defined.`);
+    const on = (f.hops ?? []).some((h) => h.device === device);
+    return on !== avoid ? pass() : fail(`${app} from ${src} ${avoid ? 'still goes through' : 'does not go through'} ${device}.`);
+  };
+}
+
+/** TE tunnel `tunnel` headed on `head` is up (optionally through `via`, with ≥ minKbps, FRR state in `frr`). */
+export function teTunnelUp(head: string, tunnel: string, o: { via?: string; avoid?: string; minKbps?: number; frr?: Array<'none' | 'ready' | 'active'> } = {}): Check {
+  return (snap) => {
+    const te = section(snap, 'teTunnels', 'te');
+    if (isResult(te)) return te;
+    const t = te.find((x) => x.head === head && x.tunnel === tunnel);
+    if (!t) return fail(`${head} has no ${tunnel}.`);
+    if (t.state !== 'up') return fail(`${head} ${tunnel} is down — "show mpls traffic-eng tunnels brief" shows why.`);
+    if (o.via && !t.path.includes(o.via)) return fail(`${head} ${tunnel} is up but does not go through ${o.via}.`);
+    if (o.avoid && t.path.includes(o.avoid)) return fail(`${head} ${tunnel} still goes through ${o.avoid}.`);
+    if (o.minKbps !== undefined && t.bandwidthKbps < o.minKbps) return fail(`${head} ${tunnel} reserves ${t.bandwidthKbps} kbit/s (needs at least ${o.minKbps}).`);
+    if (o.frr && !o.frr.includes(t.frr)) return fail(`${head} ${tunnel}: fast-reroute protection is "${t.frr}" (needs ${o.frr.join(' or ')}).`);
+    return pass();
+  };
+}
+
 /** Flow of app `app` from `src` loses at most `maxLossPct` percent. */
 export function qosFlowOk(src: string, app: string, maxLossPct: number): Check {
   return (snap) => {

@@ -16,6 +16,7 @@ import type {
   IsisAdjacencyInfo,
   OspfNeighbor,
   QosFlowInfo,
+  TeTunnelInfo,
   EtherChannelInfo,
   InterfaceIp,
   MacEntry,
@@ -189,6 +190,16 @@ export function engineSections(sim: Sim): EngineSections {
     offeredMbps: f.offeredMbps,
     deliveredMbps: f.deliveredMbps,
     lossPct: f.lossPct,
+    hops: f.hops.map((h) => ({ device: name(h.deviceId), iface: h.iface, exp: h.exp })),
+  }));
+  const teTunnels: TeTunnelInfo[] = sim.te.lsps.map((l) => ({
+    head: name(l.head),
+    tunnel: l.tunnel,
+    state: l.state,
+    reason: l.reason,
+    path: l.hops.map((h) => name(h.dev)),
+    bandwidthKbps: l.bandwidthKbps,
+    frr: l.frr.state,
   }));
 
   const cutLinks: Array<[string, string]> = [];
@@ -303,6 +314,7 @@ export function engineSections(sim: Sim): EngineSections {
     vty,
     appResults,
     qosFlows,
+    teTunnels,
   };
 }
 
