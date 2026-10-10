@@ -327,6 +327,9 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
   if (ic.natRole) L.push(` ip nat ${ic.natRole}`);
   if (ic.isisEnabled) L.push(' ip router isis');
   if (ic.mplsIp) L.push(' mpls ip');
+  if (ic.teEnabled) L.push(' mpls traffic-eng tunnels');
+  if (ic.teBackupPath) L.push(` mpls traffic-eng backup-path ${ic.teBackupPath}`);
+  if (ic.rsvpBandwidth !== undefined) L.push(` ip rsvp bandwidth${ic.rsvpBandwidth === 'default' ? '' : ` ${ic.rsvpBandwidth}`}`);
   if (ic.l2Mtu) L.push(` mtu ${ic.l2Mtu}`);
   if (ic.xconnect) L.push('vfi' in ic.xconnect ? ` xconnect vfi ${ic.xconnect.vfi}` : ` xconnect ${ic.xconnect.peer} ${ic.xconnect.vcId} encapsulation mpls`);
   if (ic.isisMetric) L.push(` isis metric ${ic.isisMetric}`);
@@ -389,6 +392,26 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
     }
     L.push('!');
   }
+  if (cfg.mpls.teTunnels) L.push('mpls traffic-eng tunnels', '!');
+  for (const [n, t] of Object.entries(cfg.teTunnels)) {
+    L.push(`interface ${n}`);
+    if (t.description) L.push(` description ${t.description}`);
+    L.push(t.unnumbered ? ` ip unnumbered ${longIfName(t.unnumbered)}` : ' no ip address');
+    if (t.mode === 'mpls-te') L.push(' tunnel mode mpls traffic-eng');
+    if (t.destination) L.push(` tunnel destination ${t.destination}`);
+    if (t.autoroute) L.push(' tunnel mpls traffic-eng autoroute announce');
+    if (t.bandwidthKbps) L.push(` tunnel mpls traffic-eng bandwidth ${t.bandwidthKbps}`);
+    for (const o of [...t.pathOptions].sort((a, b) => a.pref - b.pref))
+      L.push(` tunnel mpls traffic-eng path-option ${o.pref} ${o.kind === 'dynamic' ? 'dynamic' : `explicit name ${o.name}`}`);
+    if (t.frr) L.push(' tunnel mpls traffic-eng fast-reroute');
+    if (t.shutdown) L.push(' shutdown');
+    L.push('!');
+  }
+  for (const [n, p] of Object.entries(cfg.explicitPaths)) {
+    L.push(`ip explicit-path name ${n} enable`);
+    for (const e of p.entries) L.push(` ${e.kind === 'next' ? 'next-address' : 'exclude-address'} ${e.address}`);
+    L.push('!');
+  }
   const mp = cfg.mpls;
   if (mp.ldpRouterId || mp.explicitNull || !mp.propagateTtl) {
     if (!mp.propagateTtl) L.push('no mpls ip propagate-ttl');
@@ -438,6 +461,8 @@ export function globalLinesAfterInterfaces(cfg: NetConfig): string[] {
     if (o.defaultOriginate !== 'off') L.push(` default-information originate${o.defaultOriginate === 'always' ? ' always' : ''}`);
     if (o.ldpSync) L.push(' mpls ldp sync');
     if (o.ldpAutoconfig) L.push(' mpls ldp autoconfig');
+    if (o.teRouterId) L.push(` mpls traffic-eng router-id ${longIfName(o.teRouterId)}`);
+    for (const a of o.teAreas ?? []) L.push(` mpls traffic-eng area ${a}`);
     L.push('!');
   }
   const b = cfg.bgp;

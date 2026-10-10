@@ -25,6 +25,7 @@ import { mgmtCmds } from './iosMgmt';
 import { mplsCmds } from './iosMpls';
 import { bgpCmds } from './iosBgp';
 import { l2vpnCmds } from './iosL2vpn';
+import { teCmds } from './iosTe';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -60,7 +61,9 @@ export type CliMode =
   | 'config-vfi'
   | 'config-controller'
   | 'config-cem-if'
-  | 'config-if-cem';
+  | 'config-if-cem'
+  | 'config-tunnel'
+  | 'config-expl-path';
 
 export interface CliSession {
   deviceId: string;
@@ -156,6 +159,8 @@ export const ANYCONF: CliMode[] = [
   'config-controller',
   'config-cem-if',
   'config-if-cem',
+  'config-tunnel',
+  'config-expl-path',
 ];
 
 const INVALID = "% Invalid input detected at '^' marker.";
@@ -862,7 +867,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds(), ...l2vpnCmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds(), ...l2vpnCmds(), ...teCmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -1145,6 +1150,10 @@ export function prompt(session: CliSession, topology: Topology): string {
       return `${name}(config-if)#`;
     case 'config-if-cem':
       return `${name}(config-if-cem)#`;
+    case 'config-tunnel':
+      return `${name}(config-if)#`;
+    case 'config-expl-path':
+      return `${name}(cfg-ip-expl-path)#`;
   }
 }
 

@@ -113,6 +113,31 @@ const interfaceSchema = z.object({
   l2Mtu: z.number().int().min(64).max(9216).optional(),
   /** "xconnect PEER VCID encapsulation mpls" (VPWS) or "xconnect vfi NAME" (VPLS attachment). */
   xconnect: z.union([z.object({ peer: dotted, vcId: z.number().int().min(1).max(4294967295) }), z.object({ vfi: z.string() })]).optional(),
+  /** "mpls traffic-eng tunnels" on the interface: link takes part in MPLS TE. */
+  teEnabled: z.boolean().optional(),
+  /** "ip rsvp bandwidth [kbps]": reservable bandwidth; 'default' = 75% of the link speed (IOS default). */
+  rsvpBandwidth: z.union([z.number().int().min(0).max(100_000_000), z.literal('default')]).optional(),
+  /** "mpls traffic-eng backup-path TunnelN": FRR backup tunnel protecting this link. */
+  teBackupPath: z.string().optional(),
+});
+
+/** "ip explicit-path name X enable": strict next hops and excluded addresses. */
+const explicitPathSchema = z.object({
+  entries: z.array(z.object({ kind: z.enum(['next', 'exclude']), address: dotted })).default([]),
+});
+
+/** "interface TunnelN" with "tunnel mode mpls traffic-eng". */
+const teTunnelSchema = z.object({
+  description: z.string().optional(),
+  shutdown: z.boolean().optional(),
+  unnumbered: z.string().optional(),
+  mode: z.enum(['gre', 'mpls-te']).default('gre'),
+  destination: dotted.optional(),
+  /** "tunnel mpls traffic-eng bandwidth N" in kbit/s. */
+  bandwidthKbps: z.number().int().min(0).max(100_000_000).default(0),
+  pathOptions: z.array(z.object({ pref: z.number().int().min(1).max(1000), kind: z.enum(['explicit', 'dynamic']), name: z.string().optional() })).default([]),
+  autoroute: z.boolean().default(false),
+  frr: z.boolean().default(false),
 });
 
 /** "l2 vfi NAME manual": VPLS forwarder with its "vpn id" and pseudowire "neighbor"s. */
@@ -132,6 +157,9 @@ const e1ControllerSchema = z.object({
 
 const ospfSchema = z.object({
   processId: z.number().int().min(1).max(65535),
+  /** "mpls traffic-eng router-id IF" and "mpls traffic-eng area N": OSPF floods TE information. */
+  teRouterId: z.string().optional(),
+  teAreas: z.array(z.number().int().min(0)).optional(),
   routerId: dotted.optional(),
   networks: z.array(z.object({ address: dotted, wildcard: dotted, area: z.number().int().min(0) })).default([]),
   passive: z.array(z.string()).default([]),
@@ -150,6 +178,8 @@ const mplsSchema = z.object({
   ldpRouterId: z.string().optional(),
   /** "mpls ldp explicit-null": advertise label 0 instead of implicit-null (3) for own prefixes. */
   explicitNull: z.boolean().default(false),
+  /** "mpls traffic-eng tunnels" (global): MPLS TE / RSVP on this router. */
+  teTunnels: z.boolean().optional(),
   /** "no mpls ip propagate-ttl": hide the core from traceroute (label TTL 255). */
   propagateTtl: z.boolean().default(true),
 });
@@ -207,10 +237,16 @@ const qosClassSchema = z.object({
   priorityPercent: z.number().min(1).max(100).optional(),
   bandwidthPercent: z.number().min(1).max(100).optional(),
   setDscp: z.number().int().min(0).max(63).optional(),
+  /** "set mpls experimental imposition N": EXP on labels pushed at this PE. */
+  setExpImposition: z.number().int().min(0).max(7).optional(),
+  /** "set mpls experimental topmost N": rewrite the EXP of the top label. */
+  setExpTopmost: z.number().int().min(0).max(7).optional(),
 });
 
 const qosSchema = z.object({
-  classMaps: z.record(z.object({ matchAll: z.boolean().default(false), dscp: z.array(z.number().int().min(0).max(63)).default([]) })).default({}),
+  classMaps: z
+    .record(z.object({ matchAll: z.boolean().default(false), dscp: z.array(z.number().int().min(0).max(63)).default([]), exp: z.array(z.number().int().min(0).max(7)).optional() }))
+    .default({}),
   policyMaps: z.record(z.object({ classes: z.array(qosClassSchema).default([]) })).default({}),
 });
 
@@ -327,6 +363,8 @@ const baseConfigSchema = z.object({
   bgp: bgpSchema.optional(),
   vfis: z.record(vfiSchema).default({}),
   e1Controllers: z.record(e1ControllerSchema).default({}),
+  explicitPaths: z.record(explicitPathSchema).default({}),
+  teTunnels: z.record(teTunnelSchema).default({}),
   acls: z.record(aclSchema).default({}),
   nat: natSchema.default({}),
   dhcp: dhcpSchema.default({}),
@@ -355,6 +393,8 @@ export type BgpNeighborConfig = z.infer<typeof bgpNeighborSchema>;
 export type BgpVrfConfig = z.infer<typeof bgpVrfSchema>;
 export type VfiConfig = z.infer<typeof vfiSchema>;
 export type E1ControllerConfig = z.infer<typeof e1ControllerSchema>;
+export type TeTunnelConfig = z.infer<typeof teTunnelSchema>;
+export type ExplicitPathConfig = z.infer<typeof explicitPathSchema>;
 export type AclConfig = z.infer<typeof aclSchema>;
 export type AclEntry = z.infer<typeof aclEntrySchema>;
 export type FhrpConfig = z.infer<typeof fhrpSchema>;
@@ -384,6 +424,8 @@ export function defaultNetConfig(kind: DeviceKind): NetConfig {
     vrfs: {},
     vfis: {},
     e1Controllers: {},
+    explicitPaths: {},
+    teTunnels: {},
   };
 }
 

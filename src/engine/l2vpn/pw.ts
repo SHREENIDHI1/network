@@ -4,6 +4,7 @@ import type { L3Interface } from '../ip/interfaces';
 import { formatIpv4, parseIpv4 } from '../ip/ipv4';
 import { resolve, type Route } from '../ip/routing';
 import { prefixKey, type LdpResult } from '../mpls/ldp';
+import { outLabel, type TeLsp } from '../te/te';
 
 /**
  * Pseudowires (RFC 4447 / 4448 / 4553 / 5086), simplified.
@@ -51,7 +52,7 @@ export interface PwEndpoint {
   status: 'UP' | 'DOWN';
   reason?: string;
   /** Outgoing transport label towards the peer (undefined = directly connected / implicit-null). */
-  transport?: { label?: number; nextHop: number; iface: string };
+  transport?: { label?: number; nextHop: number; iface: string; /** Carried in this TE tunnel (autoroute) instead of the LDP LSP. */ tunnel?: string };
 }
 
 export interface PwResult {
@@ -72,6 +73,7 @@ export function computePseudowires(
   l3: Map<string, L3Interface[]>,
   routes: Map<string, Route[]>,
   ldp: LdpResult,
+  teHead: (deviceId: string, iface: string) => TeLsp | undefined = () => undefined,
 ): PwResult {
   const res = emptyPw();
   const name = (id: string) => topo.devices.find((d) => d.id === id)?.name ?? id;
@@ -219,6 +221,14 @@ export function computePseudowires(
     }
     // LSP towards the peer's /32.
     const g = resolve(routes.get(e.deviceId) ?? [], e.peer)!;
+    const te = teHead(e.deviceId, g.iface);
+    if (te) {
+      const l = outLabel(te, 0);
+      e.transport = { label: typeof l === 'number' ? l : undefined, nextHop: te.hops[0].nextIp!, iface: te.hops[0].outIface!, tunnel: te.tunnel };
+      e.status = 'UP';
+      e.reason = undefined;
+      continue;
+    }
     const ftn = ldp.byFec.get(`${e.deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)?.find((x) => x.nextHop === g.nextHop) ??
       ldp.byFec.get(`${e.deviceId}|${prefixKey(g.route.network, g.route.prefixLen)}`)?.[0];
     const direct = g.route.protocol === 'C' || ftn?.out === 'pop';

@@ -4,6 +4,7 @@ import { parseTimeslots } from '../l2vpn/pw';
 import { parseIpv4 } from '../ip/ipv4';
 import * as L from './formatL2vpn';
 import * as M from './formatMpls';
+import { enterTunnel } from './iosTe';
 import { CONF, EXEC, IFM, ifCfg, ip, kw, num, word, type Cmd, type CliMode, type Exec } from './ios';
 
 /**
@@ -92,7 +93,7 @@ function cemGroup(x: Exec, unframed: boolean): string | void {
 
 function enterCemIf(x: Exec): string | void {
   const m = /^cem(\d+\/\d+\/\d+)$/i.exec(String(x.args.name));
-  if (!m) return x.invalid();
+  if (!m) return enterTunnel(x, String(x.args.name));
   const k = controllerKey(m[1]);
   if (!k || !x.cfg.e1Controllers[k]) return `% Interface CEM${m[1]} does not exist — configure "controller E1 ${m[1]}" with a cem-group first.`;
   x.setMode('config-cem-if', { ctxName: k });
@@ -254,8 +255,8 @@ export function l2vpnCmds(): Cmd[] {
       },
     },
     {
-      modes: ['config', 'config-controller', 'config-cem-if', 'config-if-cem', 'config-if', 'config-subif', 'config-vfi'],
-      toks: [kw('interface', 'Select an interface to configure'), word('name', 'CEM interface, e.g. CEM0/2/0')],
+      modes: ['config', 'config-controller', 'config-cem-if', 'config-if-cem', 'config-if', 'config-subif', 'config-vfi', 'config-tunnel', 'config-expl-path', 'config-router'],
+      toks: [kw('interface', 'Select an interface to configure'), word('name', 'CEM or Tunnel interface, e.g. CEM0/2/0, Tunnel1')],
       run: enterCemIf,
     },
     {
