@@ -232,6 +232,158 @@ const ENTRIES: Array<{ pattern: string[]; host?: boolean; ex: ShowExplain }> = [
     },
   },
   {
+    pattern: ['show', 'ip', 'ospf', 'neighbor'],
+    ex: {
+      title: 'show ip ospf neighbor',
+      fields: [
+        f('Neighbor ID', 'Router ID of the neighbour (highest loopback, or set with router-id).', 'Neighbour ka router ID.'),
+        f('Pri', 'OSPF priority used in the DR election (0 = never DR).', 'DR chunav ki priority.'),
+        f(
+          'State',
+          'FULL = databases synchronised; /DR, /BDR, /DROTHER = its role on that segment. 2WAY between two DROTHERs is normal.',
+          'FULL = database sync; DR/BDR/DROTHER = role.',
+        ),
+        f('Address', 'Neighbour’s interface address on the shared link.', 'Neighbour ka link address.'),
+        f('Interface', 'Your interface towards that neighbour.', 'Aapka interface.'),
+      ],
+      lookFor: {
+        en: 'A neighbour missing from the list means a mismatch (area, subnet, hello/dead, MTU) or OSPF not enabled on that interface — compare with "show ip ospf interface".',
+        hi: 'Neighbour gayab = area/subnet/timer/MTU mismatch ya interface par OSPF nahi. "show ip ospf interface" se compare karo.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'ip', 'ospf', 'interface', '<if>'],
+    ex: {
+      title: 'show ip ospf interface <if>',
+      fields: [
+        f('Internet Address / Area', 'Address and OSPF area of this interface.', 'Interface ka address aur area.'),
+        f('Cost', 'OSPF cost of this link (lower = preferred).', 'Link ki cost (kam = pasand).'),
+        f('State / Priority', 'DR, BDR or DROTHER on this segment, and the election priority.', 'Segment par role aur priority.'),
+        f('Hello, Dead', 'Timers that must match the neighbour exactly.', 'Timers — neighbour se bilkul match.'),
+        f('Neighbor Count / Adjacent', 'Neighbours seen, and how many reached FULL.', 'Kitne neighbours, kitne FULL.'),
+      ],
+      lookFor: {
+        en: 'Compare Hello/Dead and Area with the neighbour’s interface; "Adjacent neighbor count is 0" on a link with a router behind it is your fault.',
+        hi: 'Hello/Dead aur area dono taraf compare karo; adjacent count 0 = yahi gadbad hai.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'isis', 'neighbors'],
+    ex: {
+      title: 'show isis neighbors',
+      fields: [
+        f('System Id', 'Neighbour router (hostname shown for the system ID).', 'Neighbour router.'),
+        f('Type', 'L1 = inside the area, L2 = backbone between areas. One line per level.', 'L1 = area ke andar, L2 = areas ke beech.'),
+        f('Interface / IP Address', 'Your interface and the neighbour’s address on it.', 'Interface aur neighbour ka IP.'),
+        f('State', 'UP = adjacency formed.', 'UP = adjacency bani.'),
+      ],
+      lookFor: {
+        en: 'Different areas give only L2. A neighbour that is missing: check "ip router isis" on both interfaces, the NET (duplicate system ID?) and is-type.',
+        hi: 'Alag area = sirf L2. Neighbour gayab: dono taraf "ip router isis", NET (duplicate system ID?) aur is-type check karo.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'standby', 'brief'],
+    ex: {
+      title: 'show standby brief',
+      fields: [
+        f('Grp', 'HSRP group number — must be the same on both routers.', 'Group number — dono par same.'),
+        f('Pri', 'Current priority (after tracking decrements).', 'Abhi ki priority (tracking ke baad).'),
+        f('P', 'P = preempt configured.', 'P = preempt on.'),
+        f('State', 'Active forwards for the virtual IP; Standby waits.', 'Active virtual IP ka kaam karta hai.'),
+        f('Active / Standby', 'Address of the other role ("local" = this router).', 'Doosre role ka address.'),
+        f('Virtual IP', 'The gateway address hosts use.', 'Hosts ka gateway.'),
+      ],
+      lookFor: {
+        en: 'Both routers Active = they are not in the same group (number, subnet) and do not see each other.',
+        hi: 'Dono Active = ek group mein nahi hain (number/subnet).',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'ip', 'nat', 'translations'],
+    ex: {
+      title: 'show ip nat translations',
+      fields: [
+        f('Pro', 'Protocol of the session (this simulator translates ICMP).', 'Protocol (yahan ICMP).'),
+        f('Inside global', 'Public address:port the outside world sees.', 'Bahar dikhne wala address:port.'),
+        f('Inside local', 'Real private address of the inside host.', 'Andar ka asli address.'),
+        f('Outside local / global', 'The outside host.', 'Bahar wala host.'),
+      ],
+      lookFor: {
+        en: 'Empty after a ping = no translation: check ip nat inside/outside, the ACL and the "ip nat inside source" line.',
+        hi: 'Ping ke baad khaali = NAT nahi hua: inside/outside, ACL aur "ip nat inside source" check karo.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'access-lists'],
+    ex: {
+      title: 'show access-lists',
+      fields: [
+        f(
+          'Standard / Extended',
+          'Standard matches source only; extended matches protocol, source, destination, ports.',
+          'Standard = sirf source; extended = sab.',
+        ),
+        f('Sequence (10, 20…)', 'Lines are checked top to bottom; first match wins.', 'Upar se neeche, pehli match.'),
+        f('(N matches)', 'Simulated packets that hit this line.', 'Is line se match hue packets.'),
+      ],
+      lookFor: {
+        en: 'A permit above a deny makes the deny useless. No final permit = everything else is dropped (implicit deny).',
+        hi: 'Deny se upar permit = deny bekaar. Aakhri permit nahi = baaki sab drop.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'ntp', 'status'],
+    ex: {
+      title: 'show ntp status',
+      fields: [
+        f('synchronized / unsynchronized', 'Whether the clock follows an NTP server.', 'Clock sync hai ya nahi.'),
+        f('stratum', 'Distance from the reference clock: server stratum + 1. 16 = not synchronised.', 'Reference se doori; 16 = sync nahi.'),
+        f('reference', 'The server this clock follows.', 'Kis server se time liya.'),
+      ],
+      lookFor: {
+        en: 'Unsynchronised: can the router reach the server (ping, routing, ACL on UDP 123)?',
+        hi: 'Sync nahi: server tak pahunch hai? (ping, route, UDP 123 ACL)',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'policy-map', 'interface', '<if>'],
+    ex: {
+      title: 'show policy-map interface <if>',
+      fields: [
+        f('Service-policy output', 'Policy attached to traffic leaving this interface.', 'Bahar jaate traffic ki policy.'),
+        f('Interface capacity / offered', 'Link speed vs traffic offered; CONGESTED when offered is larger.', 'Link speed vs traffic.'),
+        f('Class-map … (priority / bandwidth)', 'LLQ or CBWFQ class and its offered, sent and dropped rate.', 'Har class ka offered/sent/dropped.'),
+      ],
+      lookFor: {
+        en: 'Drops should land in the lowest-priority class, never in the priority (voice) class.',
+        hi: 'Drop sabse kam priority wali class mein ho, voice mein kabhi nahi.',
+      },
+    },
+  },
+  {
+    pattern: ['nslookup', '<if>'],
+    host: true,
+    ex: {
+      title: 'nslookup <name>',
+      fields: [
+        f('Server', 'DNS server the PC asked (from DHCP or the DNS field).', 'Kis DNS server se poochha.'),
+        f('Name / Address', 'The answer: the name’s IP address.', 'Jawab: naam ka IP.'),
+      ],
+      lookFor: {
+        en: 'Timed out = DNS server unreachable or not set; "Non-existent domain" = the record is missing on the server.',
+        hi: 'Timeout = DNS server tak nahi pahunche; Non-existent = record nahi hai.',
+      },
+    },
+  },
+  {
     pattern: ['ipconfig'],
     host: true,
     ex: {

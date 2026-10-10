@@ -86,7 +86,7 @@ export default function LabBrowser() {
           </section>
         );
       })}
-      <p className="mt-6 text-xs text-slate-500">Labs for A9–A15 arrive in P3; IP-MPLS labs (B-series) from P4.</p>
+      <p className="mt-6 text-xs text-slate-500">Part A labs (A4–A15) are ready; IP-MPLS labs (B-series) arrive from P4.</p>
     </div>
   );
 }

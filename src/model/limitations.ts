@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), and OSPF, DHCP, NAT, ACL, HSRP/VRRP and QoS analysis (Phase 3, engine + CLI). MPLS, VPNs and fault/NMS features are not simulated yet.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), and OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3). MPLS, VPNs and fault/NMS correlation are not simulated yet.',
   },
   // ---------------- Physical ----------------
   {
@@ -154,7 +154,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'Services',
     status: 'active',
     phase: 3,
-    text: 'DHCP: real DORA packets, relay (ip helper-address) and APIPA fallback; lease timers, renewal/rebinding, conflict detection (ping before offer) and DNS resolution are not modelled. NAT/PAT translates ICMP only (ICMP id used as the "port"); translations do not time out. ACLs: standard/extended, numbered/named, first match, implicit deny, ICMP admin-prohibited; TCP traffic is never generated so TCP entries never match.',
+    text: 'DHCP: real DORA packets, relay (ip helper-address) and APIPA fallback; lease timers, renewal/rebinding and conflict detection (ping before offer) are not modelled. NAT/PAT translates ICMP only (ICMP id used as the "port"); translations do not time out. ACLs: standard/extended, numbered/named, first match, implicit deny, ICMP admin-prohibited; UDP/TCP port entries match the simulated DNS, NTP, syslog, SNMP, SSH and Telnet packets. ACLs are stateless (no reflexive/established tracking); "show access-lists" match counters count simulated packets only.',
   },
   {
     area: 'Redundancy',
@@ -167,6 +167,42 @@ export const LIMITATIONS: Limitation[] = [
     status: 'active',
     phase: 3,
     text: 'QoS is a steady-state fluid model of configured traffic flows, not packet scheduling: per-flow delivered rate and loss at each L3 egress interface, with LLQ (priority, policed under congestion), CBWFQ (bandwidth %) and FIFO. Queue delay/jitter, L2 switch queues, policing/shaping tools other than LLQ, and WRED are not modelled. SVI egress capacity is assumed 1 Gbit/s. The railway DSCP plan is illustrative, not an official IR policy.',
+  },
+  {
+    area: 'IS-IS',
+    status: 'active',
+    phase: 3,
+    text: 'IS-IS state is computed from config (no IIH/LSP/CSNP packets, no LSP ageing or timers). Modelled: NET parsing, L1 adjacency only within one area, L2 between any areas, duplicate system-ID refusal, simple DIS/pseudonode, narrow metrics (default 10), L1→L2 leaking, ATT bit and a default route on L1-only routers, AD 115. Not modelled: wide metrics, route leaking L2→L1, authentication, overload bit, multi-topology, mesh groups.',
+  },
+  {
+    area: 'RIP',
+    status: 'active',
+    phase: 3,
+    text: 'RIPv2 is a converged Bellman-Ford result (hop count, 16 = unreachable, split horizon, classful "network" statements, passive interfaces, default-information originate). It runs only with "version 2". Update/invalid/flush timers, triggered updates, poisoned reverse and authentication are not modelled — RIP exists here only as a historical comparison.',
+  },
+  {
+    area: 'Management',
+    status: 'active',
+    phase: 3,
+    text: 'DNS, NTP, syslog and SNMP traps travel as real UDP packets (routing, ACLs and NAT apply; Packet Inspector shows them). DNS: A records only, one level (no recursion, no zones, no TTL caching). NTP: one request/reply sets the clock and stratum; the poll is sent when you run "show ntp status" or "show ntp associations" (stand-in for the periodic poll; no offset/delay maths, no authentication). Syslog/traps are sent only for interface up/down events. SNMP polling (GET/WALK) is not simulated.',
+  },
+  {
+    area: 'Management',
+    status: 'active',
+    phase: 3,
+    text: 'SSH and Telnet open a real TCP connection (SYN, SYN-ACK or RST) and check the vty rules (transport input, login local/line, password set, access-class, RSA keys + domain name for SSH). There is no interactive remote shell and no encryption maths — use the device console. Passwords are not stored or checked; only the username must exist for "login local".',
+  },
+  {
+    area: 'IP',
+    status: 'active',
+    phase: 3,
+    text: 'Loopback interfaces are always up unless shut down and are advertised as /32 host routes (OSPF cost 1). Router-originated non-ICMP packets (DNS, NTP, syslog, traps) wait for ARP to resolve, while pings keep the IOS behaviour of dropping the first packet during ARP.',
+  },
+  {
+    area: 'Labs',
+    status: 'active',
+    phase: 3,
+    text: 'Capstone fault tickets are injected one at a time into your working network; each ticket closes only when the complaint’s own test (ping, DHCP lease, DNS lookup, neighbour state) passes again. Tasks that depend on a planned fibre cut accept the post-cut state. The QoS tab traffic flows are preset in the lab topology.',
   },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {

@@ -156,7 +156,7 @@ export default function LabPanel({ lab }: { lab: Lab }) {
           <section className="rounded-lg border border-red-900 bg-red-950/30 p-2">
             <h3 className="mb-1 flex items-center gap-1 font-semibold text-red-200">
               <Siren className="h-4 w-4" /> {multi ? `Fault tickets ${Math.min(ticket, list.length)}/${list.length}` : 'Break-fix challenge'} (+
-              {BREAKFIX_POINTS} pts each)
+              {BREAKFIX_POINTS} pts{multi ? ' each' : ''})
             </h3>
             {breakFix === 'idle' && current && (
               <>

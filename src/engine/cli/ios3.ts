@@ -930,6 +930,27 @@ export function phase3Cmds(): Cmd[] {
         kw('show', 'Show running system information'),
         kw('ip', 'IP information'),
         kw('ospf', 'OSPF information'),
+        kw('interface', 'Interface information'),
+      ],
+      run: (x) => F3.showOspfInterface(x.ctx.sim, x.device),
+    },
+    {
+      modes: EXEC,
+      toks: [
+        kw('show', 'Show running system information'),
+        kw('ip', 'IP information'),
+        kw('ospf', 'OSPF information'),
+        kw('interface', 'Interface information'),
+        iface(),
+      ],
+      run: (x) => F3.showOspfInterface(x.ctx.sim, x.device, String(x.args.if)),
+    },
+    {
+      modes: EXEC,
+      toks: [
+        kw('show', 'Show running system information'),
+        kw('ip', 'IP information'),
+        kw('ospf', 'OSPF information'),
         kw('database', 'Database summary'),
       ],
       run: (x) => F3.showOspfDatabase(x.ctx.sim, x.device),

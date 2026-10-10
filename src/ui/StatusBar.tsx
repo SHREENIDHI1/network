@@ -27,7 +27,8 @@ export function StatusBar() {
       {los > 0 && <span className="text-red-400">{los} optical link(s) failing budget</span>}
       {marginal > 0 && <span className="text-yellow-300">{marginal} marginal optical link(s)</span>}
       <span className="ml-auto">
-        {ENABLE_LEGACY_TDM ? 'Full mode' : 'Networking-only mode'} · Engine: Ethernet, VLAN, RSTP, IPv4, OSPF, DHCP, NAT, ACL, HSRP/VRRP, QoS · Console = CLI + Packet Inspector
+        {ENABLE_LEGACY_TDM ? 'Full mode' : 'Networking-only mode'} · Engine: Ethernet, VLAN, RSTP, IPv4, OSPF, IS-IS, RIP, DHCP, DNS, NAT, NTP,
+        Syslog/SNMP, SSH, ACL, HSRP/VRRP, QoS · Console = CLI + Packet Inspector
       </span>
       <span className="text-slate-500" title="Build stamp: if this commit is older than the latest on GitHub, run git pull and restart npm run dev.">
         v{APP_VERSION} · {APP_COMMIT}

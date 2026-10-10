@@ -146,4 +146,20 @@ describe('practical quiz answers match the engine', () => {
     const out = await solvedCli('L15.1', 'MTD-L3SW', ['show ip route']);
     expect(out).toMatch(/^O\*E2\s+0\.0\.0\.0\/0/m);
   });
+  it('L10.1 break-fix hint: show ip ospf interface reveals the hello mismatch', async () => {
+    const lab = LABS.find((l) => l.id === 'L10.1')!;
+    const { topology, sim } = await start(lab);
+    const broken = lab.breakFix!.apply(applySolution(topology, sim, lab.solution!).topology);
+    const sim2 = new Sim(broken);
+    sim2.runUntilIdle();
+    const { execIos, newSession } = await import('../engine/cli/ios');
+    const out = execIos('show ip ospf interface gi0/1', newSession(broken.devices.find((d) => d.name === 'JWL-R1')!.id), {
+      topology: broken,
+      sim: sim2,
+      simulationMode: false,
+    }).output;
+    expect(out).toContain('GigabitEthernet0/1 is up, line protocol is up');
+    expect(out).toContain('Hello 5, Dead 20');
+    expect(out).toContain('Adjacent neighbor count is 0');
+  });
 });

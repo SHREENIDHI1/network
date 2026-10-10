@@ -52,14 +52,32 @@ describe('ask why (show explanations)', () => {
 
   it('every explained IOS show command is a real command', async () => {
     const { EXPLAINED_COMMANDS } = await import('./showExplain');
-    const t = buildTopology('x', '', [{ key: 'd', kind: 'l2-switch', name: 'SW', x: 0, y: 0 }], []);
+    const t = buildTopology(
+      'x',
+      '',
+      [
+        { key: 'd', kind: 'l2-switch', name: 'SW', x: 0, y: 0 },
+        { key: 'r', kind: 'router', name: 'R', x: 0, y: 0 },
+      ],
+      [],
+    );
     const sim = new Sim(t);
     for (const title of EXPLAINED_COMMANDS) {
       if (!title.startsWith('show')) continue;
-      const cmd = title.replace('<port>', 'gi0/1');
-      const r = execIos(cmd, { deviceId: t.devices[0].id, mode: 'priv' }, { topology: t, sim, simulationMode: false });
-      if (/ip route|arp/.test(cmd)) continue; // router commands, covered by the reference
-      expect(r.output, cmd).not.toMatch(/% (Invalid input|Incomplete command)/);
+      const ok = t.devices.some((d) => {
+        const cmd = title.replace('<port>', d.kind === 'router' ? 'gi0/0' : 'gi0/1').replace('<if>', d.kind === 'router' ? 'gi0/0' : 'gi0/1');
+        const r = execIos(cmd, { deviceId: d.id, mode: 'priv' }, { topology: t, sim, simulationMode: false });
+        return !/% (Invalid input|Incomplete command)/.test(r.output);
+      });
+      expect(ok, title).toBe(true);
     }
+  });
+
+  it('matches P3 show commands', async () => {
+    const { explainShow } = await import('./showExplain');
+    expect(explainShow('sh ip ospf nei')?.title).toBe('show ip ospf neighbor');
+    expect(explainShow('show ip ospf interface gi0/1')?.title).toBe('show ip ospf interface <if>');
+    expect(explainShow('sh standby br')?.title).toBe('show standby brief');
+    expect(explainShow('nslookup ju-nms', true)?.title).toBe('nslookup <name>');
   });
 });

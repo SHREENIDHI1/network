@@ -251,7 +251,7 @@ const l10: Lab = {
     ],
     [
       'On JU-R1: interface gi0/2 → ip ospf cost 100. On AAS-R1: interface gi0/1 → ip ospf cost 100.',
-      '"show ip route 10.4.1.0" on JU-R1 — the next hop should be BNO-R1 (10.255.1.2).',
+      '"show ip route" on JU-R1 — the 10.4.1.0/24 line should say "via 10.255.1.2" (BNO-R1).',
     ],
     ['Open CLI on JU-SRV → ping 10.4.1.10'],
     [
@@ -416,7 +416,7 @@ const l10b: Lab = {
       }),
     check: C.all(C.isisAdjacent('MTD-R1', 'DNA-R1', 2), C.routeExists('MTD-R1', '10.0.0.3/32', 'isis')),
     hints: [
-      '"show running-config | section isis" on MTD-R1 and DNA-R1: compare the system-ID part of the NET.',
+      '"show running-config" on MTD-R1 and DNA-R1 (router isis part): compare the system-ID part of the NET.',
       'router isis → no net <old> → net 49.0001.0000.0000.0002.00',
     ],
     fix: { cli: { 'MTD-R1': [...CONF, 'router isis', 'no net 49.0001.0000.0000.0003.00', 'net 49.0001.0000.0000.0002.00', 'end'] } },
@@ -811,7 +811,7 @@ const l12: Lab = {
   ],
   estMinutes: 55,
   fieldNote:
-    'Real gear: ACLs here are stateless and have no hit counters per line; real firewalls are stateful. Management VLANs on real networks are also kept off user ports and protected with AAA (TACACS+/RADIUS).\nInterview questions: "Standard vs extended ACL?", "Wildcard mask nikalo /27 ke liye", "Implicit deny kya hai?"',
+    'Real gear: ACLs here are stateless (match counters count only simulated packets); real firewalls are stateful. Management VLANs on real networks are also kept off user ports and protected with AAA (TACACS+/RADIUS).\nInterview questions: "Standard vs extended ACL?", "Wildcard mask nikalo /27 ke liye", "Implicit deny kya hai?"',
   solution: {
     cli: {
       'MTD-L3SW': [

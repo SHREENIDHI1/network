@@ -20,10 +20,11 @@ export function showOspfNeighbor(sim: Sim, device: Device): string {
   for (const n of ns) {
     const role = n.state === '2WAY' ? 'DROTHER' : n.neighborRole;
     L.push(
-      `${pad(formatIpv4(n.neighborRid), 17)}${pad(n.neighborPriority, 5)}${pad(`${n.state}/${role}`, 17)}${pad('00:00:35', 12)}${pad(formatIpv4(n.neighborIp), 16)}${longIfName(n.iface)}`,
+      `${pad(formatIpv4(n.neighborRid), 17)}${pad(n.neighborPriority, 5)}${pad(`${n.state}/${role}`, 17)}${pad('-', 12)}${pad(formatIpv4(n.neighborIp), 16)}${longIfName(n.iface)}`,
     );
   }
   if (!sim.ospf.routerIds.has(device.id)) L.push('', '% OSPF is not running on this device.');
+  else if (ns.length) L.push('', '(Dead Time not shown: RailMPLS Lab computes OSPF state without hello timers.)');
   return L.join('\n');
 }
 
@@ -38,6 +39,31 @@ export function showOspfIntBrief(sim: Sim, device: Device): string {
     );
   }
   return L.join('\n');
+}
+
+/** "show ip ospf interface [IF]": computed OSPF settings per interface (no packet counters or timers that are not modelled). */
+export function showOspfInterface(sim: Sim, device: Device, only?: string): string {
+  const ois = sim.ospf.interfaces.filter((o) => o.deviceId === device.id && (!only || o.iface === only));
+  if (!ois.length) return only ? `% OSPF is not enabled on ${longIfName(only)}.` : '% OSPF is not running on this device.';
+  const rid = sim.ospf.routerIds.get(device.id);
+  const pid = sim.config(device.id)?.ospf?.processId ?? 1;
+  const L: string[] = [];
+  for (const o of ois) {
+    const loop = o.iface.startsWith('Lo');
+    const state = o.passive || o.neighbors === 0 ? 'DR' : o.role === 'DROTHER' ? 'DROTHER' : o.role;
+    L.push(
+      `${longIfName(o.iface)} is up, line protocol is up`,
+      `  Internet Address ${formatIpv4(o.ip)}/${o.prefixLen}, Area ${o.area}`,
+      `  Process ID ${pid}, Router ID ${rid !== undefined ? formatIpv4(rid) : '0.0.0.0'}, Network Type ${loop ? 'LOOPBACK' : 'BROADCAST'}, Cost: ${o.cost}`,
+    );
+    if (loop) {
+      L.push('  Loopback interface is treated as a stub Host', '');
+      continue;
+    }
+    L.push(`  State ${state}, Priority ${o.priority}`, `  Timer intervals configured, Hello ${o.hello}, Dead ${o.dead}`);
+    L.push(o.passive ? '  No Hellos (Passive interface)' : `  Neighbor Count is ${o.neighbors}, Adjacent neighbor count is ${o.fullNeighbors}`, '');
+  }
+  return L.join('\n').trimEnd();
 }
 
 export function showOspfDatabase(sim: Sim, device: Device): string {
