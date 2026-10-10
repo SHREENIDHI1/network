@@ -113,6 +113,11 @@ export function computeSegments(
       };
 
       addIf({ deviceId: devId, iface: start.name });
+      if (start.kind === 'loop') {
+        // A loopback is a segment of its own: nothing else can attach to it.
+        segments.push({ id: segments.length + 1, members });
+        continue;
+      }
       if (start.kind === 'svi') visitVlan(devId, start.vlan!);
       else emit(devId, start.port!, start.kind === 'sub' && !start.native ? start.vlan : undefined);
       while (stack.length) stack.pop()!();

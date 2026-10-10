@@ -142,7 +142,9 @@ export function computeOspf(
     if (!cfg?.ospf || !routesPackets(d.kind, cfg) || roleOf(d.kind) === 'opaque') continue;
     const ifs = (l3.get(d.id) ?? []).filter((i) => i.up && i.ip !== undefined);
     let rid = cfg.ospf.routerId ? parseIpv4(cfg.ospf.routerId) : null;
-    if (rid === null && ifs.length) rid = Math.max(...ifs.map((i) => i.ip!));
+    // IOS: highest loopback address first, else highest address of an up interface.
+    const loops = ifs.filter((i) => i.kind === 'loop');
+    if (rid === null && ifs.length) rid = Math.max(...(loops.length ? loops : ifs).map((i) => i.ip!));
     if (rid === null) {
       result.problems.push({ deviceId: d.id, text: '%OSPF-4-NORTRID: OSPF process cannot pick a router-id (no up interface with an IP address).' });
       continue;
@@ -157,17 +159,19 @@ export function computeOspf(
       }
       if (!best) continue;
       const ic = cfg.interfaces[i.name];
-      const portForBw = i.kind === 'svi' ? undefined : i.port;
+      const portForBw = i.kind === 'svi' || i.kind === 'loop' ? undefined : i.port;
+      const loop = i.kind === 'loop';
       const bwMbps = portForBw ? (phys.ports.get(portKey(d.id, portForBw))?.speedGbps ?? 1) * 1000 : SVI_BW_MBPS;
       result.interfaces.push({
         deviceId: d.id,
         iface: i.name,
         area: best.area,
         ip: i.ip!,
-        network: i.network!,
-        prefixLen: i.prefixLen!,
-        cost: ic?.ospfCost ?? Math.max(1, Math.floor(cfg.ospf.referenceBandwidth / Math.max(bwMbps, 0.001))),
-        passive: cfg.ospf.passive.includes(i.name),
+        // OSPF advertises a loopback as a /32 host route with cost 1 (IOS default network type LOOPBACK).
+        network: loop ? i.ip! : i.network!,
+        prefixLen: loop ? 32 : i.prefixLen!,
+        cost: ic?.ospfCost ?? (loop ? 1 : Math.max(1, Math.floor(cfg.ospf.referenceBandwidth / Math.max(bwMbps, 0.001)))),
+        passive: loop || cfg.ospf.passive.includes(i.name),
         hello: ic?.ospfHello ?? DEFAULT_HELLO,
         dead: ic?.ospfDead ?? (ic?.ospfHello ? ic.ospfHello * 4 : DEFAULT_DEAD),
         priority: ic?.ospfPriority ?? 1,

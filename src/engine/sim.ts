@@ -6,6 +6,8 @@ import { computeSegments, type Segment } from './ethernet/segments';
 import { computeStp, type StpState } from './ethernet/stp';
 import { bundleByName, computeEtherChannel, emptyEtherChannel, pickMember, type Bundle, type EtherChannelState } from './ethernet/etherchannel';
 import { computeOspf, type OspfResult } from './ospf/ospf';
+import { computeIsis, emptyIsis, type IsisResult } from './igp/isis';
+import { computeRip, emptyRip, type RipResult } from './igp/rip';
 import { computeFhrp, type FhrpResult } from './fhrp/fhrp';
 import { evaluateAcl } from './security/acl';
 import type { DhcpMessage } from './core/types';
@@ -232,6 +234,8 @@ export class Sim {
   readonly dhcpClients = new Map<string, DhcpClientState>();
   readonly dhcpBindings = new Map<string, Map<number, DhcpBinding>>();
   private nextXid = 0x3903f326;
+  isis: IsisResult = emptyIsis();
+  rip: RipResult = emptyRip();
   ospf: OspfResult = { routerIds: new Map(), interfaces: [], neighbors: [], routes: new Map(), problems: [], lsdb: [], abrs: new Set(), asbrs: new Set() };
 
   readonly cuts = new Set<string>();
@@ -336,8 +340,11 @@ export class Sim {
     const base = new Map<string, Route[]>();
     for (const d of this.topology.devices) base.set(d.id, buildRoutingTable(d.kind, this.configs.get(d.id)!, this.l3.get(d.id)!));
     this.ospf = computeOspf(this.topology, this.configs, this.l3, this.phys, this.segments, base);
+    this.isis = computeIsis(this.topology, this.configs, this.l3, this.segments);
+    this.rip = computeRip(this.topology, this.configs, this.l3, this.segments);
     for (const d of this.topology.devices) {
-      this.routes.set(d.id, buildRoutingTable(d.kind, this.configs.get(d.id)!, this.l3.get(d.id)!, this.ospf.routes.get(d.id) ?? []));
+      const dynamic = [...(this.ospf.routes.get(d.id) ?? []), ...(this.isis.routes.get(d.id) ?? []), ...(this.rip.routes.get(d.id) ?? [])];
+      this.routes.set(d.id, buildRoutingTable(d.kind, this.configs.get(d.id)!, this.l3.get(d.id)!, dynamic));
     }
 
     // First-hop redundancy. A change of active router is announced by its hellos
@@ -1042,6 +1049,10 @@ export class Sim {
   // ----------------------------------------------------------------- L3 --
 
   private sendOnIface(deviceId: string, iface: L3Interface, frame: Frame): void {
+    if (iface.kind === 'loop') {
+      this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Interface', detail: `${iface.name} is a loopback: no other host can live on it.` }, frame);
+      return;
+    }
     if (iface.kind === 'svi') {
       this.bridgeForward(deviceId, iface.vlan!, frame, 'cpu');
       return;

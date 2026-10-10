@@ -1,3 +1,4 @@
+import { isisProtocolLines, ripProtocolLines } from './formatIgp';
 import type { Device } from '../../model/types';
 import { longIfName, type InterfaceConfig, type NetConfig } from '../config/netConfig';
 import { ciscoMac } from '../core/mac';
@@ -59,8 +60,10 @@ export function showOspfDatabase(sim: Sim, device: Device): string {
 }
 
 export function showIpProtocols(sim: Sim, device: Device, cfg: NetConfig): string {
+  const extra = [...isisProtocolLines(sim, device, cfg), ...ripProtocolLines(sim, device, cfg)];
   const o = cfg.ospf;
-  if (!o) return '*** IP Routing is NSF aware ***\n\n(No routing protocol is configured — only connected and static routes.)';
+  if (!o && !extra.length) return '*** IP Routing is NSF aware ***\n\n(No routing protocol is configured — only connected and static routes.)';
+  if (!o) return ['*** IP Routing is NSF aware ***', '', ...extra].join('\n');
   const rid = sim.ospf.routerIds.get(device.id);
   const L = [
     `Routing Protocol is "ospf ${o.processId}"`,
@@ -78,6 +81,7 @@ export function showIpProtocols(sim: Sim, device: Device, cfg: NetConfig): strin
     for (const p of o.passive) L.push(`    ${longIfName(p)}`);
   }
   L.push(`  Reference bandwidth unit is ${o.referenceBandwidth} mbps`, '  Distance: (default is 110)');
+  if (extra.length) L.push('', ...extra);
   return L.join('\n');
 }
 
@@ -244,6 +248,9 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
   if (ic.aclIn) L.push(` ip access-group ${ic.aclIn} in`);
   if (ic.aclOut) L.push(` ip access-group ${ic.aclOut} out`);
   if (ic.natRole) L.push(` ip nat ${ic.natRole}`);
+  if (ic.isisEnabled) L.push(' ip router isis');
+  if (ic.isisMetric) L.push(` isis metric ${ic.isisMetric}`);
+  if (ic.isisCircuitType && ic.isisCircuitType !== 'level-1-2') L.push(` isis circuit-type ${ic.isisCircuitType}`);
   if (ic.ospfCost) L.push(` ip ospf cost ${ic.ospfCost}`);
   if (ic.ospfHello) L.push(` ip ospf hello-interval ${ic.ospfHello}`);
   if (ic.ospfDead) L.push(` ip ospf dead-interval ${ic.ospfDead}`);
@@ -299,6 +306,23 @@ export function globalLinesAfterInterfaces(cfg: NetConfig): string[] {
     if (o.redistributeStatic) L.push(' redistribute static subnets');
     if (o.defaultOriginate !== 'off') L.push(` default-information originate${o.defaultOriginate === 'always' ? ' always' : ''}`);
     L.push('!');
+  }
+  const i = cfg.isis;
+  if (i) {
+    L.push(`router isis${i.tag ? ` ${i.tag}` : ''}`);
+    if (i.net) L.push(` net ${i.net}`);
+    if (i.isType !== 'level-1-2') L.push(` is-type ${i.isType}`);
+    for (const p of i.passive) L.push(` passive-interface ${longIfName(p)}`);
+    L.push('!');
+  }
+  const r = cfg.rip;
+  if (r) {
+    L.push('router rip');
+    if (r.version === 2) L.push(' version 2');
+    for (const p of r.passive) L.push(` passive-interface ${longIfName(p)}`);
+    for (const n of r.networks) L.push(` network ${n}`);
+    if (r.defaultOriginate) L.push(' default-information originate');
+    L.push(r.autoSummary ? ' auto-summary' : ' no auto-summary', '!');
   }
   for (const st of cfg.nat.statics) L.push(`ip nat inside source static ${st.local} ${st.global}`);
   for (const r of cfg.nat.overload) L.push(`ip nat inside source list ${r.acl} interface ${longIfName(r.iface)} overload`);

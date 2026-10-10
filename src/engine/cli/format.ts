@@ -1,5 +1,5 @@
 import type { Device } from '../../model/types';
-import { effectivePort, isBridgeRole, isSubinterface, longIfName, portChannelId, roleOf, sviVlan, type NetConfig } from '../config/netConfig';
+import { effectivePort, isBridgeRole, isSubinterface, longIfName, loopbackId, portChannelId, roleOf, sviVlan, type NetConfig } from '../config/netConfig';
 import { ciscoMac } from '../core/mac';
 import { formatBridgeId } from '../ethernet/stp';
 import { formatIpv4, prefixToMask } from '../ip/ipv4';
@@ -55,6 +55,9 @@ function sortedIfNames(device: Device, cfg: NetConfig): string[] {
   const svis = Object.keys(cfg.interfaces)
     .filter((n) => sviVlan(n) !== null)
     .sort((a, b) => sviVlan(a)! - sviVlan(b)!);
+  const loops = Object.keys(cfg.interfaces)
+    .filter((n) => loopbackId(n) !== null)
+    .sort((a, b) => loopbackId(a)! - loopbackId(b)!);
   const pos = Object.keys(cfg.interfaces)
     .filter((n) => portChannelId(n) !== null)
     .sort((a, b) => portChannelId(a)! - portChannelId(b)!);
@@ -63,7 +66,7 @@ function sortedIfNames(device: Device, cfg: NetConfig): string[] {
     ordered.push(p);
     for (const s of subs) if (s.startsWith(`${p}.`)) ordered.push(s);
   }
-  return [...pos, ...ordered, ...svis];
+  return [...loops, ...pos, ...ordered, ...svis];
 }
 
 // ---------------------------------------------------------------------------
@@ -89,11 +92,12 @@ export function runningConfig(device: Device, cfg: NetConfig, header = 'Current 
     const ic = cfg.interfaces[name];
     const isSvi = sviVlan(name) !== null;
     const isSub = isSubinterface(name);
-    const eff = isSvi || isSub ? { ...ic, shutdown: ic?.shutdown ?? isSvi, switchport: false } : effectivePort(role, ic);
+    const isLoop = loopbackId(name) !== null;
+    const eff = isSvi || isSub || isLoop ? { ...ic, shutdown: ic?.shutdown ?? isSvi, switchport: false } : effectivePort(role, ic);
     L.push(`interface ${longIfName(name)}`);
     if (ic?.description) L.push(` description ${ic.description}`);
     if (isSub && ic?.encapsulation) L.push(` encapsulation dot1Q ${ic.encapsulation.vlan}${ic.encapsulation.native ? ' native' : ''}`);
-    if (isBridgeRole(role) && !isSvi) {
+    if (isBridgeRole(role) && !isSvi && !isLoop) {
       if (!eff.switchport) L.push(' no switchport');
       else {
         if (eff.mode === 'access' && eff.accessVlan !== 1) L.push(` switchport access vlan ${eff.accessVlan}`);
@@ -203,7 +207,7 @@ export function showInterface(sim: Sim, device: Device, name: string): string {
     } else L.push('  No member ports configured');
   } else if (l3) {
     L.push(`${longIfName(name)} is ${!l3.adminUp ? 'administratively down' : l3.up ? 'up' : 'down'}, line protocol is ${l3.up ? 'up' : 'down'}`);
-    L.push(`  Hardware is ${l3.kind === 'svi' ? 'Ethernet SVI' : 'Gigabit Ethernet subinterface'}, address is ${ciscoMac(l3.mac)}`);
+    L.push(l3.kind === 'loop' ? '  Hardware is Loopback' : `  Hardware is ${l3.kind === 'svi' ? 'Ethernet SVI' : 'Gigabit Ethernet subinterface'}, address is ${ciscoMac(l3.mac)}`);
     if (ic?.description) L.push(`  Description: ${ic.description}`);
     if (l3.ip !== undefined) L.push(`  Internet address is ${formatIpv4(l3.ip)}/${l3.prefixLen}`);
     if (l3.kind === 'sub') L.push(`  Encapsulation 802.1Q Virtual LAN, Vlan ID  ${l3.vlan ?? '-'}${l3.native ? ' (native)' : ''}.`);
@@ -375,9 +379,9 @@ function classfulLen(net: number): number {
   return first < 128 ? 8 : first < 192 ? 16 : 24;
 }
 
-export function showIpRoute(sim: Sim, device: Device): string {
+export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: string }) => boolean): string {
   const cfg = sim.config(device.id)!;
-  const table = sim.routingTable(device.id);
+  const table = sim.routingTable(device.id).filter((r) => !only || only(r));
   if (!routesPackets(device.kind, cfg)) {
     const gw = table.find((r) => r.isGateway);
     return [`Default gateway is ${gw ? formatIpv4(gw.nextHop!) : cfg.defaultGateway ?? 'not set'}`, '', 'Host               Gateway           Last Use    Total Uses  Interface', 'ICMP redirect cache is empty'].join('\n');
@@ -395,7 +399,7 @@ export function showIpRoute(sim: Sim, device: Device): string {
   L.push(def ? `Gateway of last resort is ${def.nextHop !== undefined ? formatIpv4(def.nextHop) : 'directly connected'} to network 0.0.0.0` : 'Gateway of last resort is not set', '');
   const line = (r: (typeof table)[number], indent: string) => {
     const star = r.prefixLen === 0 ? '*' : '';
-    const code = r.protocol === 'O E2' ? `O${star}E2` : `${r.protocol}${star}`;
+    const code = r.protocol === 'O E2' ? `O${star}E2` : r.protocol.startsWith('i ') && star ? `i*${r.protocol.slice(2)}` : `${r.protocol}${star}`;
     const head = code.length < indent.length ? `${code}${indent.slice(code.length)}` : `${code} `;
     const pfx = `${formatIpv4(r.network)}/${r.prefixLen}`;
     if (r.protocol === 'C' || r.protocol === 'L') return `${head}${pfx} is directly connected, ${longIfName(r.iface!)}`;

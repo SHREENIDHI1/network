@@ -5,10 +5,10 @@ import { inSubnet, maskToPrefix, networkOf, parseIpv4 } from './ipv4';
 
 /**
  * IPv4 routing table: connected (C), local host routes (L) and static (S)
- * routes, longest-prefix-match lookup. OSPF adds routes in Phase 3.
+ * routes, longest-prefix-match lookup. OSPF, IS-IS and RIP add dynamic routes.
  */
 
-export type RouteProtocol = 'C' | 'L' | 'S' | 'O' | 'O IA' | 'O E2';
+export type RouteProtocol = 'C' | 'L' | 'S' | 'O' | 'O IA' | 'O E2' | 'i L1' | 'i L2' | 'R';
 
 export interface Route {
   network: number;

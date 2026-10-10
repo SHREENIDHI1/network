@@ -6,6 +6,7 @@ import {
   isBridgeRole,
   isSubinterface,
   longIfName,
+  loopbackId,
   parentOf,
   portChannelId,
   resolveIfName,
@@ -19,6 +20,7 @@ import { cidrsOverlap, formatIpv4, maskToPrefix, parseIpv4, validateHostAddress 
 import type { Sim } from '../sim';
 import * as F from './format';
 import { phase3Cmds } from './ios3';
+import { igpCmds } from './iosIgp';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -38,6 +40,8 @@ export type CliMode =
   | 'config-subif'
   | 'config-vlan'
   | 'config-router'
+  | 'config-router-isis'
+  | 'config-router-rip'
   | 'config-std-nacl'
   | 'config-ext-nacl'
   | 'dhcp-config'
@@ -112,7 +116,7 @@ export const EXEC: CliMode[] = ['user', 'priv'];
 export const PRIV: CliMode[] = ['priv'];
 export const CONF: CliMode[] = ['config'];
 export const IFM: CliMode[] = ['config-if', 'config-subif'];
-const ANYCONF: CliMode[] = ['config', 'config-if', 'config-subif', 'config-vlan', 'config-router', 'config-std-nacl', 'config-ext-nacl', 'dhcp-config', 'config-cmap', 'config-pmap', 'config-pmap-c'];
+export const ANYCONF: CliMode[] = ['config', 'config-if', 'config-subif', 'config-vlan', 'config-router', 'config-router-isis', 'config-router-rip', 'config-std-nacl', 'config-ext-nacl', 'dhcp-config', 'config-cmap', 'config-pmap', 'config-pmap-c'];
 
 const INVALID = "% Invalid input detected at '^' marker.";
 
@@ -154,7 +158,7 @@ function setIpAddress(x: Exec): string | void {
   if (role === 'switch' && sviVlan(name) === null) return x.invalid();
   const address = String(x.args.addr);
   const m = String(x.args.mask);
-  const err = validateHostAddress(address, m);
+  const err = validateHostAddress(address, m, loopbackId(name) !== null);
   if (err) return err;
   const len = maskToPrefix(m)!;
   const mine = { network: (parseIpv4(address)! & (len === 0 ? 0 : (0xffffffff << (32 - len)) >>> 0)) >>> 0, prefixLen: len };
@@ -422,7 +426,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -497,6 +501,16 @@ function enterInterface(x: Exec): string | void {
   const vlan = sviVlan(name);
   if (vlan !== null) {
     if (!isBridgeRole(role) || vlan < 1 || vlan > 4094) return x.invalid();
+    if (!x.cfg.interfaces[name]) {
+      x.cfg.interfaces[name] = {};
+      x.dirty();
+    }
+    x.setMode('config-if', { iface: name });
+    return;
+  }
+  if (loopbackId(name) !== null) {
+    const r = roleOf(x.device.kind);
+    if (r !== 'router' && r !== 'l3switch') return x.invalid();
     if (!x.cfg.interfaces[name]) {
       x.cfg.interfaces[name] = {};
       x.dirty();
@@ -662,6 +676,8 @@ export function prompt(session: CliSession, topology: Topology): string {
     case 'config-vlan':
       return `${name}(config-vlan)#`;
     case 'config-router':
+    case 'config-router-isis':
+    case 'config-router-rip':
       return `${name}(config-router)#`;
     case 'config-std-nacl':
       return `${name}(config-std-nacl)#`;

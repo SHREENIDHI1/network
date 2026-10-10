@@ -73,6 +73,11 @@ const interfaceSchema = z.object({
   channelGroup: z.object({ id: z.number().int().min(1).max(64), mode: z.enum(['on', 'active', 'passive']) }).optional(),
   /** IP MTU in bytes ("ip mtu"); only checked by OSPF (MTU mismatch). */
   mtu: z.number().int().min(68).max(9216).optional(),
+  /** "ip router isis": interface takes part in IS-IS. */
+  isisEnabled: z.boolean().optional(),
+  /** "isis metric N" (narrow metrics, default 10). */
+  isisMetric: z.number().int().min(1).max(63).optional(),
+  isisCircuitType: z.enum(['level-1', 'level-1-2', 'level-2-only']).optional(),
   ospfCost: z.number().int().min(1).max(65535).optional(),
   ospfHello: z.number().int().min(1).max(65535).optional(),
   ospfDead: z.number().int().min(1).max(65535).optional(),
@@ -98,6 +103,23 @@ const ospfSchema = z.object({
   redistributeStatic: z.boolean().default(false),
   /** auto-cost reference-bandwidth, Mbit/s (IOS default 100). */
   referenceBandwidth: z.number().int().min(1).max(4294967).default(100),
+});
+
+const isisSchema = z.object({
+  tag: z.string().optional(),
+  /** Network Entity Title, e.g. 49.0001.0000.0000.0001.00 */
+  net: z.string().optional(),
+  isType: z.enum(['level-1', 'level-1-2', 'level-2-only']).default('level-1-2'),
+  passive: z.array(z.string()).default([]),
+});
+
+const ripSchema = z.object({
+  version: z.union([z.literal(1), z.literal(2)]).default(1),
+  /** Classful networks from "network A.B.C.D". */
+  networks: z.array(dotted).default([]),
+  passive: z.array(z.string()).default([]),
+  autoSummary: z.boolean().default(false),
+  defaultOriginate: z.boolean().default(false),
 });
 
 const aclEntrySchema = z.object({
@@ -167,6 +189,8 @@ const baseConfigSchema = z.object({
   defaultGateway: dotted.optional(),
   stpPriority: z.number().int().min(0).max(61440).default(32768),
   ospf: ospfSchema.optional(),
+  isis: isisSchema.optional(),
+  rip: ripSchema.optional(),
   acls: z.record(aclSchema).default({}),
   nat: natSchema.default({}),
   dhcp: dhcpSchema.default({}),
@@ -185,6 +209,8 @@ export type StaticRoute = z.infer<typeof staticRouteSchema>;
 export type NetConfig = z.infer<typeof netConfigSchema>;
 export type PortSecurityConfig = z.infer<typeof portSecuritySchema>;
 export type OspfConfig = z.infer<typeof ospfSchema>;
+export type IsisConfig = z.infer<typeof isisSchema>;
+export type RipConfig = z.infer<typeof ripSchema>;
 export type AclConfig = z.infer<typeof aclSchema>;
 export type AclEntry = z.infer<typeof aclEntrySchema>;
 export type FhrpConfig = z.infer<typeof fhrpSchema>;
@@ -267,6 +293,7 @@ const LONG_NAMES: Array<[short: string, long: string]> = [
   ['Hu', 'HundredGigE'],
   ['Fa', 'FastEthernet'],
   ['Po', 'Port-channel'],
+  ['Lo', 'Loopback'],
 ];
 
 /** "Gi0/1" -> "GigabitEthernet0/1", "Vlan10" stays, "eth0" stays. */
@@ -284,6 +311,8 @@ export function resolveIfName(typed: string, ports: Port[]): string | null {
   const t = typed.replace(/\s+/g, '');
   const vlan = /^vl(?:an?)?(\d+)$/i.exec(t);
   if (vlan) return `Vlan${Number(vlan[1])}`;
+  const lo = /^lo(?:o(?:p(?:b(?:a(?:c(?:k)?)?)?)?)?)?(\d+)$/i.exec(t);
+  if (lo) return `Loopback${Number(lo[1])}`;
   const po = /^po(?:r(?:t(?:-?c(?:h(?:a(?:n(?:n(?:e(?:l)?)?)?)?)?)?)?)?)?(\d+)$/i.exec(t);
   if (po) return `Po${Number(po[1])}`;
   const m = /^([a-z-]+?)(\d[\d/]*)(?:\.(\d+))?$/i.exec(t);
@@ -301,6 +330,12 @@ export function resolveIfName(typed: string, ports: Port[]): string | null {
     if (short.toLowerCase().startsWith(w) || long.toLowerCase().startsWith(w)) return sub ? `${p.id}.${Number(sub)}` : p.id;
   }
   return null;
+}
+
+/** "Loopback0" → 0 for loopback interface names, else null. */
+export function loopbackId(name: string): number | null {
+  const m = /^Loopback(\d+)$/.exec(name);
+  return m ? Number(m[1]) : null;
 }
 
 /** "Po3" → 3 for port-channel interface names, else null. */

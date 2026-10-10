@@ -1,5 +1,5 @@
 import type { Device } from '../../model/types';
-import { effectivePort, isBridgeRole, isSubinterface, parentOf, roleOf, sviVlan, type NetConfig } from '../config/netConfig';
+import { effectivePort, isBridgeRole, isSubinterface, loopbackId, parentOf, roleOf, sviVlan, type NetConfig } from '../config/netConfig';
 import { baseMac, macFor } from '../core/mac';
 import type { StpState } from '../ethernet/stp';
 import { portKey, type PhysicalState } from '../physical/linkState';
@@ -10,11 +10,12 @@ import { maskToPrefix, networkOf, parseIpv4 } from './ipv4';
  *  - 'port' : routed physical port (router, L3-switch "no switchport", host NIC)
  *  - 'sub'  : router subinterface with 802.1Q encapsulation (router-on-a-stick)
  *  - 'svi'  : switch virtual interface "interface vlan N"
+ *  - 'loop' : loopback "interface loopback N" (always up unless shut down)
  */
 
 export interface L3Interface {
   name: string;
-  kind: 'port' | 'sub' | 'svi';
+  kind: 'port' | 'sub' | 'svi' | 'loop';
   port?: string;
   vlan?: number;
   /** Subinterface sends/receives untagged (encapsulation dot1Q N native). */
@@ -91,6 +92,11 @@ export function deriveL3Interfaces(device: Device, cfg: NetConfig, phys: Physica
         reason: !adminUp ? 'administratively down' : !ic.encapsulation ? 'no encapsulation' : up ? undefined : 'parent down',
         ...addr(ic),
       });
+    }
+    if (loopbackId(name) !== null && (role === 'router' || role === 'l3switch')) {
+      const adminUp = !(ic.shutdown ?? false);
+      out.push({ name, kind: 'loop', mac: baseMac(device.id), adminUp, up: adminUp, reason: adminUp ? undefined : 'administratively down', ...addr(ic) });
+      continue;
     }
     const vlan = sviVlan(name);
     if (vlan !== null && isBridgeRole(role)) {

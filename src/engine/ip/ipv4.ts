@@ -110,12 +110,13 @@ export function inSubnet(ip: number, network: number, prefixLen: number): boolea
  * Validates a host address for an interface. Returns an IOS-like error text
  * or null when the address is usable.
  */
-export function validateHostAddress(address: string, mask: string): string | null {
+/** IOS address checks; `/32` only where allowed (loopbacks). */
+export function validateHostAddress(address: string, mask: string, allowHost32 = false): string | null {
   const ip = parseIpv4(address);
   if (ip === null) return `% Invalid IP address ${address}`;
   const len = maskToPrefix(mask);
   if (len === null) return `% Bad mask ${mask} for address ${address}`;
-  if (len === 0 || len === 32) return `% Bad mask /${len} for address ${address}`;
+  if (len === 0 || (len === 32 && !allowHost32)) return `% Bad mask /${len} for address ${address}`;
   if (len < 31) {
     if (ip === networkOf(ip, len)) return `% Bad mask /${len} for address ${address}`;
     if (ip === broadcastOf(ip, len)) return `% Bad mask /${len} for address ${address}`;
