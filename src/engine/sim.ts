@@ -2,6 +2,7 @@ import type { Device, Topology } from '../model/types';
 import { effectivePort, getNetConfig, isBridgeRole, longIfName, roleOf, type DeviceRole, type NetConfig } from './config/netConfig';
 import { EventQueue } from './core/eventQueue';
 import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet, type MplsLabel } from './core/types';
+import { classify } from './qos/analysis';
 import { computeTe, emptyTe, outLabel, type TeLsp, type TeMemory, type TeResult } from './te/te';
 import { computePseudowires, emptyPw, type PwEndpoint, type PwResult } from './l2vpn/pw';
 import { computeBgp, emptyBgp, type BgpResult } from './bgp/bgp';
@@ -2951,7 +2952,7 @@ export class Sim {
     const table = this.routingTable(deviceId, o.vrf);
     const vpn = o.vrf ? lookup(table, pkt.dst) : undefined;
     if (vpn?.vpnLabel !== undefined) {
-      this.sendVpn(deviceId, pkt, vpn, o.vrf!, flowId, o.originated);
+      this.sendVpn(deviceId, pkt, vpn, o.vrf!, flowId, o.originated, this.impositionTc(deviceId, o.ingress, pkt.dscp));
       return;
     }
     const r = resolve(table, pkt.dst);
@@ -2964,7 +2965,7 @@ export class Sim {
         detail: `${formatIpv4(pkt.dst)}: ${r.route.protocol} route ${formatIpv4(r.route.network)}/${r.route.prefixLen} via ${r.iface} (TE tunnel to ${formatIpv4(teLsp.destination!)}, autoroute).`,
       });
       const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
-      this.teForward(deviceId, teLsp, 0, [], pkt, flowId, { tc: pkt.dscp >> 3, ttl: propagate ? pkt.ttl : 255 });
+      this.teForward(deviceId, teLsp, 0, [], pkt, flowId, { tc: this.impositionTc(deviceId, o.ingress, pkt.dscp), ttl: propagate ? pkt.ttl : 255 });
       return;
     }
     const iface = r ? this.interfaces(deviceId).find((i) => i.name === r.iface) : undefined;
@@ -3014,7 +3015,7 @@ export class Sim {
     let mpls: MplsLabel[] | undefined;
     if (ftn && typeof ftn.out === 'number') {
       const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
-      mpls = [{ label: ftn.out, tc: pkt.dscp >> 3, ttl: propagate ? pkt.ttl : 255 }];
+      mpls = [{ label: ftn.out, tc: this.impositionTc(deviceId, o.ingress, pkt.dscp), ttl: propagate ? pkt.ttl : 255 }];
       this.trace(flowId, {
         deviceId,
         iface: iface.name,
@@ -3027,7 +3028,14 @@ export class Sim {
   }
 
   /** VPN route in a VRF: push VPN label + transport label to the remote PE (BGP next hop). */
-  private sendVpn(deviceId: string, pkt: Ipv4Packet, route: Route, vrf: string, flowId: number, originated: boolean): void {
+  /** EXP for labels pushed here: "set mpls experimental imposition" of the ingress input policy, else IP precedence (DSCP >> 3). */
+  private impositionTc(deviceId: string, ingress: L3Interface | undefined, dscp: number): number {
+    const cfg = this.configs.get(deviceId)!;
+    const pol = ingress ? cfg.interfaces[ingress.name]?.servicePolicyIn : undefined;
+    return (pol ? classify(cfg, pol, dscp).cls?.setExpImposition : undefined) ?? dscp >> 3;
+  }
+
+  private sendVpn(deviceId: string, pkt: Ipv4Packet, route: Route, vrf: string, flowId: number, originated: boolean, tc = pkt.dscp >> 3): void {
     const pe = route.nextHop!;
     const g = resolve(this.routingTable(deviceId), pe);
     const fec = `${formatIpv4(route.network)}/${route.prefixLen}`;
@@ -3040,7 +3048,7 @@ export class Sim {
         table: 'LFIB',
         detail: `VRF ${vrf}: ${fec} is a VPNv4 route via PE ${formatIpv4(pe)} — push VPN label ${route.vpnLabel}; PE reached through ${g!.iface} (TE).`,
       });
-      this.teForward(deviceId, teLsp, 0, [{ label: route.vpnLabel!, tc: pkt.dscp >> 3, ttl }], pkt, flowId, { tc: pkt.dscp >> 3, ttl });
+      this.teForward(deviceId, teLsp, 0, [{ label: route.vpnLabel!, tc, ttl }], pkt, flowId, { tc, ttl });
       return;
     }
     const iface = g ? this.interfaces(deviceId).find((i) => i.name === g.iface && i.up && i.ip !== undefined) : undefined;
@@ -3068,7 +3076,6 @@ export class Sim {
       return;
     }
     const ttl = this.configs.get(deviceId)!.mpls.propagateTtl ? pkt.ttl : 255;
-    const tc = pkt.dscp >> 3;
     const stack: MplsLabel[] = [...(directPe ? [] : [{ label: ftn!.out as number, tc, ttl }]), { label: route.vpnLabel!, tc, ttl }];
     this.trace(flowId, {
       deviceId,

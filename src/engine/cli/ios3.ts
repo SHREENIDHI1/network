@@ -775,6 +775,30 @@ export function phase3Cmds(): Cmd[] {
         },
       }),
     ),
+    ...[false, true].map(
+      (neg): Cmd => ({
+        modes: ['config-cmap'],
+        toks: [
+          ...(neg ? [NO()] : []),
+          kw('match', 'classification criteria'),
+          kw('mpls', 'Multi Protocol Label Switching specific values'),
+          kw('experimental', 'Match MPLS experimental'),
+          kw('topmost', 'Match MPLS experimental value on topmost label'),
+          line('vals', 'EXP values 0-7, e.g. 5 6'),
+        ],
+        run: (x) => {
+          const vals: number[] = [];
+          for (const t of String(x.args.vals).split(/\s+/)) {
+            if (!/^[0-7]$/.test(t)) return `% Invalid MPLS experimental value ${t} (0-7)`;
+            vals.push(Number(t));
+          }
+          const cm = x.cfg.qos.classMaps[x.session.ctxName!];
+          const cur = cm.exp ?? [];
+          cm.exp = neg ? cur.filter((d) => !vals.includes(d)) : [...new Set([...cur, ...vals])];
+          x.dirty();
+        },
+      }),
+    ),
     {
       modes: CONF,
       toks: [kw('policy-map', 'Configure QoS Policy Map'), word('name', 'policy-map name')],
@@ -854,6 +878,30 @@ export function phase3Cmds(): Cmd[] {
         x.dirty();
       },
     },
+    ...(['imposition', 'topmost'] as const).flatMap((k): Cmd[] => [
+      {
+        modes: ['config-pmap-c'],
+        toks: [
+          kw('set', 'Set QoS values'),
+          kw('mpls', 'Set MPLS specific values'),
+          kw('experimental', 'Set MPLS experimental value'),
+          kw(k, k === 'imposition' ? 'Set experimental value at tag imposition' : 'Set experimental value on topmost label'),
+          num('v', 0, 7, '<0-7> Experimental value'),
+        ],
+        run: (x) => {
+          pmapClass(x)[k === 'imposition' ? 'setExpImposition' : 'setExpTopmost'] = Number(x.args.v);
+          x.dirty();
+        },
+      },
+      {
+        modes: ['config-pmap-c'],
+        toks: [NO(), kw('set', 'Set QoS values'), kw('mpls', 'Set MPLS specific values'), kw('experimental', 'Set MPLS experimental value'), kw(k, 'EXP set point')],
+        run: (x) => {
+          delete pmapClass(x)[k === 'imposition' ? 'setExpImposition' : 'setExpTopmost'];
+          x.dirty();
+        },
+      },
+    ]),
     {
       modes: ['config-pmap-c'],
       toks: [NO(), kw('set', 'Set QoS values'), kw('dscp', 'Set DSCP')],

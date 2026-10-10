@@ -229,7 +229,8 @@ export function showClassMaps(cfg: NetConfig): string {
   for (const [n, c] of Object.entries(cfg.qos.classMaps)) {
     L.push(
       ` Class Map ${c.matchAll ? 'match-all' : 'match-any'} ${n} (id ${L.length + 1})`,
-      `   Match dscp ${c.dscp.map(dscpName).join(' ') || '(none)'}`,
+      ...(c.dscp.length || !(c.exp ?? []).length ? [`   Match dscp ${c.dscp.map(dscpName).join(' ') || '(none)'}`] : []),
+      ...((c.exp ?? []).length ? [`   Match mpls experimental topmost ${c.exp!.join(' ')}`] : []),
       '',
     );
   }
@@ -246,6 +247,8 @@ export function showPolicyMaps(cfg: NetConfig): string {
       if (c.priorityPercent) L.push(`      priority ${c.priorityPercent} (%)`);
       if (c.bandwidthPercent) L.push(`      bandwidth ${c.bandwidthPercent} (%)`);
       if (c.setDscp !== undefined) L.push(`      set dscp ${dscpName(c.setDscp)}`);
+      if (c.setExpImposition !== undefined) L.push(`      set mpls experimental imposition ${c.setExpImposition}`);
+      if (c.setExpTopmost !== undefined) L.push(`      set mpls experimental topmost ${c.setExpTopmost}`);
     }
   }
   return L.join('\n') || '% No policy maps configured';
@@ -432,6 +435,7 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
     L.push(
       `class-map ${c.matchAll ? 'match-all' : 'match-any'} ${n}`,
       ...(c.dscp.length ? [` match dscp ${c.dscp.map(dscpName).join(' ')}`] : []),
+      ...((c.exp ?? []).length ? [` match mpls experimental topmost ${c.exp!.join(' ')}`] : []),
       '!',
     );
   for (const [n, p] of Object.entries(cfg.qos.policyMaps)) {
@@ -441,6 +445,8 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
       if (c.priorityPercent) L.push(`  priority percent ${c.priorityPercent}`);
       if (c.bandwidthPercent) L.push(`  bandwidth percent ${c.bandwidthPercent}`);
       if (c.setDscp !== undefined) L.push(`  set dscp ${dscpName(c.setDscp)}`);
+      if (c.setExpImposition !== undefined) L.push(`  set mpls experimental imposition ${c.setExpImposition}`);
+      if (c.setExpTopmost !== undefined) L.push(`  set mpls experimental topmost ${c.setExpTopmost}`);
     }
     L.push('!');
   }

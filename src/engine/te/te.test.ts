@@ -3,6 +3,8 @@ import type { Topology } from '../../model/types';
 import { buildTopology } from '../../topologies/builder';
 import { execIos, newSession } from '../cli/ios';
 import { Sim } from '../sim';
+import { analyseTraffic } from '../qos/analysis';
+import { configure, host } from '../testing/fixtures';
 
 /**
  * Ring R1 – R2 – R3 – R4 – R1 (LSRs, loopbacks 10.0.0.1–4). R1–R4 has OSPF cost 20,
@@ -182,5 +184,85 @@ describe('MPLS TE: RSVP-TE tunnels, CSPF, autoroute, FRR', () => {
     expect(rc).toContain(' tunnel mpls traffic-eng path-option 1 dynamic');
     expect(rc).toContain(' ip rsvp bandwidth\n');
     expect(rc).toContain(' mpls traffic-eng router-id Loopback0\n mpls traffic-eng area 0');
+  });
+});
+
+describe('MPLS QoS: EXP in the core', () => {
+  const withHosts = () => {
+    let t = topo();
+    t = buildTopology(
+      'teq',
+      '',
+      [
+        ...['r1', 'r2', 'r3', 'r4'].map((k) => ({ key: k, kind: 'neon-lsr' as const, name: k.toUpperCase(), x: 0, y: 0 })),
+        { key: 'ph', kind: 'pc' as const, name: 'PHONE', x: 0, y: 0 },
+        { key: 'cam', kind: 'pc' as const, name: 'CAM', x: 0, y: 0 },
+        { key: 'srv', kind: 'pc' as const, name: 'SRV', x: 0, y: 0 },
+      ],
+      [
+        { kind: 'ofc', a: ['r1', 'Te0/0/0'], b: ['r2', 'Te0/0/0'], lengthKm: 10 },
+        { kind: 'ofc', a: ['r2', 'Te0/0/1'], b: ['r3', 'Te0/0/0'], lengthKm: 10 },
+        { kind: 'ofc', a: ['r3', 'Te0/0/1'], b: ['r4', 'Te0/0/0'], lengthKm: 10 },
+        { kind: 'ofc', a: ['r4', 'Te0/0/1'], b: ['r1', 'Te0/0/1'], lengthKm: 10 },
+        { kind: 'cat6', a: ['ph', 'eth0'], b: ['r1', 'Gi0/3/0'] },
+        { kind: 'cat6', a: ['cam', 'eth0'], b: ['r1', 'Gi0/3/1'] },
+        { kind: 'cat6', a: ['srv', 'eth0'], b: ['r3', 'Gi0/3/0'] },
+      ],
+    );
+    t = host(t, 'PHONE', '10.10.1.10', '10.10.1.1');
+    t = host(t, 'CAM', '10.10.2.10', '10.10.2.1');
+    t = host(t, 'SRV', '10.30.1.10', '10.30.1.1');
+    t = configure(t, 'PHONE', (c) => void (c.traffic = [{ id: 'v', dst: '10.30.1.10', app: 'voip', dscp: 46, rateMbps: 50 }]));
+    t = configure(t, 'CAM', (c) => void (c.traffic = [{ id: 'c', dst: '10.30.1.10', app: 'cctv', dscp: 34, rateMbps: 900 }]));
+    const lab = new Lab(t);
+    for (const [dev, ifs] of Object.entries(ADDR)) {
+      const n = Number(dev.slice(1));
+      lab.run(dev, [
+        ...C,
+        'mpls traffic-eng tunnels',
+        'interface loopback0',
+        `ip address 10.0.0.${n} 255.255.255.255`,
+        ...ifs.flatMap(([i, a, cost]) => [`interface ${i}`, `ip address ${a} 255.255.255.254`, 'no shutdown', 'mpls ip', 'mpls traffic-eng tunnels', 'ip rsvp bandwidth', ...(cost ? [`ip ospf cost ${cost}`] : [])]),
+        ...(dev === 'R1' ? ['interface gi0/3/0', 'ip address 10.10.1.1 255.255.255.0', 'no shutdown', 'interface gi0/3/1', 'ip address 10.10.2.1 255.255.255.0', 'no shutdown'] : []),
+        ...(dev === 'R3' ? ['interface gi0/3/0', 'ip address 10.30.1.1 255.255.255.0', 'no shutdown'] : []),
+        'exit',
+        'router ospf 1',
+        'network 10.0.0.0 0.255.255.255 area 0',
+        'mpls traffic-eng router-id loopback0',
+        'mpls traffic-eng area 0',
+        'end',
+      ]);
+    }
+    return lab;
+  };
+  const flow = (lab: Lab, app: string) => analyseTraffic(lab.sim).flows.find((f) => f.app.toLowerCase().includes(app))!;
+
+  it('a "match dscp" class does not see labelled packets; "match mpls experimental topmost" does', () => {
+    const lab = withHosts();
+    // Imposition at R1: EXP = IP precedence (EF 46 → 5, AF41 34 → 4).
+    const v = flow(lab, 'voip');
+    expect(v.hops.find((h) => h.deviceId === lab.sim.deviceByName('R1')!.id && h.iface === 'Te0/0/0')?.exp).toBe(5);
+    expect(v.lossPct).toBeCloseTo(0);
+    // Congest the R1–R2 core link (forced to 100 Mbit/s): 950 Mbit/s offered.
+    lab.run('R1', [...C, 'interface te0/0/0', 'speed 100', 'end']);
+    lab.run('R2', [...C, 'interface te0/0/0', 'speed 100', 'end']);
+    expect(flow(lab, 'voip').lossPct).toBeGreaterThan(50);
+    lab.run('R1', [...C, 'class-map match-any VOICE-IP', 'match dscp ef', 'exit', 'policy-map CORE', 'class VOICE-IP', 'priority percent 60', 'exit', 'exit', 'interface te0/0/0', 'service-policy output CORE', 'end']);
+    expect(flow(lab, 'voip').lossPct).toBeGreaterThan(10);
+    lab.run('R1', [...C, 'class-map match-any VOICE-EXP', 'match mpls experimental topmost 5', 'exit', 'policy-map CORE', 'no class VOICE-IP', 'class VOICE-EXP', 'priority percent 60', 'end']);
+    expect(flow(lab, 'voip').lossPct).toBeCloseTo(0);
+    expect(lab.cli('R1', ['enable', 'show running-config'])).toContain('class-map match-any VOICE-EXP\n match mpls experimental topmost 5');
+  });
+
+  it('set mpls experimental imposition re-marks at the PE; TE tunnels steer the flow', () => {
+    const lab = withHosts();
+    lab.run('R1', [...C, 'class-map match-any ALL', 'match dscp af41', 'exit', 'policy-map MARK', 'class ALL', 'set mpls experimental imposition 1', 'exit', 'exit', 'interface gi0/3/1', 'service-policy input MARK', 'end']);
+    const c = flow(lab, 'cctv');
+    expect(c.hops.find((h) => h.iface === 'Te0/0/0')?.exp).toBe(1);
+    lab.run('R1', [...C, 'ip explicit-path name VIA_R4 enable', 'next-address 10.254.0.6', 'next-address 10.254.0.4', 'exit']);
+    lab.run('R1', tunnel(['tunnel mpls traffic-eng path-option 1 explicit name VIA_R4']));
+    const via = flow(lab, 'cctv').hops.map((h) => lab.sim.device(h.deviceId)!.name);
+    expect(via).toContain('R4');
+    expect(via).not.toContain('R2');
   });
 });
