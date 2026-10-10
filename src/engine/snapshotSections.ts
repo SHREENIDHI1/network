@@ -1,6 +1,11 @@
 import type { EngineSections } from '../labs/framework/snapshot';
 import { analyseTraffic } from './qos/analysis';
 import type {
+  BgpSessionInfo,
+  BgpVpnv4Route,
+  RouteProtocol,
+  VrfDefinition,
+  VrfRoute,
   LdpNeighbor,
   LfibEntry,
   LspResult,
@@ -98,16 +103,7 @@ export function engineSections(sim: Sim): EngineSections {
     }
     routingTables[d.name] = sim.routingTable(d.id).map((r) => ({
       prefix: `${formatIpv4(r.network)}/${r.prefixLen}`,
-      protocol:
-        r.protocol === 'S'
-          ? 'static'
-          : r.protocol.startsWith('O')
-            ? 'ospf'
-            : r.protocol.startsWith('i ')
-              ? 'isis'
-              : r.protocol === 'R'
-                ? 'rip'
-                : 'connected',
+      protocol: protoOf(r.protocol),
       nextHop: r.nextHop !== undefined ? formatIpv4(r.nextHop) : undefined,
       outInterface: r.iface,
       metric: r.metric,
@@ -119,6 +115,7 @@ export function engineSections(sim: Sim): EngineSections {
     .map((s) => ({
       src: sim.device(s.srcDeviceId)?.name ?? s.srcDeviceId,
       dst: formatIpv4(s.dst),
+      vrf: s.vrf,
       success: s.probes.some((p) => p.outcome === 'reply'),
       hops: undefined,
     }));
@@ -226,7 +223,49 @@ export function engineSections(sim: Sim): EngineSections {
       success: x.kind === 'ping' ? x.probes.length > 0 && x.probes.every((p) => p.code === '!') : x.probes.some((p) => p.code === '!'),
     }));
 
+  // BGP / L3VPN (Phase 5).
+  const vrfs: VrfDefinition[] = [];
+  const vrfRoutes: VrfRoute[] = [];
+  for (const d of sim.topology.devices) {
+    const cfg = sim.config(d.id);
+    for (const [v, vc] of Object.entries(cfg?.vrfs ?? {}))
+      vrfs.push({ device: d.name, vrf: v, rd: vc.rd ?? '', importRts: [...vc.importRts], exportRts: [...vc.exportRts] });
+    for (const v of sim.vrfNames(d.id))
+      for (const r of sim.routingTable(d.id, v))
+        if (r.protocol !== 'L')
+          vrfRoutes.push({ device: d.name, vrf: v, prefix: `${formatIpv4(r.network)}/${r.prefixLen}`, protocol: protoOf(r.protocol) });
+  }
+  const bgpSessions: BgpSessionInfo[] = sim.bgp.peerings.map((p) => ({
+    device: name(p.dev),
+    vrf: p.vrf,
+    neighbor: formatIpv4(p.neighbor),
+    peer: p.peer ? name(sim.bgp.speakers.get(p.peer)!.dev) : undefined,
+    state: p.state,
+    ibgp: p.ibgp,
+    afs: [...p.afs],
+  }));
+  const bgpVpnv4: BgpVpnv4Route[] = [];
+  for (const [tk, t] of sim.bgp.tables) {
+    if (!tk.endsWith('|vpnv4')) continue;
+    const dev = tk.slice(0, -'|vpnv4'.length);
+    for (const paths of t.values())
+      for (const p of paths)
+        bgpVpnv4.push({
+          device: name(dev),
+          rd: p.rd ?? '',
+          prefix: `${formatIpv4(p.network)}/${p.prefixLen}`,
+          nextHop: p.nextHop === 0 ? '0.0.0.0' : formatIpv4(p.nextHop),
+          rts: [...p.rts],
+          label: p.label ?? 0,
+          best: !!p.best,
+        });
+  }
+
   return {
+    vrfs,
+    vrfRoutes,
+    bgpVpnv4,
+    bgpSessions,
     ldpNeighbors,
     lfib,
     lspResults,
@@ -253,4 +292,13 @@ export function engineSections(sim: Sim): EngineSections {
     appResults,
     qosFlows,
   };
+}
+
+function protoOf(p: string): RouteProtocol {
+  if (p === 'S') return 'static';
+  if (p.startsWith('O')) return 'ospf';
+  if (p.startsWith('i ')) return 'isis';
+  if (p === 'R') return 'rip';
+  if (p === 'B') return 'bgp';
+  return 'connected';
 }

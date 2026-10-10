@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), and MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4). BGP/VPNs, pseudowires, TE and fault/NMS correlation are not simulated yet.',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), and BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5). Pseudowires, TE and fault/NMS correlation are not simulated yet.',
   },
   // ---------------- Physical ----------------
   {
@@ -215,7 +215,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'MPLS',
     status: 'active',
     phase: 4,
-    text: 'Local labels are allocated from 16 upwards on each router in route-install order (connected first, then nearest IGP routes) — real routers allocate in learning order, so exact numbers differ; only their meaning matters. The data plane does real push/swap/pop with label TTL (uniform with propagate-ttl, pipe without) and RFC 4950 labels in traceroute; an expired label TTL answers ICMP directly instead of forwarding the error along the LSP. EXP/TC is copied from DSCP at imposition but no MPLS QoS queuing is applied yet (Phase 7).',
+    text: 'Local labels are allocated from 16 upwards on each router in route-install order (connected first, then nearest IGP routes) — real routers allocate in learning order, so exact numbers differ; only their meaning matters. The data plane does real push/swap/pop with label TTL (uniform with propagate-ttl, pipe without) and RFC 4950 labels in traceroute; with a single label an expired label TTL answers ICMP directly; with a label stack (L3VPN) the ICMP error is forwarded along the LSP to the egress PE, which returns it in the VRF (RFC 3032 §2.3.2). EXP/TC is copied from DSCP at imposition but no MPLS QoS queuing is applied yet (Phase 7).',
   },
   {
     area: 'MPLS',
@@ -234,6 +234,31 @@ export const LIMITATIONS: Limitation[] = [
     status: 'active',
     phase: 4,
     text: 'J1–J4 are generated from the TRACK map: OFC is assumed to follow the track, so they are a teaching design, not the real RailTel / NWR network. Layout is schematic (directions per section, very short spans drawn at a minimum length — not to scale). Unknown chainages are interpolated and marked "estimated". J1 links are logical express paths whose optics are not modelled. Boundary hand-offs to adjacent divisions are placeholders until the inter-division labs (Phase 8). The IP plan and OSPF area design (core area 0, one area per control board) are a teaching plan.',
+  },
+  // ---------------- Phase 5 ----------------
+  {
+    area: 'BGP',
+    status: 'active',
+    phase: 5,
+    text: 'BGP is computed, not exchanged: sessions come up when the neighbour is reachable from the right source (update-source), remote-as matches, eBGP peers are directly connected (or ebgp-multihop) and nothing is shut down; otherwise the summary shows Idle/Active with the reason. No OPEN/UPDATE/KEEPALIVE messages, timers, hold-time expiry, message counters or table versions (shown as "-"), no graceful restart, route dampening, communities other than route-targets, route-maps or prefix-lists.',
+  },
+  {
+    area: 'BGP',
+    status: 'active',
+    phase: 5,
+    text: 'Best path uses: weight, LOCAL_PREF, locally originated, AS_PATH length, ORIGIN, MED (always compared), eBGP over iBGP, IGP cost to the next hop, ORIGINATOR_ID/router-ID, peer address. Route reflection follows RFC 4456 (client/non-client rules, ORIGINATOR_ID, CLUSTER_LIST with the RR router-ID as cluster-id). Not modelled: confederations, multipath, add-path, AS-path prepending, aggregation, synchronisation, BGP next-hop tracking delays.',
+  },
+  {
+    area: 'L3VPN',
+    status: 'active',
+    phase: 5,
+    text: 'VPNv4 routes are exported from a VRF only by "redistribute connected/static" or "network" under its address-family (or learned from a PE–CE eBGP neighbour) and imported by route-target into VRFs on OTHER PEs; leaking between two VRFs on the same PE (local import) is not modelled. VPN labels are allocated per prefix from 1000 on each PE (real routers use their own label ranges and may allocate per VRF/CE). PE–CE routing: static and eBGP only (no PE–CE OSPF/RIP, no sham-links, no as-override/allowas-in). No inter-AS options, no 6PE/6VPE.',
+  },
+  {
+    area: 'L3VPN',
+    status: 'active',
+    phase: 5,
+    text: 'The JU firewall in the B6 labs is a router with NAT and routes, not a stateful firewall: no zones, sessions or inspection. The ISP router is a teaching stand-in. The VRF/RD/RT plan (RT 65000:100–107) is a teaching plan, not the real RailTel/NWR design.',
   },
   // ---------------- RailMPLS Lab profiles & data ----------------
   {
@@ -276,8 +301,8 @@ export const LIMITATIONS: Limitation[] = [
   {
     area: 'MPLS',
     status: 'planned',
-    phase: 5,
-    text: 'MP-BGP VPNv4 will be simplified: best-path selection uses a reduced attribute set. CESoPSN/SAToP E1 emulation timing (adaptive/differential clock recovery, jitter buffers) is labelled as simplified.',
+    phase: 6,
+    text: 'CESoPSN/SAToP E1 emulation timing (adaptive/differential clock recovery, jitter buffers) is labelled as simplified.',
   },
   // ---------------- Labs ----------------
   {

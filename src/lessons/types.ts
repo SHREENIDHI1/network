@@ -19,7 +19,9 @@ export type WidgetId =
   | 'hsrp'
   | 'queue-sim'
   | 'label-header'
-  | 'lsp-walk';
+  | 'lsp-walk'
+  | 'ibgp-mesh'
+  | 'rt-matcher';
 export type DiagramId =
   | 'circuit-vs-packet'
   | 'osi-stack'

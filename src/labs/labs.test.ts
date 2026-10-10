@@ -18,7 +18,7 @@ async function start(lab: Lab) {
   return { topology, sim };
 }
 
-describe('labs A4–A15 and B1–B4', () => {
+describe('labs A4–A15 and B1–B6', () => {
   it('registry is valid and P2/P3 labs are unlocked', () => {
     expect(validateRegistry(LABS, TOPOLOGY_IDS)).toEqual([]);
     for (const l of LABS) expect(labLockReason(l), l.id).toBeNull();
@@ -40,6 +40,9 @@ describe('labs A4–A15 and B1–B4', () => {
       'B2',
       'B3',
       'B4',
+      'B5',
+      'B6',
+      'B6',
     ]);
   });
 
@@ -200,5 +203,20 @@ describe('practical quiz answers match the engine', () => {
     const lines = out.split('\n');
     expect(lines.filter((l) => /^L \d+ /.test(l))).toHaveLength(25);
     expect(lines.filter((l) => /^! \d+ /.test(l))).toHaveLength(1);
+  });
+
+  it('LB5.1: JU-LSR lists three BGP neighbours', async () => {
+    const out = await solvedCli('LB5.1', 'JU-LSR', ['show ip bgp summary']);
+    expect(out.split('\n').filter((l) => /^\d+\.\d+\.\d+\.\d+\s+4\s/.test(l))).toHaveLength(3);
+  });
+
+  it('LB6.1: the RAILNET default route on MTD-LSR is B*', async () => {
+    const out = await solvedCli('LB6.1', 'MTD-LSR', ['show ip route vrf RAILNET']);
+    expect(out.split('\n').find((l) => l.includes('0.0.0.0/0'))).toMatch(/^B\*/);
+  });
+
+  it('LB6.2: NMS-MGMT reaches the RTU LAN via MTD', async () => {
+    const out = await solvedCli('LB6.2', 'JU-LSR', ['show ip route vrf NMS-MGMT']);
+    expect(out).toMatch(/^B\s+10\.103\.13\.128\/25 \[200\/0\] via 10\.0\.1\.13/m);
   });
 });

@@ -425,7 +425,7 @@ function classfulLen(net: number): number {
 
 export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: string }) => boolean, vrf?: string): string {
   const cfg = sim.config(device.id)!;
-  if (vrf && !sim.vrfNames(device.id).includes(vrf)) return `% Invalid input: VRF ${vrf} does not exist`;
+  if (vrf && !sim.vrfNames(device.id).includes(vrf)) return `% IP routing table ${vrf} does not exist`;
   const table = sim.routingTable(device.id, vrf).filter((r) => !only || only(r));
   if (!routesPackets(device.kind, cfg)) {
     const gw = table.find((r) => r.isGateway);

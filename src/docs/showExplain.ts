@@ -477,6 +477,114 @@ const ENTRIES: Array<{ pattern: string[]; host?: boolean; ex: ShowExplain }> = [
       },
     },
   },
+  {
+    pattern: ['show', 'ip', 'bgp', 'summary'],
+    ex: {
+      title: 'show ip bgp summary',
+      fields: [
+        f('BGP router identifier / local AS', 'This router’s BGP ID and AS number.', 'Apna BGP ID aur AS.'),
+        f('Neighbor / AS', 'Configured peer address and its remote-as (same AS = iBGP).', 'Peer address aur uska AS.'),
+        f(
+          'MsgRcvd / MsgSent / TblVer / Up/Down',
+          'Not simulated (shown as "-"): BGP state is computed, not exchanged.',
+          'Simulator mein nahi — "-".',
+        ),
+        f(
+          'State/PfxRcd',
+          'A number = Established with that many prefixes received; Idle/Active = no session.',
+          'Number = session chalu; Idle/Active = nahi.',
+        ),
+      ],
+      lookFor: {
+        en: 'Active/Idle: read the RailMPLS Lab note under the table — remote-as mismatch, update-source mismatch, peer not reachable, or eBGP peer not directly connected.',
+        hi: 'Active/Idle ho to table ke neeche ka note padho — asli wajah wahi hai.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'ip', 'bgp'],
+    ex: {
+      title: 'show ip bgp',
+      fields: [
+        f('* > i', '* valid, > best (installed), i learned via iBGP.', '* valid, > best, i = iBGP se.'),
+        f(
+          'Next Hop',
+          '0.0.0.0 = originated here; an iBGP path keeps the eBGP border’s next hop unless next-hop-self.',
+          'Next hop; 0.0.0.0 = yahin se.',
+        ),
+        f('LocPrf / Weight / Metric', 'Attributes compared in best-path order: weight, LOCAL_PREF, … MED.', 'Best path ke attributes.'),
+        f('Path', 'AS_PATH then origin code (i IGP, ? incomplete).', 'AS path aur origin.'),
+      ],
+      lookFor: {
+        en: 'A path without ">" is not best — compare its attributes; an iBGP path whose next hop is not in the IGP is not usable.',
+        hi: '">" nahi to best nahi — attributes compare karo; next hop IGP mein ho.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'bgp', 'vpnv4', 'unicast', 'all', 'summary'],
+    ex: {
+      title: 'show bgp vpnv4 unicast all summary',
+      fields: [
+        f('Neighbor', 'iBGP VPNv4 peers (PEs / route reflector) and PE–CE neighbours inside VRFs.', 'VPNv4 peers aur VRF ke CE neighbours.'),
+        f('State/PfxRcd', 'Prefixes received when Established; otherwise the state.', 'Prefixes ya state.'),
+      ],
+      lookFor: {
+        en: 'A PE–CE neighbour that stays Active: check remote-as and that the PE interface is in the VRF ("show vrf").',
+        hi: 'CE neighbour Active: remote-as aur interface VRF mein hai ya nahi.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'bgp', 'vpnv4', 'unicast', 'all'],
+    ex: {
+      title: 'show bgp vpnv4 unicast all',
+      fields: [
+        f('Route Distinguisher', 'Each block is one RD; "default for vrf X" = this PE’s own VRF table.', 'Har block ek RD.'),
+        f('Next Hop', 'Loopback of the PE that originated the route (RR does not change it).', 'Originating PE ka loopback.'),
+        f('* > i', 'Valid, best, learned from iBGP (from the RR or a PE).', 'Valid, best, iBGP.'),
+      ],
+      lookFor: {
+        en: 'Route present under the remote PE’s RD but missing under your VRF: your import RT does not match its export RT.',
+        hi: 'Remote RD mein hai par apne VRF mein nahi: import RT galat.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'bgp', 'vpnv4', 'unicast', 'all', 'labels'],
+    ex: {
+      title: 'show bgp vpnv4 unicast all labels',
+      fields: [
+        f('In label', 'VPN label this PE allocated for its own VRF prefix (simulator: from 1000).', 'Apna VPN label.'),
+        f('Out label', 'VPN label the remote PE advertised; pushed under the LDP transport label.', 'Remote PE ka VPN label.'),
+        f('nolabel', 'No VPN label in that direction (e.g. own route has no out label).', 'Label nahi.'),
+      ],
+      lookFor: {
+        en: 'The out label here is the inner label seen in traceroute "[MPLS: Labels x/y]" (y).',
+        hi: 'Traceroute mein dikhne wala andar ka label yahi hai.',
+      },
+    },
+  },
+  {
+    pattern: ['show', 'ip', 'route', 'vrf', '<vrf>'],
+    ex: {
+      title: 'show ip route vrf <name>',
+      fields: [
+        f('Routing Table: X', 'The table of one VRF, separate from the global table.', 'Ek VRF ki alag table.'),
+        f(
+          'B … [200/0] via <PE loopback>',
+          'VPNv4 route from a remote PE (iBGP AD 200); reached over the MPLS LSP to that loopback.',
+          'Remote PE se VPN route.',
+        ),
+        f('B … [20/0]', 'Route from a PE–CE eBGP neighbour (AD 20).', 'CE se eBGP route.'),
+        f('B*', 'BGP default route (candidate default), e.g. Railnet internet via JU.', 'BGP default route.'),
+      ],
+      lookFor: {
+        en: 'Only routes of this VRF and those imported by RT should be here; anything else is a leak.',
+        hi: 'Sirf is VRF ke aur RT se import routes; baaki leak hai.',
+      },
+    },
+  },
 ];
 
 function matches(pattern: string[], words: string[]): boolean {

@@ -15,6 +15,11 @@ export type RefMode =
   | 'config-router'
   | 'config-isis'
   | 'config-line'
+  | 'config-vrf'
+  | 'config-vrf-af'
+  | 'config-bgp'
+  | 'config-bgp-vpnv4'
+  | 'config-bgp-vrf'
   | 'host';
 export type RefDevice = 'l2-switch' | 'l3-switch' | 'router' | 'pc';
 
@@ -911,6 +916,269 @@ export const COMMANDS: CommandRef[] = [
     hi: 'DHCP se address dobara lo.',
     lesson: 'A11',
   },
+  {
+    topic: 'BGP',
+    example: 'router bgp 65000',
+    mode: 'config',
+    device: r,
+    en: 'Start BGP in AS 65000.',
+    hi: 'AS 65000 mein BGP chalu.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'bgp router-id 10.0.1.1',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Fix the BGP router-ID (use the loopback).',
+    hi: 'BGP router-ID set karo.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'neighbor 10.0.1.13 remote-as 65000',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Define a neighbour; same AS = iBGP, other AS = eBGP.',
+    hi: 'Neighbour banao; same AS = iBGP.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'neighbor 10.0.1.13 update-source loopback0',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Source the iBGP session from Loopback0 (peer must expect this address).',
+    hi: 'iBGP session loopback se.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'neighbor 10.0.1.13 next-hop-self',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Advertise eBGP-learned routes with this router as next hop.',
+    hi: 'Next hop apna address.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'neighbor 10.0.1.13 route-reflector-client',
+    mode: 'config-bgp',
+    device: r,
+    en: '(on the RR) Make the neighbour a route-reflector client.',
+    hi: 'RR client banao.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'neighbor 192.0.2.2 ebgp-multihop 2',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Allow an eBGP peer that is not directly connected.',
+    hi: 'eBGP peer door ho to.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'network 172.16.10.0 mask 255.255.255.0',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Originate a prefix that is in the routing table.',
+    hi: 'Prefix BGP mein daalo.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'no bgp default ipv4-unicast',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Do not activate neighbours for IPv4 unicast automatically (VPNv4-only RR).',
+    hi: 'IPv4 auto-activate band.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'address-family vpnv4',
+    mode: 'config-bgp',
+    device: r,
+    en: 'Enter the VPNv4 address family (MP-BGP).',
+    hi: 'VPNv4 address family.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'neighbor 10.0.1.13 activate',
+    mode: 'config-bgp-vpnv4',
+    device: r,
+    en: 'Exchange VPNv4 routes with this neighbour.',
+    hi: 'VPNv4 routes is neighbour se.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'neighbor 10.0.1.13 send-community extended',
+    mode: 'config-bgp-vpnv4',
+    device: r,
+    en: 'Send route-targets (accepted; RTs are always carried in the simulator).',
+    hi: 'RT bhejo.',
+    lesson: 'B5',
+  },
+  {
+    topic: 'BGP',
+    example: 'show ip bgp summary',
+    mode: 'priv',
+    device: r,
+    en: 'IPv4 BGP neighbours, state and prefixes received; reason below if not Established.',
+    hi: 'BGP neighbours ki list.',
+    lesson: 'B5',
+  },
+  { topic: 'BGP', example: 'show ip bgp', mode: 'priv', device: r, en: 'IPv4 BGP table with best paths (>).', hi: 'BGP table.', lesson: 'B5' },
+  {
+    topic: 'BGP',
+    example: 'show bgp vpnv4 unicast all summary',
+    mode: 'priv',
+    device: r,
+    en: 'VPNv4 and VRF (PE–CE) neighbours.',
+    hi: 'VPNv4 neighbours.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'BGP',
+    example: 'show bgp vpnv4 unicast all',
+    mode: 'priv',
+    device: r,
+    en: 'VPNv4 routes grouped by route distinguisher.',
+    hi: 'RD ke hisaab se VPN routes.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'BGP',
+    example: 'show bgp vpnv4 unicast all labels',
+    mode: 'priv',
+    device: r,
+    en: 'Local (in) and remote (out) VPN labels per prefix.',
+    hi: 'VPN labels.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'vrf definition UTS',
+    mode: 'config',
+    device: r,
+    en: 'Create a VRF (IOS-XE style; "ip vrf UTS" also works).',
+    hi: 'VRF banao.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'rd 10.0.1.1:100',
+    mode: 'config-vrf',
+    device: r,
+    en: 'Route distinguisher: makes this VRF’s prefixes unique in VPNv4.',
+    hi: 'RD set karo.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'address-family ipv4',
+    mode: 'config-vrf',
+    device: r,
+    en: 'Enter the VRF’s IPv4 address family.',
+    hi: 'VRF IPv4 family.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'route-target both 65000:100',
+    mode: 'config-vrf-af',
+    device: r,
+    en: 'Export and import RT 65000:100.',
+    hi: 'RT export aur import.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'route-target import 65000:107',
+    mode: 'config-vrf-af',
+    device: r,
+    en: 'Also import routes tagged 65000:107 (e.g. a shared NMS).',
+    hi: 'Extra RT import.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'vrf forwarding UTS',
+    mode: 'config-if',
+    device: r,
+    en: 'Put the interface into VRF UTS (removes its IP address — set it again).',
+    hi: 'Interface ko VRF mein daalo.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'ip route vrf RAILNET 0.0.0.0 0.0.0.0 10.105.1.2',
+    mode: 'config',
+    device: r,
+    en: 'Static route inside a VRF.',
+    hi: 'VRF ke andar static route.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'redistribute connected',
+    mode: 'config-bgp-vrf',
+    device: r,
+    en: '(address-family ipv4 vrf X) Export the VRF’s connected networks into VPNv4.',
+    hi: 'VRF ke connected routes VPN mein.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'neighbor 10.103.13.2 remote-as 65201',
+    mode: 'config-bgp-vrf',
+    device: r,
+    en: '(address-family ipv4 vrf X) PE–CE eBGP neighbour inside the VRF.',
+    hi: 'VRF mein CE neighbour.',
+    lesson: 'B6',
+  },
+  { topic: 'L3VPN', example: 'show vrf', mode: 'priv', device: r, en: 'VRFs with RD and interfaces.', hi: 'VRF list.', lesson: 'B6' },
+  {
+    topic: 'L3VPN',
+    example: 'show ip vrf detail UTS',
+    mode: 'priv',
+    device: r,
+    en: 'RD, interfaces and import/export RTs of one VRF.',
+    hi: 'VRF ka detail.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'show ip route vrf UTS',
+    mode: 'priv',
+    device: r,
+    en: 'Routing table of one VRF.',
+    hi: 'VRF ki routing table.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'ping vrf UTS 10.100.1.10',
+    mode: 'priv',
+    device: r,
+    en: 'Ping from inside a VRF.',
+    hi: 'VRF ke andar se ping.',
+    lesson: 'B6',
+  },
+  {
+    topic: 'L3VPN',
+    example: 'traceroute vrf UTS 10.100.1.10',
+    mode: 'priv',
+    device: r,
+    en: 'Traceroute inside a VRF (core hops show both labels).',
+    hi: 'VRF traceroute.',
+    lesson: 'B6',
+  },
 ];
 
 /** CLI lines that bring a fresh device into `mode` (used by the reference test and the "try it" hint). */
@@ -936,5 +1204,15 @@ export function preLines(mode: RefMode, device: RefDevice): string[] {
       return ['enable', 'configure terminal', 'router isis'];
     case 'config-line':
       return ['enable', 'configure terminal', 'line vty 0 4'];
+    case 'config-vrf':
+      return ['enable', 'configure terminal', 'vrf definition UTS'];
+    case 'config-vrf-af':
+      return ['enable', 'configure terminal', 'vrf definition UTS', 'address-family ipv4'];
+    case 'config-bgp':
+      return ['enable', 'configure terminal', 'router bgp 65000'];
+    case 'config-bgp-vpnv4':
+      return ['enable', 'configure terminal', 'router bgp 65000', 'neighbor 10.0.1.13 remote-as 65000', 'address-family vpnv4'];
+    case 'config-bgp-vrf':
+      return ['enable', 'configure terminal', 'vrf definition X', 'rd 1:1', 'exit', 'router bgp 65000', 'address-family ipv4 vrf X'];
   }
 }

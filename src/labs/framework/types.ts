@@ -166,6 +166,18 @@ export interface VrfDefinition {
   exportRts: string[];
 }
 
+export interface BgpSessionInfo {
+  device: string;
+  /** Set for PE–CE sessions inside a VRF. */
+  vrf?: string;
+  neighbor: string;
+  /** Device on the other end, when found. */
+  peer?: string;
+  state: string;
+  ibgp: boolean;
+  afs: string[];
+}
+
 export interface BgpVpnv4Route {
   device: string;
   rd: string;
@@ -291,6 +303,7 @@ export interface SimSnapshot {
   readonly vrfs?: readonly VrfDefinition[];
   readonly vrfRoutes?: readonly VrfRoute[];
   readonly bgpVpnv4?: readonly BgpVpnv4Route[];
+  readonly bgpSessions?: readonly BgpSessionInfo[];
   readonly pseudowires?: readonly PseudowireState[];
   /** Completed LSP pings / traces (ping mpls ipv4, traceroute mpls ipv4). */
   readonly lspResults?: readonly LspResult[];

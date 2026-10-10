@@ -81,3 +81,13 @@ describe('ask why (show explanations)', () => {
     expect(explainShow('nslookup ju-nms', true)?.title).toBe('nslookup <name>');
   });
 });
+
+describe('ask why: P5 BGP / VRF', () => {
+  it('matches BGP and VRF show commands', async () => {
+    const { explainShow } = await import('./showExplain');
+    expect(explainShow('show ip bgp summary')?.title).toBe('show ip bgp summary');
+    expect(explainShow('sh ip bgp')?.title).toBe('show ip bgp');
+    expect(explainShow('show bgp vpnv4 unicast all labels')?.title).toBe('show bgp vpnv4 unicast all labels');
+    expect(explainShow('show ip route vrf UTS')?.title).toBe('show ip route vrf <name>');
+  });
+});

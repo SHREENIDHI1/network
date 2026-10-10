@@ -15,7 +15,8 @@ describe('curriculum', () => {
     expect(isAvailable('A0')).toBe(true);
     expect(['A4', 'A5', 'A6', 'A7', 'A8'].every(isAvailable)).toBe(true);
     expect(['B0', 'B1', 'B2', 'B3', 'B4'].every(isAvailable)).toBe(true);
-    expect(isAvailable('B5')).toBe(false);
+    expect(['B5', 'B6'].every(isAvailable)).toBe(true);
+    expect(isAvailable('B7')).toBe(false);
   });
 
   for (const id of Object.keys(LESSON_LOADERS)) {
@@ -298,5 +299,27 @@ describe('P4 widget maths', () => {
     const pipe = lspWalk(path, { explicitNull: false, propagateTtl: false });
     expect(pipe[0].labelTtl).toBe('255');
     expect(pipe[3].ipTtl).toBe(63); // core hops hidden: only the ingress decremented
+  });
+});
+
+describe('P5 widget maths', () => {
+  it('iBGP sessions: full mesh vs route reflectors', async () => {
+    const { ibgpSessions } = await import('./widgetMath5');
+    expect(ibgpSessions(150, 2)).toEqual({ fullMesh: 11175, withRr: 297, perClient: 2 });
+    expect(ibgpSessions(4, 1)).toEqual({ fullMesh: 6, withRr: 3, perClient: 1 });
+    expect(ibgpSessions(1, 1)).toMatch(/at least 2/);
+    expect(ibgpSessions(5, 5)).toMatch(/Route reflectors/);
+  });
+
+  it('RT matcher: export ∩ import decides who sees what', async () => {
+    const { rtImports } = await import('./widgetMath5');
+    const r = rtImports([
+      { pe: 'JU', vrf: 'NMS-MGMT', exports: ['65000:107'], imports: ['65000:107', '65000:103'] },
+      { pe: 'MTD', vrf: 'SCADA', exports: ['65000:103'], imports: ['65000:103', '65000:107'] },
+      { pe: 'DNA', vrf: 'UTS', exports: ['65000:100'], imports: ['65000:100'] },
+    ]);
+    if (typeof r === 'string') throw new Error(r);
+    expect(r.map((x) => `${x.from}>${x.into}`).sort()).toEqual(['JU:NMS-MGMT>MTD:SCADA', 'MTD:SCADA>JU:NMS-MGMT']);
+    expect(rtImports([{ pe: 'A', vrf: 'X', exports: ['bad'], imports: [] }])).toMatch(/not an RT/);
   });
 });

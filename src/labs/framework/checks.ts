@@ -589,6 +589,33 @@ export function phpOnPenultimate(path: string[], fec: string): Check {
   };
 }
 
+/** BGP session from `dev` to `peer` is Established (optionally for an address family, or inside a VRF). */
+export function bgpSessionUp(dev: string, peer: string, opts: { af?: 'ipv4' | 'vpnv4'; vrf?: string } = {}): Check {
+  return (snap) => {
+    const s = section(snap, 'bgpSessions', 'bgp');
+    if (isResult(s)) return s;
+    const mine = s.filter((x) => x.device === dev && x.peer === peer && (opts.vrf === undefined || x.vrf === opts.vrf));
+    if (!mine.length) return fail(`${dev} has no BGP neighbor statement that points at ${peer}${opts.vrf ? ` in VRF ${opts.vrf}` : ''}.`);
+    const up = mine.find((x) => x.state === 'Established');
+    if (!up) return fail(`BGP session ${dev} → ${peer} is ${mine[0].state}.`);
+    if (opts.af && !up.afs.includes(opts.af))
+      return fail(`BGP session ${dev} → ${peer} is up, but address family ${opts.af} is not active on both sides.`);
+    return pass();
+  };
+}
+
+/** `dev` has a VRF `vrf` with an RD and at least one import and export RT. */
+export function vrfDefined(dev: string, vrf: string): Check {
+  return (snap) => {
+    const v = section(snap, 'vrfs', 'bgp');
+    if (isResult(v)) return v;
+    const x = v.find((r) => r.device === dev && r.vrf === vrf);
+    if (!x) return fail(`VRF ${vrf} is not defined on ${dev}.`);
+    if (!x.rd) return fail(`VRF ${vrf} on ${dev} has no route distinguisher.`);
+    return x.importRts.length && x.exportRts.length ? pass() : fail(`VRF ${vrf} on ${dev} is missing import or export route-targets.`);
+  };
+}
+
 export function vrfHasRoute(dev: string, vrf: string, prefix: string): Check {
   return (snap) => {
     const vr = section(snap, 'vrfRoutes', 'bgp');
@@ -602,7 +629,7 @@ export function vrfHasRoute(dev: string, vrf: string, prefix: string): Check {
   };
 }
 
-/** No route of vrfB's connected networks leaks into vrfA on dev (and vice versa). */
+/** No route of vrfB's connected networks leaks into vrfA on dev (and vice versa). Default routes are ignored. */
 export function vrfIsolated(dev: string, vrfA: string, vrfB: string): Check {
   return (snap) => {
     const vr = section(snap, 'vrfRoutes', 'bgp');
@@ -616,7 +643,7 @@ export function vrfIsolated(dev: string, vrfA: string, vrfB: string): Check {
       vr
         .filter((r) => r.device === dev && r.vrf === vrf)
         .map((r) => parseCidr(r.prefix))
-        .filter((c) => c !== null);
+        .filter((c): c is NonNullable<typeof c> => c !== null && c.prefixLen > 0); // a default route (e.g. to a shared firewall) is not a leak
     const leaks = (into: string, from: string) => routesIn(into).some((r) => connected(from).some((c) => cidrsOverlap(r, c)));
     return leaks(vrfA, vrfB) || leaks(vrfB, vrfA) ? fail(`VRFs ${vrfA} and ${vrfB} on ${dev} are not isolated.`) : pass();
   };
