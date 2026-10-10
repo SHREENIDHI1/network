@@ -1,5 +1,5 @@
 import type { Device } from '../../model/types';
-import { effectivePort, isBridgeRole, isSubinterface, longIfName, roleOf, sviVlan, type NetConfig } from '../config/netConfig';
+import { effectivePort, isBridgeRole, isSubinterface, longIfName, portChannelId, roleOf, sviVlan, type NetConfig } from '../config/netConfig';
 import { ciscoMac } from '../core/mac';
 import { formatBridgeId } from '../ethernet/stp';
 import { formatIpv4, prefixToMask } from '../ip/ipv4';
@@ -55,12 +55,15 @@ function sortedIfNames(device: Device, cfg: NetConfig): string[] {
   const svis = Object.keys(cfg.interfaces)
     .filter((n) => sviVlan(n) !== null)
     .sort((a, b) => sviVlan(a)! - sviVlan(b)!);
+  const pos = Object.keys(cfg.interfaces)
+    .filter((n) => portChannelId(n) !== null)
+    .sort((a, b) => portChannelId(a)! - portChannelId(b)!);
   const ordered: string[] = [];
   for (const p of phys) {
     ordered.push(p);
     for (const s of subs) if (s.startsWith(`${p}.`)) ordered.push(s);
   }
-  return [...ordered, ...svis];
+  return [...pos, ...ordered, ...svis];
 }
 
 // ---------------------------------------------------------------------------
@@ -175,10 +178,29 @@ export function showInterface(sim: Sim, device: Device, name: string): string {
     if (l3?.ip !== undefined) L.push(`  Internet address is ${formatIpv4(l3.ip)}/${l3.prefixLen}`);
     const bw = (st.speedGbps || 1) * 1_000_000;
     L.push(`  MTU 1500 bytes, BW ${bw} Kbit/sec, DLY 10 usec`);
-    if (st.operUp) L.push(`  Full-duplex, ${st.speedGbps >= 1 ? `${st.speedGbps}Gb/s` : '100Mb/s'}`);
+    if (st.operUp) L.push(`  ${st.duplex === 'full' ? 'Full' : 'Half'}-duplex, ${st.speedGbps >= 1 ? `${st.speedGbps}Gb/s` : '100Mb/s'}`);
     else if (st.reason) L.push(`  Down reason: ${st.reason}`);
+    const cg = ic?.channelGroup;
+    if (cg) {
+      const flag = sim.ec.flags.get(portKey(device.id, name));
+      L.push(`  Member of Port-channel${cg.id} (mode ${cg.mode}${flag ? `, flag ${flag}` : ''})`);
+    }
     const c = sim.portCounters(device.id, name);
     L.push(`     ${c.rx} packets input, ${c.tx} packets output, ${c.drops} drops`);
+    L.push(`     ${c.crc} input errors, ${c.crc} CRC`);
+    L.push(`     ${c.lateCollisions} late collision`);
+  } else if (portChannelId(name) !== null && cfg.interfaces[name]) {
+    const b = sim.etherChannels(device.id).find((x) => x.name === name);
+    const admin = !ic?.shutdown;
+    const up = admin && !!b?.up;
+    L.push(`${longIfName(name)} is ${!admin ? 'administratively down' : up ? 'up' : 'down'}, line protocol is ${up ? 'up' : 'down'}${up ? ' (connected)' : ''}`);
+    L.push('  Hardware is EtherChannel');
+    if (ic?.description) L.push(`  Description: ${ic.description}`);
+    if (b) {
+      L.push(`  Full-duplex, ${b.speedGbps}Gb/s (sum of bundled members)`);
+      const bundled = b.members.filter((m) => m.flag === 'P').map((m) => longIfName(m.portId));
+      L.push(`  Members in this channel: ${bundled.length ? bundled.join(' ') : 'none bundled'}`);
+    } else L.push('  No member ports configured');
   } else if (l3) {
     L.push(`${longIfName(name)} is ${!l3.adminUp ? 'administratively down' : l3.up ? 'up' : 'down'}, line protocol is ${l3.up ? 'up' : 'down'}`);
     L.push(`  Hardware is ${l3.kind === 'svi' ? 'Ethernet SVI' : 'Gigabit Ethernet subinterface'}, address is ${ciscoMac(l3.mac)}`);
@@ -201,7 +223,7 @@ export function showInterfacesStatus(sim: Sim, device: Device): string {
     const status = sim.isErrDisabled(device.id, p.id) ? 'err-disabled' : !st.adminUp ? 'disabled' : st.operUp ? 'connected' : 'notconnect';
     const vlan = !eff.switchport ? 'routed' : eff.mode === 'trunk' ? 'trunk' : String(eff.accessVlan);
     const speed = st.operUp ? (st.speedGbps >= 1 ? `a-${st.speedGbps}G` : 'a-100') : 'auto';
-    L.push(`${pad(p.name, 10)}${pad((ic?.description ?? '').slice(0, 18), 19)}${pad(status, 13)}${pad(vlan, 11)}${pad(st.operUp ? 'a-full' : 'auto', 7)}${pad(speed, 7)}${p.kind === 'sfp' ? 'SFP' : '10/100/1000BaseTX'}`);
+    L.push(`${pad(p.name, 10)}${pad((ic?.description ?? '').slice(0, 18), 19)}${pad(status, 13)}${pad(vlan, 11)}${pad(st.operUp ? `${ic?.duplex && ic.duplex !== 'auto' ? '' : 'a-'}${st.duplex}` : 'auto', 7)}${pad(speed, 7)}${p.kind === 'sfp' ? 'SFP' : '10/100/1000BaseTX'}`);
   }
   return L.join('\n');
 }
@@ -220,7 +242,8 @@ export function showVlanBrief(sim: Sim, device: Device): string {
         const e = effectivePort(role, cfg.interfaces[p.id]);
         return e.switchport && e.mode === 'access' && e.accessVlan === id;
       })
-      .map((p) => p.name);
+      .map((p) => sim.ec.logical.get(portKey(device.id, p.id)) ?? p.name)
+      .filter((n, i, a) => a.indexOf(n) === i);
     const chunks: string[] = [];
     for (let i = 0; i < ports.length; i += 4) chunks.push(ports.slice(i, i + 4).join(', '));
     L.push(`${pad(id, 5)}${pad(cfg.vlans[String(id)].name, 33)}${pad('active', 10)}${chunks[0] ?? ''}`);
@@ -247,10 +270,19 @@ export function showMacTable(sim: Sim, device: Device): string {
 export function showTrunks(sim: Sim, device: Device): string {
   const role = roleOf(device.kind);
   const cfg = sim.config(device.id)!;
-  const trunks = device.ports.filter((p) => {
-    const e = effectivePort(role, cfg.interfaces[p.id]);
-    return e.switchport && e.mode === 'trunk' && sim.phys.ports.get(portKey(device.id, p.id))?.operUp;
-  });
+  const seenPo = new Set<string>();
+  const trunks = device.ports
+    .filter((p) => {
+      const e = effectivePort(role, cfg.interfaces[p.id]);
+      if (!(e.switchport && e.mode === 'trunk' && sim.phys.ports.get(portKey(device.id, p.id))?.operUp)) return false;
+      if (sim.ec.flags.get(portKey(device.id, p.id)) === 's') return false;
+      const po = sim.ec.logical.get(portKey(device.id, p.id));
+      if (!po) return true;
+      if (seenPo.has(po)) return false;
+      seenPo.add(po);
+      return true;
+    })
+    .map((p) => ({ ...p, name: sim.ec.logical.get(portKey(device.id, p.id)) ?? p.name }));
   if (!trunks.length) return '';
   const allowed = (p: string) => effectivePort(role, cfg.interfaces[p]).trunkAllowed ?? 'all';
   const active = (p: string) => {
@@ -314,7 +346,9 @@ export function showSpanningTree(sim: Sim, device: Device): string {
     `  Root ID    Priority    ${br.rootId.priority}`,
     `             Address     ${ciscoMac(br.rootId.mac)}`,
     br.isRoot ? '             This bridge is the root' : `             Cost        ${br.rootCost}`,
-    ...(br.isRoot ? [] : [`             Port        ${rootPort?.portNumber ?? '-'} (${longIfName(br.rootPortId ?? '')})`]),
+    ...(br.isRoot
+      ? []
+      : [`             Port        ${rootPort?.portNumber ?? '-'} (${longIfName(sim.ec.logical.get(portKey(device.id, br.rootPortId ?? '')) ?? br.rootPortId ?? '')})`]),
     '             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec',
     '',
     `  Bridge ID  Priority    ${br.bridgeId.priority}`,
@@ -324,7 +358,9 @@ export function showSpanningTree(sim: Sim, device: Device): string {
     `${'-'.repeat(19)} ---- --- --------- -------- --------------------------------`,
   ];
   for (const p of ports) {
-    L.push(`${pad(p.portId, 20)}${pad(STP_ROLE[p.role], 5)}${pad(p.state === 'forwarding' ? 'FWD' : 'BLK', 4)}${pad(p.cost, 10)}${pad(`${p.portPriority}.${p.portNumber}`, 9)}P2p${p.edge ? ' Edge' : ''}`);
+    const po = sim.ec.logical.get(portKey(device.id, p.portId));
+    if (po && sim.etherChannels(device.id).find((b) => b.name === po)?.primary !== p.portId) continue;
+    L.push(`${pad(po ?? p.portId, 20)}${pad(STP_ROLE[p.role], 5)}${pad(p.state === 'forwarding' ? 'FWD' : 'BLK', 4)}${pad(p.cost, 10)}${pad(`${p.portPriority}.${p.portNumber}`, 9)}P2p${p.edge ? ' Edge' : ''}`);
   }
   L.push('', `(Bridge ID ${formatBridgeId(br.bridgeId)})`);
   return L.join('\n');
@@ -464,3 +500,29 @@ export function windowsTraceOutput(s: ProbeSession): string {
 }
 
 export { prefixToMask };
+
+// ---------------------------------------------------------------------------
+// EtherChannel
+// ---------------------------------------------------------------------------
+
+export function showEtherchannelSummary(sim: Sim, device: Device): string {
+  const bundles = sim.etherChannels(device.id);
+  const L = [
+    'Flags:  D - down        P - bundled in port-channel',
+    '        I - stand-alone s - suspended',
+    '        S - Layer2      U - in use',
+    '',
+    `Number of channel-groups in use: ${bundles.length}`,
+    `Number of aggregators:           ${bundles.length}`,
+    '',
+    'Group  Port-channel  Protocol    Ports',
+    '------+-------------+-----------+-----------------------------------------------',
+  ];
+  for (const b of bundles) {
+    const members = b.members.map((m) => `${pad(`${m.portId}(${m.flag})`, 12)}`).join('');
+    L.push(`${pad(b.id, 7)}${pad(`${b.name}(S${b.up ? 'U' : 'D'})`, 14)}${pad(b.protocol, 12)}${members.trimEnd()}`);
+  }
+  const notes = bundles.flatMap((b) => b.members.filter((m) => m.flag !== 'P' && m.reason).map((m) => `  ${m.portId} (${m.flag}): ${m.reason}`));
+  if (notes.length) L.push('', 'RailMPLS Lab note — why a member is not bundled:', ...notes);
+  return L.join('\n');
+}

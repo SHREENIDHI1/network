@@ -65,11 +65,25 @@ function saveAutosave(t: Topology): void {
   }
 }
 
+const restored = loadAutosave();
+
+/** Tell the learner that the canvas came from this browser's autosave (not from the code). */
+function restoreNotices(t: Topology | null): Notice[] {
+  if (!t || t.devices.length === 0) return [];
+  return [
+    {
+      id: ++noticeSeq,
+      kind: 'info',
+      text: `Restored your last canvas from this browser: "${t.meta.name}" (${t.devices.length} devices). Click New to start fresh.`,
+    },
+  ];
+}
+
 export const useTopologyStore = create<TopologyState>((set, get) => ({
-  topology: loadAutosave() ?? ops.emptyTopology(),
+  topology: restored ?? ops.emptyTopology(),
   selection: null,
   pendingConnection: null,
-  notices: [],
+  notices: restoreNotices(restored),
 
   newTopology: (name) => set({ topology: ops.emptyTopology(name), selection: null, pendingConnection: null }),
 

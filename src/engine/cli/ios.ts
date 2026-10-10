@@ -7,6 +7,7 @@ import {
   isSubinterface,
   longIfName,
   parentOf,
+  portChannelId,
   resolveIfName,
   roleOf,
   sviVlan,
@@ -18,6 +19,7 @@ import { cidrsOverlap, formatIpv4, maskToPrefix, parseIpv4, validateHostAddress 
 import type { Sim } from '../sim';
 import * as F from './format';
 import { phase3Cmds } from './ios3';
+import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
  * Cisco IOS-like CLI (subset) for switches and routers.
@@ -47,6 +49,8 @@ export interface CliSession {
   deviceId: string;
   mode: CliMode;
   iface?: string;
+  /** "interface range": every interface the next interface command applies to. */
+  range?: string[];
   vlan?: number;
   /** Name of the ACL / DHCP pool / class-map / policy-map being edited. */
   ctxName?: string;
@@ -121,6 +125,7 @@ export function ifCfg(x: Exec): InterfaceConfig {
 const isSwitchport = (x: Exec) => {
   const role = roleOf(x.device.kind);
   const n = x.session.iface!;
+  if (isBridgeRole(role) && portChannelId(n) !== null) return true; // only Layer 2 port-channels are simulated
   return isBridgeRole(role) && x.device.ports.some((p) => p.id === n) && effectivePort(role, x.cfg.interfaces[n]).switchport === true;
 };
 
@@ -243,6 +248,7 @@ const CMDS: Cmd[] = [
     x.rename(n);
   } },
   { modes: ANYCONF, toks: [kw('interface', 'Select an interface to configure'), iface()], run: (x) => enterInterface(x) },
+  { modes: ANYCONF, toks: [kw('interface', 'Select an interface to configure'), kw('range', 'interface range command'), line('spec', 'Interfaces, e.g. gi0/1 - 4 , gi0/23 - 24')], run: (x) => enterRange(x) },
   { modes: ['config', 'config-vlan'], toks: [kw('vlan', 'VLAN commands'), num('id', 1, 4094, '<1-4094> ISL VLAN IDs 1-1005')], run: (x) => {
     if (!isBridgeRole(roleOf(x.device.kind))) return x.invalid();
     const id = Number(x.args.id);
@@ -416,7 +422,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -458,12 +464,49 @@ function trunkAllowed(x: Exec, op: 'set' | 'add' | 'remove' | 'all' | 'none'): s
   x.dirty();
 }
 
+/** "interface range gi0/1 - 4 , gi0/10": physical ports only. */
+export function parseRange(spec: string, ports: Device['ports']): string[] | null {
+  const out: string[] = [];
+  for (const part of spec.split(',')) {
+    const t = part.replace(/\s+/g, '');
+    if (!t) return null;
+    const m = /^(.*?)(\d+)(?:-(?:[a-z-]+[\d/]*\/)?(\d+))?$/i.exec(t);
+    if (!m) return null;
+    const [, prefix, a, b] = m;
+    const from = Number(a);
+    const to = b !== undefined ? Number(b) : from;
+    if (to < from || to - from > 64) return null;
+    for (let n = from; n <= to; n++) {
+      const r = resolveIfName(`${prefix}${n}`, ports);
+      if (!r || !ports.some((p) => p.id === r)) return null;
+      if (!out.includes(r)) out.push(r);
+    }
+  }
+  return out.length ? out : null;
+}
+
+function enterRange(x: Exec): string | void {
+  const list = parseRange(String(x.args.spec), x.device.ports);
+  if (!list) return '% Invalid interface range. Example: interface range gi0/1 - 4';
+  x.setMode('config-if', { iface: list[0], range: list });
+}
+
 function enterInterface(x: Exec): string | void {
   const role = roleOf(x.device.kind);
   const name = String(x.args.if);
   const vlan = sviVlan(name);
   if (vlan !== null) {
     if (!isBridgeRole(role) || vlan < 1 || vlan > 4094) return x.invalid();
+    if (!x.cfg.interfaces[name]) {
+      x.cfg.interfaces[name] = {};
+      x.dirty();
+    }
+    x.setMode('config-if', { iface: name });
+    return;
+  }
+  if (portChannelId(name) !== null) {
+    const id = portChannelId(name)!;
+    if (!isBridgeRole(role) || id < 1 || id > 64) return x.invalid();
     if (!x.cfg.interfaces[name]) {
       x.cfg.interfaces[name] = {};
       x.dirty();
@@ -613,7 +656,7 @@ export function prompt(session: CliSession, topology: Topology): string {
     case 'config':
       return `${name}(config)#`;
     case 'config-if':
-      return `${name}(config-if)#`;
+      return session.range ? `${name}(config-if-range)#` : `${name}(config-if)#`;
     case 'config-subif':
       return `${name}(config-subif)#`;
     case 'config-vlan':
@@ -691,7 +734,22 @@ export function execIos(input: string, session: CliSession, ctx: CliContext): Cl
     },
     invalid: () => caret(0),
   };
-  const out = winner.cmd.run(x) ?? '';
+  // In "interface range" mode an interface command runs once per interface.
+  const perInterface = !!session.range && session.mode === 'config-if' && !winner.cmd.modes.includes('config');
+  let out: string;
+  if (perInterface) {
+    const outs: string[] = [];
+    for (const name of session.range!) {
+      x.session = { ...session, iface: name };
+      const o = winner.cmd.run(x) ?? '';
+      if (o && !outs.includes(o)) outs.push(o);
+    }
+    x.session = session;
+    out = outs.join('\n');
+    next = { ...session, ...(next.mode !== session.mode || next.iface !== session.iface ? next : {}) };
+  } else out = winner.cmd.run(x) ?? '';
+  // IOS copies Layer 2 settings made on interface Port-channelN to all its members.
+  if (dirty && session.mode === 'config-if' && session.iface && portChannelId(session.iface) !== null) propagatePortChannel(x, session.iface);
   let topology: Topology | undefined;
   if (dirty || newName) {
     let t = ctx.topology;

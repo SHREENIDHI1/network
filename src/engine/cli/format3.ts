@@ -237,6 +237,8 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
   if (!ic) return [];
   const L: string[] = [];
   if (ic.speedMbps) L.push(` speed ${ic.speedMbps}`);
+  if (ic.duplex && ic.duplex !== 'auto') L.push(` duplex ${ic.duplex}`);
+  if (ic.channelGroup) L.push(` channel-group ${ic.channelGroup.id} mode ${ic.channelGroup.mode}`);
   if (ic.mtu) L.push(` ip mtu ${ic.mtu}`);
   for (const h of ic.helpers ?? []) L.push(` ip helper-address ${h}`);
   if (ic.aclIn) L.push(` ip access-group ${ic.aclIn} in`);

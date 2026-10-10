@@ -67,6 +67,10 @@ const interfaceSchema = z.object({
   portSecurity: portSecuritySchema.optional(),
   /** Forced Ethernet speed in Mbit/s ("speed 10|100|1000|10000"); absent = auto (link speed). */
   speedMbps: z.number().int().positive().optional(),
+  /** Ethernet duplex on copper ports ("duplex auto|full|half"); absent = auto. */
+  duplex: z.enum(['auto', 'full', 'half']).optional(),
+  /** EtherChannel membership ("channel-group N mode on|active|passive"); L2 switchports only. */
+  channelGroup: z.object({ id: z.number().int().min(1).max(64), mode: z.enum(['on', 'active', 'passive']) }).optional(),
   /** IP MTU in bytes ("ip mtu"); only checked by OSPF (MTU mismatch). */
   mtu: z.number().int().min(68).max(9216).optional(),
   ospfCost: z.number().int().min(1).max(65535).optional(),
@@ -262,6 +266,7 @@ const LONG_NAMES: Array<[short: string, long: string]> = [
   ['Twe', 'TwentyFiveGigE'],
   ['Hu', 'HundredGigE'],
   ['Fa', 'FastEthernet'],
+  ['Po', 'Port-channel'],
 ];
 
 /** "Gi0/1" -> "GigabitEthernet0/1", "Vlan10" stays, "eth0" stays. */
@@ -279,6 +284,8 @@ export function resolveIfName(typed: string, ports: Port[]): string | null {
   const t = typed.replace(/\s+/g, '');
   const vlan = /^vl(?:an?)?(\d+)$/i.exec(t);
   if (vlan) return `Vlan${Number(vlan[1])}`;
+  const po = /^po(?:r(?:t(?:-?c(?:h(?:a(?:n(?:n(?:e(?:l)?)?)?)?)?)?)?)?)?(\d+)$/i.exec(t);
+  if (po) return `Po${Number(po[1])}`;
   const m = /^([a-z-]+?)(\d[\d/]*)(?:\.(\d+))?$/i.exec(t);
   for (const p of ports) {
     if (p.name.toLowerCase() === t.toLowerCase()) return p.id;
@@ -294,6 +301,12 @@ export function resolveIfName(typed: string, ports: Port[]): string | null {
     if (short.toLowerCase().startsWith(w) || long.toLowerCase().startsWith(w)) return sub ? `${p.id}.${Number(sub)}` : p.id;
   }
   return null;
+}
+
+/** "Po3" → 3 for port-channel interface names, else null. */
+export function portChannelId(name: string): number | null {
+  const m = /^Po(\d+)$/.exec(name);
+  return m ? Number(m[1]) : null;
 }
 
 export function isSubinterface(name: string): boolean {

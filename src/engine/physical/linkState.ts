@@ -28,6 +28,10 @@ export interface PortStatus {
   operUp: boolean;
   reason?: PortDownReason;
   speedGbps: number;
+  /** Negotiated/forced duplex (fibre and SFP links are always full). */
+  duplex: 'full' | 'half';
+  /** True when the two ends of the link ended up with different duplex. */
+  duplexMismatch?: boolean;
   linkId?: string;
   peer?: { deviceId: string; portId: string };
 }
@@ -92,6 +96,7 @@ export function computePhysical(
         operUp: false,
         reason: localDown(d.id, p.id) ?? 'not connected',
         speedGbps: 0,
+        duplex: 'full',
       });
     }
   }
@@ -116,6 +121,7 @@ export function computePhysical(
     const up = !linkReason && !aDown && !bDown;
     links.set(l.id, { linkId: l.id, up, reason: linkReason ?? aDown ?? bDown, speedGbps: speed });
 
+    const [duplexA, duplexB] = resolveDuplex(l, topo, configs);
     for (const [end, other, own, far] of [
       [l.a, l.b, aDown, bDown],
       [l.b, l.a, bDown, aDown],
@@ -125,9 +131,34 @@ export function computePhysical(
       st.linkId = l.id;
       st.peer = { deviceId: other.deviceId, portId: other.portId };
       st.speedGbps = speed;
+      st.duplex = end === l.a ? duplexA : duplexB;
+      st.duplexMismatch = up && duplexA !== duplexB;
       st.operUp = up;
       st.reason = up ? undefined : (own ?? linkReason ?? (far ? 'peer down' : undefined));
     }
   }
   return { ports, links };
+}
+
+type DuplexSetting = 'auto' | 'full' | 'half';
+
+/**
+ * Duplex on copper (Cat6) links, IEEE 802.3 clause 28 simplified:
+ * auto + auto → full; forced + auto → the auto end cannot negotiate and falls
+ * back to half duplex (parallel detection), so forced full + auto = mismatch;
+ * forced + forced → as configured. A hub port is always half duplex.
+ */
+export function resolveDuplex(link: Link, topo: Topology, configs: ReadonlyMap<string, NetConfig>): ['full' | 'half', 'full' | 'half'] {
+  if (link.kind !== 'cat6') return ['full', 'full'];
+  const setting = (end: Link['a']): DuplexSetting => {
+    const dev = topo.devices.find((d) => d.id === end.deviceId);
+    if (dev && roleOf(dev.kind) === 'hub') return 'half';
+    return configs.get(end.deviceId)?.interfaces[end.portId]?.duplex ?? 'auto';
+  };
+  const a = setting(link.a);
+  const b = setting(link.b);
+  if (a === 'auto' && b === 'auto') return ['full', 'full'];
+  if (a === 'auto') return ['half', b as 'full' | 'half'];
+  if (b === 'auto') return [a, 'half'];
+  return [a, b];
 }

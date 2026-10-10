@@ -1,5 +1,6 @@
 import type { EngineSections } from '../labs/framework/snapshot';
-import type { InterfaceIp, MacEntry, PingResult, RouteEntry, SwitchportState } from '../labs/framework/types';
+import type { EtherChannelInfo, InterfaceIp, MacEntry, PingResult, RouteEntry, StpBridgeState, SwitchportState, VlanInfo } from '../labs/framework/types';
+import { portKey } from './physical/linkState';
 import { effectivePort, isBridgeRole, roleOf } from './config/netConfig';
 import { formatIpv4 } from './ip/ipv4';
 import type { Sim } from './sim';
@@ -13,6 +14,11 @@ export function engineSections(sim: Sim): EngineSections {
   const macTables: Record<string, MacEntry[]> = {};
   const routingTables: Record<string, RouteEntry[]> = {};
   const interfaceIps: InterfaceIp[] = [];
+  const vlans: Record<string, VlanInfo[]> = {};
+  const stp: Record<string, StpBridgeState> = {};
+  const etherChannels: Record<string, EtherChannelInfo[]> = {};
+  const hostGateways: Record<string, string> = {};
+  const duplexMismatches: string[] = [];
 
   for (const d of sim.topology.devices) {
     const role = roleOf(d.kind);
@@ -34,6 +40,29 @@ export function engineSections(sim: Sim): EngineSections {
       }
       switchports[d.name] = ports;
       macTables[d.name] = sim.macTable(d.id).map((m) => ({ vlan: m.vlan, mac: m.mac, port: m.port }));
+      vlans[d.name] = Object.entries(cfg.vlans)
+        .map(([id, v]) => ({ id: Number(id), name: v.name }))
+        .sort((a, b) => a.id - b.id);
+      const br = sim.stp.bridges.get(d.id);
+      if (br) {
+        const ports: StpBridgeState['ports'] = {};
+        for (const p of d.ports) {
+          const sp = sim.stp.ports.get(portKey(d.id, p.id));
+          if (sp) ports[p.id] = { role: sp.role, state: sp.state };
+        }
+        stp[d.name] = { isRoot: br.isRoot, priority: br.bridgeId.priority, rootPort: br.rootPortId, ports };
+      }
+      etherChannels[d.name] = sim.etherChannels(d.id).map((b) => ({
+        name: b.name,
+        protocol: b.protocol,
+        up: b.up,
+        members: b.members.map((m) => ({ port: m.portId, flag: m.flag })),
+      }));
+    }
+    if (role === 'host' && cfg.defaultGateway) hostGateways[d.name] = cfg.defaultGateway;
+    for (const p of d.ports) {
+      const st = sim.phys.ports.get(portKey(d.id, p.id));
+      if (st?.duplexMismatch) duplexMismatches.push(`${d.name} ${p.id}`);
     }
     for (const i of sim.interfaces(d.id)) {
       if (i.ip !== undefined) interfaceIps.push({ device: d.name, iface: i.name, address: `${formatIpv4(i.ip)}/${i.prefixLen}` });
@@ -56,5 +85,5 @@ export function engineSections(sim: Sim): EngineSections {
       hops: undefined,
     }));
 
-  return { switchports, macTables, routingTables, interfaceIps, pings };
+  return { switchports, macTables, routingTables, interfaceIps, pings, vlans, stp, etherChannels, hostGateways, duplexMismatches };
 }

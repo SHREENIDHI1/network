@@ -1,11 +1,12 @@
 import { lockReason } from './framework/modules';
 import type { Lab } from './framework/types';
+import { FOUNDATION_LABS } from './content/foundations';
 
 /**
- * Lab registry. Labs are added level by level (Phase 7.4–7.6).
+ * Lab registry. Labs are added level by level: A4–A8 in P2, A9–A15 in P3, B-labs from P4.
  * Lock state is derived from module availability, never hard-coded.
  */
-export const LABS: readonly Lab[] = [];
+export const LABS: readonly Lab[] = [...FOUNDATION_LABS];
 
 export function visibleLabs(labs: readonly Lab[] = LABS): Lab[] {
   return labs.filter((l) => !l.hidden).sort((a, b) => a.level - b.level || a.order - b.order);

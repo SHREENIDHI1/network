@@ -33,6 +33,25 @@ export interface SwitchportState {
   portSecurity?: { enabled: boolean; maxMac: number; violation: 'shutdown' | 'restrict' | 'protect'; errDisabled: boolean };
 }
 
+export interface VlanInfo {
+  id: number;
+  name: string;
+}
+
+export interface StpBridgeState {
+  isRoot: boolean;
+  priority: number;
+  rootPort?: string;
+  ports: Record<string, { role: 'root' | 'designated' | 'alternate' | 'disabled'; state: 'forwarding' | 'discarding' }>;
+}
+
+export interface EtherChannelInfo {
+  name: string;
+  protocol: 'LACP' | '-';
+  up: boolean;
+  members: Array<{ port: string; flag: 'P' | 'I' | 's' | 'D' }>;
+}
+
 export interface MacEntry {
   vlan: number;
   mac: string;
@@ -171,6 +190,13 @@ export interface SimSnapshot {
   // ethernet (Phase 2)
   readonly switchports?: Readonly<Record<string, Readonly<Record<string, SwitchportState>>>>;
   readonly macTables?: Readonly<Record<string, readonly MacEntry[]>>;
+  readonly vlans?: Readonly<Record<string, readonly VlanInfo[]>>;
+  readonly stp?: Readonly<Record<string, StpBridgeState>>;
+  readonly etherChannels?: Readonly<Record<string, readonly EtherChannelInfo[]>>;
+  /** Links whose two ends ended up with different duplex, as "DEV port". */
+  readonly duplexMismatches?: readonly string[];
+  /** Default gateway of each host (device name → IP). */
+  readonly hostGateways?: Readonly<Record<string, string>>;
   // ip (Phase 2)
   readonly interfaceIps?: readonly InterfaceIp[];
   readonly routingTables?: Readonly<Record<string, readonly RouteEntry[]>>;
@@ -223,6 +249,31 @@ export interface QuizQuestion {
   explanation: string;
 }
 
+/** A fault injected after the main tasks pass; the learner must find and fix it. */
+export interface BreakFix {
+  /** Field complaint in Hinglish, using real stations. */
+  complaint: string;
+  /** Changes the learner's working topology to create the fault. */
+  apply: (topology: Topology) => Topology;
+  /** Passes when the fault is fixed and the service is back. */
+  check: Check;
+  hints: string[];
+  /** Reference fix (tests prove it passes the check). */
+  fix: LabSolution;
+}
+
+/** Reference solution, used by tests and shown after completion. */
+export interface LabSolution {
+  /** IOS-like CLI lines per device name. */
+  cli?: Record<string, string[]>;
+  /** Host NIC settings per device name (done in the properties panel). */
+  hosts?: Record<string, { ip: string; mask: string; gateway?: string }>;
+  /** Pings to run at the end, [source device, destination IP]. */
+  pings?: Array<[string, string]>;
+  /** Cables to connect, [device, port, device, port]. */
+  links?: Array<[string, string, string, string]>;
+}
+
 export interface Lab {
   id: string; // e.g. "L3.2"
   level: number; // 0..12
@@ -241,4 +292,12 @@ export interface Lab {
   fieldNote: string;
   /** Hidden from the lab browser (e.g. reference solutions). */
   hidden?: boolean;
+  /** Concept in 5–10 lines + railway analogy (Hinglish). */
+  concept?: string;
+  /** Address / VLAN plan table shown with the tasks. */
+  plan?: { headers: string[]; rows: string[][] };
+  /** Lesson this lab practises, e.g. "A7". */
+  lessonId?: string;
+  breakFix?: BreakFix;
+  solution?: LabSolution;
 }

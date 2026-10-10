@@ -195,6 +195,58 @@ export function portSecurityOn(dev: string, port: string, maxMac?: number): Chec
   };
 }
 
+export function vlanDefined(dev: string, vlan: number): Check {
+  return (snap) => {
+    const v = section(snap, 'vlans', 'ethernet');
+    if (isResult(v)) return v;
+    return (v[dev] ?? []).some((x) => x.id === vlan) ? pass() : fail(`${dev} is missing a VLAN from the plan.`);
+  };
+}
+
+export function stpRootIs(dev: string): Check {
+  return (snap) => {
+    const s = section(snap, 'stp', 'ethernet');
+    if (isResult(s)) return s;
+    const b = s[dev];
+    if (!b) return fail(`${dev} is not running spanning tree.`);
+    if (!b.isRoot) return fail(`${dev} is not the root bridge yet.`);
+    return b.priority < 32768 ? pass() : fail(`${dev} is root only by luck (lowest MAC). Make it root on purpose with a lower priority.`);
+  };
+}
+
+/** Port-channel `po` on `dev` is up with at least `min` bundled (P) members. */
+export function etherChannelBundled(dev: string, po: string, min = 2): Check {
+  return (snap) => {
+    const e = section(snap, 'etherChannels', 'ethernet');
+    if (isResult(e)) return e;
+    const b = (e[dev] ?? []).find((x) => x.name === po);
+    if (!b) return fail(`${dev} has no ${po}.`);
+    const bundled = b.members.filter((m) => m.flag === 'P').length;
+    if (bundled >= min) return pass();
+    const odd = b.members.find((m) => m.flag !== 'P');
+    const why = odd ? { I: 'stand-alone (no LACP partner)', s: 'suspended (mismatch)', D: 'down', P: '' }[odd.flag] : 'missing';
+    return fail(`${dev} ${po} has ${bundled} bundled member(s); ${odd ? `${odd.port} is ${why}` : 'add more members'}.`);
+  };
+}
+
+export function noDuplexMismatch(): Check {
+  return (snap) => {
+    const d = section(snap, 'duplexMismatches', 'ethernet');
+    if (isResult(d)) return d;
+    return d.length ? fail(`Duplex mismatch still present (${d.length} port end(s)).`) : pass();
+  };
+}
+
+/** The switch has learned at least `min` MAC addresses. */
+export function macLearned(dev: string, min: number): Check {
+  return (snap) => {
+    const t = section(snap, 'macTables', 'ethernet');
+    if (isResult(t)) return t;
+    const n = (t[dev] ?? []).length;
+    return n >= min ? pass() : fail(`${dev} has learned ${n} MAC address(es) so far.`);
+  };
+}
+
 // ---------------------------------------------------------------------------
 // IP (Phase 2)
 // ---------------------------------------------------------------------------
@@ -248,6 +300,81 @@ export function pingSucceeds(src: string, dst: string, vrf?: string): Check {
     const r = [...pings].reverse().find((p) => p.src === src && p.dst === dst && (p.vrf ?? undefined) === vrf);
     if (!r) return fail(`No ping from ${src} to the target has been run yet.`);
     return r.success ? pass() : fail(`The last ping from ${src} failed.`);
+  };
+}
+
+export function gatewayIs(host: string, gateway: string): Check {
+  return (snap) => {
+    const g = section(snap, 'hostGateways', 'ip');
+    if (isResult(g)) return g;
+    if (!g[host]) return fail(`${host} has no default gateway.`);
+    return g[host] === gateway ? pass() : fail(`${host} default gateway is not the router's address.`);
+  };
+}
+
+/** Default gateway of `host` is an address of device `router`. */
+export function gatewayOnDevice(host: string, router: string): Check {
+  return (snap) => {
+    const g = section(snap, 'hostGateways', 'ip');
+    const ips = section(snap, 'interfaceIps', 'ip');
+    if (isResult(g)) return g;
+    if (isResult(ips)) return ips;
+    if (!g[host]) return fail(`${host} has no default gateway.`);
+    return ips.some((i) => i.device === router && i.address.split('/')[0] === g[host]) ? pass() : fail(`${host} default gateway is not an address of ${router}.`);
+  };
+}
+
+/** The last ping from `src` to any address of device `dst` succeeded. */
+export function pingReachesDevice(src: string, dst: string): Check {
+  return (snap) => {
+    const pings = section(snap, 'pings', 'ip');
+    const ips = section(snap, 'interfaceIps', 'ip');
+    if (isResult(pings)) return pings;
+    if (isResult(ips)) return ips;
+    const targets = new Set(ips.filter((i) => i.device === dst).map((i) => i.address.split('/')[0]));
+    const r = [...pings].reverse().find((p) => p.src === src && targets.has(p.dst));
+    if (!r) return fail(`No ping from ${src} to ${dst} has been run yet.`);
+    return r.success ? pass() : fail(`The last ping from ${src} to ${dst} failed.`);
+  };
+}
+
+/** Smallest prefix that holds `hosts` usable addresses (network + broadcast reserved). */
+export function prefixForHosts(hosts: number): number {
+  for (let len = 30; len >= 1; len--) if (2 ** (32 - len) - 2 >= hosts) return len;
+  return 0;
+}
+
+/** Interface address sits inside `block` with the smallest prefix that fits `hosts` (VLSM). */
+export function subnetSizedFor(dev: string, iface: string, hosts: number, block: string): Check {
+  return (snap) => {
+    const ips = section(snap, 'interfaceIps', 'ip');
+    if (isResult(ips)) return ips;
+    const have = ips.find((i) => i.device === dev && i.iface === iface);
+    if (!have) return fail(`${dev} ${iface} has no IP address.`);
+    const got = parseCidr(have.address);
+    const b = parseCidr(block);
+    if (!got || !b) return fail(`${dev} ${iface} address is not valid.`);
+    const inside = got.prefixLen >= b.prefixLen && cidrsOverlap(got, b);
+    if (!inside) return fail(`${dev} ${iface} is outside the station block.`);
+    const want = prefixForHosts(hosts);
+    if (got.prefixLen > want) return fail(`${dev} ${iface} subnet is too small for ${hosts} hosts.`);
+    if (got.prefixLen < want) return fail(`${dev} ${iface} subnet wastes addresses — a smaller subnet still fits ${hosts} hosts.`);
+    return pass();
+  };
+}
+
+/** No two of the listed interfaces have overlapping subnets. */
+export function noOverlap(ifaces: Array<[string, string]>): Check {
+  return (snap) => {
+    const ips = section(snap, 'interfaceIps', 'ip');
+    if (isResult(ips)) return ips;
+    const cidrs = ifaces
+      .map(([d, i]) => ips.find((x) => x.device === d && x.iface === i))
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .map((x) => ({ at: `${x.device} ${x.iface}`, c: parseCidr(x.address)! }));
+    for (let i = 0; i < cidrs.length; i++)
+      for (let j = i + 1; j < cidrs.length; j++) if (cidrsOverlap(cidrs[i].c, cidrs[j].c)) return fail(`${cidrs[i].at} and ${cidrs[j].at} overlap.`);
+    return cidrs.length === ifaces.length ? pass() : fail('Some planned interfaces have no address yet.');
   };
 }
 

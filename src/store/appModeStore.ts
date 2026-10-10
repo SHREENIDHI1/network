@@ -17,7 +17,10 @@ function initial(): AppMode {
 
 interface AppModeState {
   mode: AppMode;
+  /** Lesson to open next time Learn mode shows (e.g. "Read lesson A7" from a lab). */
+  lessonId?: string;
   setMode: (m: AppMode) => void;
+  openLesson: (id: string) => void;
 }
 
 export const useAppMode = create<AppModeState>((set) => ({
@@ -29,5 +32,9 @@ export const useAppMode = create<AppModeState>((set) => ({
       // storage blocked; keep in memory only
     }
     set({ mode });
+  },
+  openLesson: (lessonId) => {
+    useAppMode.getState().setMode('learn');
+    set({ lessonId });
   },
 }));

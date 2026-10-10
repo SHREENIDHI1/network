@@ -4,6 +4,7 @@ import { EventQueue } from './core/eventQueue';
 import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet } from './core/types';
 import { computeSegments, type Segment } from './ethernet/segments';
 import { computeStp, type StpState } from './ethernet/stp';
+import { bundleByName, computeEtherChannel, emptyEtherChannel, pickMember, type Bundle, type EtherChannelState } from './ethernet/etherchannel';
 import { computeOspf, type OspfResult } from './ospf/ospf';
 import { computeFhrp, type FhrpResult } from './fhrp/fhrp';
 import { evaluateAcl } from './security/acl';
@@ -98,7 +99,7 @@ export interface TraceStep {
   iface?: string;
   action: TraceAction;
   /** Which table/function made the decision. */
-  table?: 'Interface' | 'STP' | 'VLAN' | 'Port security' | 'MAC table' | 'ARP cache' | 'Routing table' | 'ICMP' | 'Host stack' | 'ACL' | 'NAT' | 'DHCP';
+  table?: 'Interface' | 'STP' | 'VLAN' | 'Port security' | 'EtherChannel' | 'MAC table' | 'ARP cache' | 'Routing table' | 'ICMP' | 'Host stack' | 'ACL' | 'NAT' | 'DHCP';
   detail: string;
   frame?: FrameView;
 }
@@ -180,8 +181,20 @@ interface Runtime {
   pending: Map<number, PendingArp>;
   secure: Map<string, Set<string>>;
   violations: Map<string, number>;
-  counters: Map<string, { rx: number; tx: number; drops: number }>;
+  counters: Map<string, PortCounters>;
 }
+
+export interface PortCounters {
+  rx: number;
+  tx: number;
+  drops: number;
+  /** Frames damaged by a duplex mismatch: CRC errors seen on the full-duplex end. */
+  crc: number;
+  /** Late collisions seen on the half-duplex end of a duplex mismatch. */
+  lateCollisions: number;
+}
+
+const zeroCounters = (): PortCounters => ({ rx: 0, tx: 0, drops: 0, crc: 0, lateCollisions: 0 });
 
 const newRuntime = (): Runtime => ({
   mac: new Map(),
@@ -204,6 +217,9 @@ export class Sim {
   configs = new Map<string, NetConfig>();
   phys: PhysicalState = { ports: new Map(), links: new Map() };
   stp: StpState = { bridges: new Map(), ports: new Map() };
+  ec: EtherChannelState = emptyEtherChannel();
+  /** Frames sent per link with a duplex mismatch (deterministic loss pattern). */
+  private duplexSeq = new Map<string, number>();
   l3 = new Map<string, L3Interface[]>();
   routes = new Map<string, Route[]>();
   segments: Segment[] = [];
@@ -307,7 +323,8 @@ export class Sim {
     this.applyLeases();
     const oldStp = this.stp;
     this.phys = computePhysical(this.topology, this.configs, this.cuts, this.errDisabled);
-    this.stp = computeStp(this.topology, this.configs, this.phys);
+    this.ec = computeEtherChannel(this.topology, this.configs, this.phys);
+    this.stp = computeStp(this.topology, this.configs, this.phys, this.ec);
     this.l3.clear();
     this.routes.clear();
     for (const d of this.topology.devices) {
@@ -361,9 +378,7 @@ export class Sim {
     for (const [devId, rt] of this.runtime) {
       for (const [vlan, table] of rt.mac) {
         for (const [mac, e] of table) {
-          const st = this.stp.ports.get(portKey(devId, e.port));
-          const up = this.phys.ports.get(portKey(devId, e.port))?.operUp;
-          if (!up || st?.state !== 'forwarding' || (stpChanged && !e.secure)) table.delete(mac);
+          if (!this.logicalForwarding(devId, e.port) || (stpChanged && !e.secure)) table.delete(mac);
         }
         if (!table.size) rt.mac.delete(vlan);
       }
@@ -446,8 +461,32 @@ export class Sim {
       .sort((a, b) => a.ip - b.ip);
   }
 
-  portCounters(id: string, port: string) {
-    return this.runtime.get(id)?.counters.get(port) ?? { rx: 0, tx: 0, drops: 0 };
+  portCounters(id: string, port: string): PortCounters {
+    return this.runtime.get(id)?.counters.get(port) ?? zeroCounters();
+  }
+
+  /** EtherChannel bundles configured on a device ("show etherchannel summary"). */
+  etherChannels(id: string): Bundle[] {
+    return this.ec.bundles.get(id) ?? [];
+  }
+
+  /** Port-channel name for a bundled member port, else the port itself. */
+  private lport(deviceId: string, portId: string): string {
+    return this.ec.logical.get(portKey(deviceId, portId)) ?? portId;
+  }
+
+  /** Bundled, up members of a port-channel (or [port] for a plain port). */
+  private physicalMembers(deviceId: string, lp: string): string[] {
+    const b = bundleByName(this.ec, deviceId, lp);
+    if (!b) return [lp];
+    return b.members.filter((m) => m.flag === 'P' && this.phys.ports.get(portKey(deviceId, m.portId))?.operUp).map((m) => m.portId);
+  }
+
+  /** Is a logical port (physical port or port-channel) up and STP-forwarding? */
+  private logicalForwarding(deviceId: string, lp: string): boolean {
+    return this.physicalMembers(deviceId, lp).some(
+      (p) => !!this.phys.ports.get(portKey(deviceId, p))?.operUp && this.stp.ports.get(portKey(deviceId, p))?.state === 'forwarding',
+    );
   }
 
   secureMacs(id: string, port: string): string[] {
@@ -711,9 +750,9 @@ export class Sim {
     return r;
   }
 
-  private count(deviceId: string, port: string, k: 'rx' | 'tx' | 'drops'): void {
+  private count(deviceId: string, port: string, k: keyof PortCounters): void {
     const rt = this.rt(deviceId);
-    const c = rt.counters.get(port) ?? { rx: 0, tx: 0, drops: 0 };
+    const c = rt.counters.get(port) ?? zeroCounters();
     c[k]++;
     rt.counters.set(port, c);
   }
@@ -777,6 +816,20 @@ export class Sim {
     const link = this.topology.links.find((l) => l.id === st.linkId)!;
     const delay = LINK_FIXED_DELAY_MS + link.lengthKm * PROPAGATION_MS_PER_KM;
     this.count(deviceId, portId, 'tx');
+    if (st.duplexMismatch) {
+      // Simplified: every 4th frame on a duplex-mismatched link is destroyed by a late collision.
+      const n = (this.duplexSeq.get(link.id) ?? 0) + 1;
+      this.duplexSeq.set(link.id, n);
+      if (n % 4 === 0) {
+        const peer = this.phys.ports.get(portKey(st.peer.deviceId, st.peer.portId));
+        const half = st.duplex === 'half' ? { d: deviceId, p: portId } : { d: st.peer.deviceId, p: st.peer.portId };
+        const full = st.duplex === 'half' ? { d: st.peer.deviceId, p: st.peer.portId } : { d: deviceId, p: portId };
+        this.count(half.d, half.p, 'lateCollisions');
+        this.count(full.d, full.p, 'crc');
+        this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'Interface', detail: `Duplex mismatch on this link (${st.duplex} here, ${peer?.duplex ?? '?'} at the far end): the frame was destroyed by a late collision / CRC error.` }, frame);
+        return;
+      }
+    }
     this.queue.push(this.now + delay, { type: 'deliver', deviceId: st.peer.deviceId, portId: st.peer.portId, frame: { ...frame }, linkId: st.linkId });
   }
 
@@ -835,6 +888,13 @@ export class Sim {
     const role = this.role(deviceId);
     const cfg = this.configs.get(deviceId)!;
     const p = effectivePort(role, cfg.interfaces[portId]);
+    const flag = this.ec.flags.get(portKey(deviceId, portId));
+    if (flag === 's') {
+      this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'EtherChannel', detail: `${portId} is a suspended EtherChannel member — frame discarded.` }, frame);
+      this.count(deviceId, portId, 'drops');
+      return;
+    }
+    const lp = this.lport(deviceId, portId);
     const stp = this.stp.ports.get(portKey(deviceId, portId));
     if (stp?.state !== 'forwarding') {
       this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'STP', detail: `${portId} is ${stp?.role ?? 'disabled'}/discarding — frame discarded.` }, frame);
@@ -900,12 +960,13 @@ export class Sim {
     }
     const existing = table.get(frame.srcMac);
     const secure = !!p.portSecurity?.enabled;
-    if (!existing || existing.port !== portId) {
-      this.trace(frame.flowId, { deviceId, portId, action: 'learn', table: 'MAC table', detail: `Learned ${frame.srcMac} on ${portId} in VLAN ${vlan}.` }, frame);
+    if (!existing || existing.port !== lp) {
+      const via = lp !== portId ? ` (member ${portId})` : '';
+      this.trace(frame.flowId, { deviceId, portId, action: 'learn', table: 'MAC table', detail: `Learned ${frame.srcMac} on ${lp}${via} in VLAN ${vlan}.` }, frame);
     }
-    table.set(frame.srcMac, { port: portId, at: this.now, secure });
+    table.set(frame.srcMac, { port: lp, at: this.now, secure });
 
-    this.bridgeForward(deviceId, vlan, { ...frame, vlanTag: undefined }, portId);
+    this.bridgeForward(deviceId, vlan, { ...frame, vlanTag: undefined }, lp);
   }
 
   /** Forwards a frame inside VLAN `vlan`. `ingress` = arrival port, or 'cpu' when sent by the switch's own SVI. */
@@ -920,18 +981,26 @@ export class Sim {
       return;
     }
 
-    const members = (exclude: string) =>
-      this.devices.get(deviceId)!.ports.filter((pt) => {
-        if (pt.id === exclude) return false;
-        if (!portCarriesVlan(cfg, role, pt.id, vlan)) return false;
-        if (!this.phys.ports.get(portKey(deviceId, pt.id))?.operUp) return false;
-        return this.stp.ports.get(portKey(deviceId, pt.id))?.state === 'forwarding';
-      });
+    /** Logical egress ports (physical ports, or one entry per port-channel) forwarding in this VLAN. */
+    const members = (exclude: string): string[] => {
+      const out: string[] = [];
+      for (const pt of this.devices.get(deviceId)!.ports) {
+        const flag = this.ec.flags.get(portKey(deviceId, pt.id));
+        if (flag === 's' || flag === 'D') continue;
+        const lp = this.lport(deviceId, pt.id);
+        if (lp === exclude || out.includes(lp)) continue;
+        if (!portCarriesVlan(cfg, role, pt.id, vlan)) continue;
+        if (!this.phys.ports.get(portKey(deviceId, pt.id))?.operUp) continue;
+        if (this.stp.ports.get(portKey(deviceId, pt.id))?.state !== 'forwarding') continue;
+        out.push(lp);
+      }
+      return out;
+    };
 
     const flood = (why: string) => {
       const out = members(ingress);
-      this.trace(frame.flowId, { deviceId, portId: ingress === 'cpu' ? undefined : ingress, action: 'flood', table: 'MAC table', detail: `${why} — flooded in VLAN ${vlan} to ${out.length ? out.map((p) => p.id).join(', ') : 'no other ports'}.` }, frame);
-      for (const pt of out) this.egressSwitchport(deviceId, pt.id, vlan, frame);
+      this.trace(frame.flowId, { deviceId, portId: ingress === 'cpu' ? undefined : ingress, action: 'flood', table: 'MAC table', detail: `${why} — flooded in VLAN ${vlan} to ${out.length ? out.join(', ') : 'no other ports'}.` }, frame);
+      for (const lp of out) this.egressSwitchport(deviceId, lp, vlan, frame);
     };
 
     if (frame.dstMac === BROADCAST_MAC) {
@@ -949,7 +1018,7 @@ export class Sim {
       this.trace(frame.flowId, { deviceId, portId: ingress, action: 'drop', table: 'MAC table', detail: `${frame.dstMac} is on the ingress port — filtered.` }, frame);
       return;
     }
-    if (!members('').some((p) => p.id === entry.port)) {
+    if (!members('').includes(entry.port)) {
       flood(`MAC table points to ${entry.port}, which is not forwarding for VLAN ${vlan}`);
       return;
     }
@@ -957,7 +1026,14 @@ export class Sim {
     this.egressSwitchport(deviceId, entry.port, vlan, frame);
   }
 
-  private egressSwitchport(deviceId: string, portId: string, vlan: number, frame: Frame): void {
+  /** Sends out a logical port; a port-channel picks one bundled member by MAC hash. */
+  private egressSwitchport(deviceId: string, lp: string, vlan: number, frame: Frame): void {
+    const portId = pickMember(this.physicalMembers(deviceId, lp), frame.srcMac, frame.dstMac);
+    if (!portId) {
+      this.trace(frame.flowId, { deviceId, action: 'drop', table: 'EtherChannel', detail: `${lp} has no bundled member up.` }, frame);
+      return;
+    }
+    if (portId !== lp) this.trace(frame.flowId, { deviceId, portId, action: 'forward', table: 'EtherChannel', detail: `${lp}: src/dst MAC hash chose member ${portId}.` }, frame);
     const p = effectivePort(this.role(deviceId), this.configs.get(deviceId)!.interfaces[portId]);
     const tagged = p.mode === 'trunk' && vlan !== p.nativeVlan;
     this.transmit(deviceId, portId, { ...frame, vlanTag: tagged ? vlan : undefined });

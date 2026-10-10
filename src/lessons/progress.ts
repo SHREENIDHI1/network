@@ -11,9 +11,20 @@ export interface LessonProgress {
   lastAt?: string;
 }
 
+export interface LabProgress {
+  completed: boolean;
+  bestScore: number;
+  attempts: number;
+  breakFixDone: boolean;
+  quizBest: number; // 0..5
+  lastAt?: string;
+}
+
 export interface Progress {
   version: 1;
   lessons: Record<string, LessonProgress>;
+  /** Added in P2; absent in older progress files. */
+  labs?: Record<string, LabProgress>;
 }
 
 export interface StorageLike {
@@ -76,6 +87,30 @@ export function recordQuiz(p: Progress, lessonId: string, score: number, now = n
   };
 }
 
+/** Records a lab result; best score and flags only ever improve. */
+export function recordLab(
+  p: Progress,
+  labId: string,
+  r: { completed: boolean; score: number; breakFixDone?: boolean; quizScore?: number; newAttempt?: boolean },
+  now = new Date(),
+): Progress {
+  const prev = p.labs?.[labId] ?? { completed: false, bestScore: 0, attempts: 0, breakFixDone: false, quizBest: 0 };
+  return {
+    ...p,
+    labs: {
+      ...(p.labs ?? {}),
+      [labId]: {
+        completed: prev.completed || r.completed,
+        bestScore: Math.max(prev.bestScore, r.score),
+        attempts: prev.attempts + (r.newAttempt ? 1 : 0),
+        breakFixDone: prev.breakFixDone || !!r.breakFixDone,
+        quizBest: Math.max(prev.quizBest, r.quizScore ?? 0),
+        lastAt: now.toISOString(),
+      },
+    },
+  };
+}
+
 export function exportProgress(p: Progress): string {
   return JSON.stringify({ format: 'railmpls-lab-progress', ...p }, null, 2);
 }
@@ -84,7 +119,7 @@ export function importProgress(text: string): Progress | null {
   try {
     const o = JSON.parse(text) as { format?: string } & Progress;
     if (o.format !== 'railmpls-lab-progress' || o.version !== 1 || typeof o.lessons !== 'object') return null;
-    return { version: 1, lessons: o.lessons };
+    return { version: 1, lessons: o.lessons, ...(o.labs && typeof o.labs === 'object' ? { labs: o.labs } : {}) };
   } catch {
     return null;
   }

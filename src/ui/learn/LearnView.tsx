@@ -1,16 +1,23 @@
 import { BookOpen, CheckCircle2, Download, Lock, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { CURRICULUM, LESSON_LOADERS, isAvailable } from '../../lessons/curriculum';
-import { exportProgress, importProgress, loadProgress, recordQuiz, saveProgress, type Progress } from '../../lessons/progress';
-import type { FlashQuestion, Lesson, LessonBlock } from '../../lessons/types';
+import { exportProgress, importProgress, recordQuiz, type Progress } from '../../lessons/progress';
+import { useAppMode } from '../../store/appModeStore';
+import { useProgress } from '../../store/progressStore';
+import type { Lesson, LessonBlock } from '../../lessons/types';
 import { useTopologyStore } from '../../store/topologyStore';
 import { Diagram } from './diagrams';
+import { FlashQuiz } from './FlashQuiz';
 import { Widget } from './widgets';
 
 /** LEARN mode: curriculum list + lesson reader + 5-question flash quiz. */
 export default function LearnView() {
-  const [progress, setProgress] = useState<Progress>(() => loadProgress());
-  const [current, setCurrent] = useState('A0');
+  const progress = useProgress((s) => s.progress);
+  const requested = useAppMode((s) => s.lessonId);
+  const [current, setCurrent] = useState(() => (requested && isAvailable(requested) ? requested : 'A0'));
+  useEffect(() => {
+    if (requested && isAvailable(requested)) setCurrent(requested);
+  }, [requested]);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -29,8 +36,8 @@ export default function LearnView() {
   }, [current]);
 
   const update = (p: Progress) => {
-    setProgress(p);
-    if (!saveProgress(p)) notify('info', 'Browser storage is blocked — progress is kept only until you close this tab. Use Export to keep it.');
+    useProgress.getState().replace(p);
+    if (!useProgress.getState().persisted) notify('info', 'Browser storage is blocked — progress is kept only until you close this tab. Use Export to keep it.');
   };
 
   const done = CURRICULUM.filter((c) => progress.lessons[c.id]?.completed).length;
@@ -265,89 +272,4 @@ function Block({ b }: { b: LessonBlock }) {
       );
     }
   }
-}
-
-function FlashQuiz({ questions, onFinish, best }: { questions: FlashQuestion[]; onFinish: (score: number) => void; best?: number }) {
-  const [answers, setAnswers] = useState<Array<number | null>>(() => questions.map(() => null));
-  const [submitted, setSubmitted] = useState(false);
-  const score = answers.filter((a, i) => a === questions[i].correctIndex).length;
-  return (
-    <section className="rounded-lg border border-sky-900 p-4">
-      <h2 className="mb-2 text-lg font-semibold">
-        Flash quiz (5) {best !== undefined && <span className="text-sm font-normal text-slate-400">· best {best}/5</span>}
-      </h2>
-      <ol className="space-y-3">
-        {questions.map((q, i) => (
-          <li key={i}>
-            <p className="font-medium text-slate-100">
-              {i + 1}. {q.prompt}
-            </p>
-            <div className="mt-1 grid gap-1">
-              {q.options.map((o, j) => {
-                const chosen = answers[i] === j;
-                const right = submitted && j === q.correctIndex;
-                const wrong = submitted && chosen && j !== q.correctIndex;
-                return (
-                  <label
-                    key={j}
-                    className={`flex cursor-pointer items-start gap-2 rounded border px-2 py-1 text-sm ${
-                      right
-                        ? 'border-emerald-600 bg-emerald-950/50'
-                        : wrong
-                          ? 'border-red-700 bg-red-950/50'
-                          : chosen
-                            ? 'border-sky-600'
-                            : 'border-slate-800 hover:bg-slate-900'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={`q${i}`}
-                      className="mt-1"
-                      checked={chosen}
-                      disabled={submitted}
-                      onChange={() => setAnswers((a) => a.map((x, k) => (k === i ? j : x)))}
-                    />
-                    {o}
-                  </label>
-                );
-              })}
-            </div>
-            {submitted && <p className="mt-1 text-xs text-slate-400">{q.explanation}</p>}
-          </li>
-        ))}
-      </ol>
-      <div className="mt-3 flex items-center gap-3">
-        {!submitted ? (
-          <button
-            type="button"
-            className="rn-btn-primary"
-            disabled={answers.some((a) => a === null)}
-            onClick={() => {
-              setSubmitted(true);
-              onFinish(score);
-            }}
-          >
-            Check answers
-          </button>
-        ) : (
-          <>
-            <span className={score >= 4 ? 'text-emerald-300' : 'text-yellow-300'}>
-              Score {score}/5 {score >= 4 ? '— lesson complete ✓' : '— 4/5 chahiye complete karne ke liye'}
-            </span>
-            <button
-              type="button"
-              className="rn-btn"
-              onClick={() => {
-                setAnswers(questions.map(() => null));
-                setSubmitted(false);
-              }}
-            >
-              Try again
-            </button>
-          </>
-        )}
-      </div>
-    </section>
-  );
 }

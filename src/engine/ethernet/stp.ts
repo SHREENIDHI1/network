@@ -2,6 +2,7 @@ import type { Topology } from '../../model/types';
 import { effectivePort, isBridgeRole, roleOf, type NetConfig } from '../config/netConfig';
 import { baseMac } from '../core/mac';
 import { portKey, type PhysicalState } from '../physical/linkState';
+import { emptyEtherChannel, type EtherChannelState } from './etherchannel';
 
 /**
  * Simplified Rapid Spanning Tree (IEEE 802.1w / 802.1D-2004 port costs).
@@ -10,6 +11,9 @@ import { portKey, type PhysicalState } from '../physical/linkState';
  * - Roles are computed directly from the topology (root election, root port,
  *   designated port, alternate port) instead of exchanging BPDUs with
  *   timers; convergence is instantaneous. See Model Limitations.
+ * - An EtherChannel bundle is one STP port: its representative member takes
+ *   part in the election (cost from the summed member speed) and every other
+ *   bundled member copies its role/state. Suspended members are disabled.
  */
 
 export type StpRole = 'root' | 'designated' | 'alternate' | 'disabled';
@@ -71,10 +75,22 @@ function compareVec(a: Vec, b: Vec): number {
   return a[3] - b[3];
 }
 
-export function computeStp(topo: Topology, configs: ReadonlyMap<string, NetConfig>, phys: PhysicalState): StpState {
+export function computeStp(topo: Topology, configs: ReadonlyMap<string, NetConfig>, phys: PhysicalState, ec: EtherChannelState = emptyEtherChannel()): StpState {
   const bridges = new Map<string, StpBridge>();
   const ports = new Map<string, StpPort>();
   const devById = new Map(topo.devices.map((d) => [d.id, d]));
+
+  const bundleOf = (deviceId: string, portId: string) => {
+    const name = ec.logical.get(portKey(deviceId, portId));
+    return name ? ec.bundles.get(deviceId)?.find((b) => b.name === name) : undefined;
+  };
+  /** Suspended/down members and non-representative bundled members do not form adjacencies. */
+  const inElection = (deviceId: string, portId: string) => {
+    const flag = ec.flags.get(portKey(deviceId, portId));
+    if (flag === 's' || flag === 'D') return false;
+    const b = bundleOf(deviceId, portId);
+    return !b || b.primary === portId;
+  };
 
   const isSwitchport = (deviceId: string, portId: string) => {
     const d = devById.get(deviceId);
@@ -90,13 +106,15 @@ export function computeStp(topo: Topology, configs: ReadonlyMap<string, NetConfi
     d.ports.forEach((p, i) => {
       if (!isSwitchport(d.id, p.id)) return;
       const st = phys.ports.get(portKey(d.id, p.id));
-      const up = !!st?.operUp;
+      const flag = ec.flags.get(portKey(d.id, p.id));
+      const up = !!st?.operUp && flag !== 's' && flag !== 'D';
+      const bundle = bundleOf(d.id, p.id);
       ports.set(portKey(d.id, p.id), {
         deviceId: d.id,
         portId: p.id,
         role: up ? 'designated' : 'disabled',
         state: up ? 'forwarding' : 'discarding',
-        cost: stpPortCost(st?.speedGbps ?? 0),
+        cost: stpPortCost(bundle ? bundle.speedGbps : (st?.speedGbps ?? 0)),
         portPriority: 128,
         portNumber: i + 1,
         edge: true,
@@ -117,6 +135,14 @@ export function computeStp(topo: Topology, configs: ReadonlyMap<string, NetConfi
     if (!phys.links.get(l.id)?.up) continue;
     if (!bridges.has(l.a.deviceId) || !bridges.has(l.b.deviceId)) continue;
     if (!isSwitchport(l.a.deviceId, l.a.portId) || !isSwitchport(l.b.deviceId, l.b.portId)) continue;
+    if (!inElection(l.a.deviceId, l.a.portId) || !inElection(l.b.deviceId, l.b.portId)) {
+      // Bundled members still face a bridge (not an edge port).
+      for (const e of [l.a, l.b]) {
+        const sp = ports.get(portKey(e.deviceId, e.portId));
+        if (sp) sp.edge = false;
+      }
+      continue;
+    }
     adjs.push({ linkId: l.id, a: l.a.deviceId, pa: l.a.portId, b: l.b.deviceId, pb: l.b.portId });
     ports.get(portKey(l.a.deviceId, l.a.portId))!.edge = false;
     ports.get(portKey(l.b.deviceId, l.b.portId))!.edge = false;
@@ -206,6 +232,19 @@ export function computeStp(topo: Topology, configs: ReadonlyMap<string, NetConfi
       }
     }
   }
+
+  // Bundled members mirror the representative member of their port-channel.
+  for (const bundles of ec.bundles.values())
+    for (const b of bundles) {
+      if (!b.primary) continue;
+      const rep = ports.get(portKey(b.deviceId, b.primary));
+      if (!rep) continue;
+      for (const m of b.members) {
+        if (m.flag !== 'P' || m.portId === b.primary) continue;
+        const sp = ports.get(portKey(b.deviceId, m.portId));
+        if (sp) Object.assign(sp, { role: rep.role, state: rep.state, cost: rep.cost, edge: rep.edge });
+      }
+    }
 
   return { bridges, ports };
 }

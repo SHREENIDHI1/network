@@ -1,6 +1,7 @@
 import { useReactFlow } from '@xyflow/react';
 import { BookOpen, FilePlus, FlaskConical, FolderOpen, Info, LayoutGrid, Save, Sparkles, TrainFront } from 'lucide-react';
 import { useAppMode, type AppMode } from '../store/appModeStore';
+import { useLabStore } from '../store/labStore';
 import { useRef } from 'react';
 import { useTopologyStore } from '../store/topologyStore';
 import { ENABLE_LEGACY_TDM } from '../config/features';
@@ -22,6 +23,8 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
   const fileInput = useRef<HTMLInputElement>(null);
   const { fitView } = useReactFlow();
   const mode = useAppMode((s) => s.mode);
+  const labOpen = useLabStore((s) => s.lab !== null);
+  const canvas = mode === 'sandbox' || (mode === 'lab' && labOpen);
 
   const confirmDiscard = () =>
     topology.devices.length === 0 || window.confirm('Replace the current topology? Unsaved changes will be lost (save first if needed).');
@@ -54,7 +57,7 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
         <TrainFront className="h-5 w-5 text-amber-400" />
         <span className="whitespace-nowrap font-semibold tracking-tight">RailMPLS Lab</span>
         <span className="hidden whitespace-nowrap rounded bg-slate-800 px-1.5 text-[10px] font-medium uppercase text-slate-400 2xl:inline">
-          P1 · Foundations
+          P2 · Switching
         </span>
       </div>
       <ModeSwitch />
@@ -109,10 +112,15 @@ export function Toolbar({ onShowLimitations }: { onShowLimitations: () => void }
           <div className="ml-2 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
             {topology.meta.name}
           </div>
-          <SimControls />
         </>
       )}
-      {mode !== 'sandbox' && <div className="flex-1" />}
+      {mode === 'lab' && labOpen && (
+        <div className="ml-2 min-w-0 flex-1 truncate text-sm text-slate-400" title={topology.meta.name}>
+          {topology.meta.name}
+        </div>
+      )}
+      {canvas && <SimControls />}
+      {!canvas && <div className="flex-1" />}
       <button type="button" className="rn-btn border-amber-800 text-amber-200" onClick={onShowLimitations}>
         <Info className="h-4 w-4" /> <span className="hidden xl:inline">Model </span>Limitations
       </button>

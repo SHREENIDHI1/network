@@ -1,3 +1,4 @@
+import { APP_COMMIT, APP_VERSION } from '../buildInfo';
 import { computeBudget } from '../engine/physical/opticalBudget';
 import { ENABLE_LEGACY_TDM } from '../config/features';
 import { visibleTopology } from '../model/networkingMode';
@@ -27,6 +28,9 @@ export function StatusBar() {
       {marginal > 0 && <span className="text-yellow-300">{marginal} marginal optical link(s)</span>}
       <span className="ml-auto">
         {ENABLE_LEGACY_TDM ? 'Full mode' : 'Networking-only mode'} · Engine: Ethernet, VLAN, RSTP, IPv4, OSPF, DHCP, NAT, ACL, HSRP/VRRP, QoS · Console = CLI + Packet Inspector
+      </span>
+      <span className="text-slate-500" title="Build stamp: if this commit is older than the latest on GitHub, run git pull and restart npm run dev.">
+        v{APP_VERSION} · {APP_COMMIT}
       </span>
     </footer>
   );
