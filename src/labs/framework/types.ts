@@ -358,13 +358,19 @@ export interface LabSolution {
   flaps?: Array<[string, string]>;
   /** Hosts that run "ipconfig /renew" after the configuration. */
   renew?: string[];
+  /** LSP pings to run after the pings, [source router, FEC "A.B.C.D/len"]. */
+  lsp?: Array<[string, string]>;
+  /** MPLS traceroutes to run after the LSP pings, [source router, FEC]. */
+  lspTrace?: Array<[string, string]>;
   /** Host command-prompt lines (nslookup, ssh, telnet…) run last, per device name. */
   hostCli?: Record<string, string[]>;
 }
 
 export interface Lab {
-  id: string; // e.g. "L3.2"
-  level: number; // lesson number (A9 → 9)
+  id: string; // e.g. "L3.2" (Part A) or "LB3.1" (Part B)
+  /** Curriculum part; default 'A'. */
+  part?: 'A' | 'B';
+  level: number; // lesson number within the part (A9 → 9, B3 → 3)
   order: number; // position within level
   title: string;
   /** Hinglish, railway-realistic. */

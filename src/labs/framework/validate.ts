@@ -11,15 +11,19 @@ export const QUIZ_MCQ = 4;
 export const QUIZ_PRACTICAL = 1;
 export const MAX_LEVEL = 40;
 
-const LAB_ID = /^L(\d{1,2})\.(\d{1,2})$/;
+const LAB_ID = /^L(B?)(\d{1,2})\.(\d{1,2})$/;
 
 export function validateLab(lab: Lab, topologyIds: ReadonlySet<string>): string[] {
   const e: string[] = [];
   const at = `Lab ${lab.id}`;
 
   const m = LAB_ID.exec(lab.id);
-  if (!m) e.push(`${at}: id must look like "L3.2"`);
-  else if (Number(m[1]) !== lab.level) e.push(`${at}: id level does not match level ${lab.level}`);
+  if (!m) e.push(`${at}: id must look like "L3.2" or "LB3.1"`);
+  else {
+    if (Number(m[2]) !== lab.level) e.push(`${at}: id level does not match level ${lab.level}`);
+    if ((m[1] === 'B') !== (lab.part === 'B')) e.push(`${at}: id prefix does not match part ${lab.part ?? 'A'}`);
+  }
+  if (lab.lessonId && lab.lessonId !== `${lab.part ?? 'A'}${lab.level}`) e.push(`${at}: lessonId ${lab.lessonId} does not match part/level`);
   if (!Number.isInteger(lab.level) || lab.level < 0 || lab.level > MAX_LEVEL) e.push(`${at}: level must be 0..${MAX_LEVEL}`);
   if (!lab.title.trim()) e.push(`${at}: empty title`);
   if (!lab.scenario.trim()) e.push(`${at}: empty scenario`);
@@ -73,7 +77,7 @@ export function validateRegistry(labs: readonly Lab[], topologyIds: ReadonlySet<
   for (const lab of labs) {
     if (ids.has(lab.id)) errors.push(`Duplicate lab id ${lab.id}`);
     ids.add(lab.id);
-    const slot = `${lab.level}:${lab.order}`;
+    const slot = `${lab.part ?? 'A'}${lab.level}:${lab.order}`;
     if (slots.has(slot)) errors.push(`Lab ${lab.id}: order ${lab.order} already used in level ${lab.level}`);
     slots.add(slot);
     errors.push(...validateLab(lab, topologyIds));

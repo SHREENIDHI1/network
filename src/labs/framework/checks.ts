@@ -332,6 +332,29 @@ export function servicePolicyApplied(dev: string, iface: string, dir: 'input' | 
   };
 }
 
+/** JSON with sorted keys, so key order does not matter when comparing configs. */
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
+  if (v && typeof v === 'object')
+    return `{${Object.keys(v)
+      .filter((k) => (v as Record<string, unknown>)[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`)
+      .join(',')}}`;
+  return JSON.stringify(v);
+}
+
+/** Running config of `dev` has been saved ("write memory" / "copy running-config startup-config") and is unchanged since. */
+export function configSaved(dev: string): Check {
+  return (snap) => {
+    const d = snap.topology.devices.find((x) => x.name === dev);
+    if (!d) return fail(`No device named ${dev}.`);
+    const { startup, ...running } = getNetConfig(d);
+    if (!startup) return fail(`${dev} has no startup-config yet — the running config would be lost on reload.`);
+    return stable(startup) === stable(running) ? pass() : fail(`${dev} running-config has changes that are not saved to startup-config.`);
+  };
+}
+
 /** The link between devices a and b has been cut (fibre-cut simulation). */
 export function linkCut(a: string, b: string): Check {
   return (snap) => {

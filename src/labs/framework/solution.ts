@@ -84,6 +84,19 @@ export function applySolution(topology: Topology, sim: Sim, sol: LabSolution): {
     sim.ping(byName(src).id, ip);
     sim.runUntilIdle();
   }
+  for (const [kind, list] of [
+    ['ping', sol.lsp ?? []],
+    ['trace', sol.lspTrace ?? []],
+  ] as const) {
+    for (const [src, fec] of list) {
+      const [net, len] = fec.split('/');
+      const n = parseIpv4(net);
+      if (n === null) throw new Error(`Bad FEC ${fec}`);
+      if (kind === 'ping') sim.lspPing(byName(src).id, n, Number(len));
+      else sim.lspTrace(byName(src).id, n, Number(len));
+      sim.runUntilIdle();
+    }
+  }
   for (const [name, lines] of Object.entries(sol.hostCli ?? {})) {
     for (const line of lines) {
       execHost(line, byName(name), { sim, simulationMode: false });
@@ -113,6 +126,8 @@ export function solutionText(sol: LabSolution): string {
   for (const h of sol.renew ?? []) L.push(`${h}> ipconfig /renew`);
   for (const [a, b] of sol.cuts ?? []) L.push(`Cut link ${a} – ${b} (select the link → Cut)`);
   for (const [s, d] of sol.pings ?? []) L.push(`${s}> ping ${d}`);
+  for (const [n, f] of sol.lsp ?? []) L.push(`${n}# ping mpls ipv4 ${f}`);
+  for (const [n, f] of sol.lspTrace ?? []) L.push(`${n}# traceroute mpls ipv4 ${f}`);
   for (const [n, lines] of Object.entries(sol.hostCli ?? {})) for (const l of lines) L.push(`${n}> ${l}`);
   return L.join('\n').trim();
 }

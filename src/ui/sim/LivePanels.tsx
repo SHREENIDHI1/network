@@ -1,3 +1,4 @@
+import { MplsPanel } from './MplsPanel';
 import { Scissors, Terminal, Wrench } from 'lucide-react';
 import { effectivePort, getNetConfig, isBridgeRole, roleOf } from '../../engine/config/netConfig';
 import { formatIpv4 } from '../../engine/ip/ipv4';
@@ -35,7 +36,15 @@ export function DeviceSimSection({ device }: { device: Device }) {
         <ProtocolSummary deviceId={device.id} />
         {stpBridge && (
           <p className="mt-2 text-xs text-slate-400">
-            STP: {stpBridge.isRoot ? <span className="text-emerald-300">root bridge</span> : <>root port {stpBridge.rootPortId ?? '—'}, cost {stpBridge.rootCost}</>} · priority {stpBridge.bridgeId.priority}
+            STP:{' '}
+            {stpBridge.isRoot ? (
+              <span className="text-emerald-300">root bridge</span>
+            ) : (
+              <>
+                root port {stpBridge.rootPortId ?? '—'}, cost {stpBridge.rootCost}
+              </>
+            )}{' '}
+            · priority {stpBridge.bridgeId.priority}
           </p>
         )}
       </Section>
@@ -45,6 +54,7 @@ export function DeviceSimSection({ device }: { device: Device }) {
       {device.kind === 'dns-dhcp' && <DnsRecordsForm device={device} />}
       {device.kind === 'nms' && <NmsInbox device={device} />}
       {role === 'host' && <TrafficFlowsForm device={device} />}
+      {(role === 'router' || role === 'l3switch') && <MplsPanel device={device} />}
       <Section title="Interfaces (live)">
         <table className="w-full text-xs">
           <thead className="text-left text-slate-500">
@@ -61,12 +71,18 @@ export function DeviceSimSection({ device }: { device: Device }) {
               const eff = effectivePort(role, cfg.interfaces[p.id]);
               const stp = sim.stp.ports.get(portKey(device.id, p.id));
               const status = sim.isErrDisabled(device.id, p.id) ? 'err-disabled' : !st?.adminUp ? 'admin down' : st.operUp ? 'up' : 'down';
-              const l2 = isBridgeRole(role) && eff.switchport ? `${eff.mode === 'trunk' ? 'trunk' : `vlan ${eff.accessVlan}`}${stp && stp.role !== 'disabled' && !stp.edge ? ` · ${stp.role}` : ''}` : undefined;
+              const l2 =
+                isBridgeRole(role) && eff.switchport
+                  ? `${eff.mode === 'trunk' ? 'trunk' : `vlan ${eff.accessVlan}`}${stp && stp.role !== 'disabled' && !stp.edge ? ` · ${stp.role}` : ''}`
+                  : undefined;
               if (!st?.linkId && !l3?.ip && !cfg.interfaces[p.id]) return null;
               return (
                 <tr key={p.id} className="border-t border-slate-800/70">
                   <td className="py-0.5 font-mono text-slate-200">{p.name}</td>
-                  <td className={`py-0.5 ${status === 'up' ? 'text-emerald-300' : status === 'err-disabled' ? 'text-red-400' : 'text-slate-500'}`} title={st?.reason}>
+                  <td
+                    className={`py-0.5 ${status === 'up' ? 'text-emerald-300' : status === 'err-disabled' ? 'text-red-400' : 'text-slate-500'}`}
+                    title={st?.reason}
+                  >
                     {status}
                   </td>
                   <td className="py-0.5 font-mono text-slate-300">{l2 ?? (l3?.ip !== undefined ? `${formatIpv4(l3.ip)}/${l3.prefixLen}` : '—')}</td>
@@ -86,7 +102,9 @@ export function DeviceSimSection({ device }: { device: Device }) {
               ))}
           </tbody>
         </table>
-        <p className="mt-1 text-[11px] text-slate-500">Unused, unconfigured ports are hidden. Use the CLI for full detail (show ip interface brief).</p>
+        <p className="mt-1 text-[11px] text-slate-500">
+          Unused, unconfigured ports are hidden. Use the CLI for full detail (show ip interface brief).
+        </p>
       </Section>
     </>
   );
@@ -137,7 +155,17 @@ export function LinkSimSection({ link }: { link: Link }) {
         <dt className="text-slate-400">Speed</dt>
         <dd>{st?.speedGbps ? `${st.speedGbps} Gbit/s` : '—'}</dd>
         <dt className="text-slate-400">Spanning tree</dt>
-        <dd>{blocked ? <span className="text-amber-300">blocked at {blockedName} {blocked.portId} (alternate)</span> : stpA || stpB ? 'forwarding' : 'n/a (not a switch-to-switch link)'}</dd>
+        <dd>
+          {blocked ? (
+            <span className="text-amber-300">
+              blocked at {blockedName} {blocked.portId} (alternate)
+            </span>
+          ) : stpA || stpB ? (
+            'forwarding'
+          ) : (
+            'n/a (not a switch-to-switch link)'
+          )}
+        </dd>
       </dl>
       <div className="mt-2 flex gap-2">
         {cut ? (

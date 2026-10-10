@@ -1,3 +1,4 @@
+import { hostname, ipPlan, siteRole } from '../../topologies/jodhpur/plan';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FAMILY_DOCS } from '../../equipment/families';
 import { capabilities, configGuide, familyOf, verifyGuide } from '../../equipment/guide';
@@ -304,7 +305,8 @@ function StationInfo({ device, placed, lang }: { device: Device; placed: boolean
       </ul>
       <p className="mt-1 text-xs">Control boards: {boardsOf(st.code).join(', ') || 'unknown (check)'}</p>
       <p className="mt-3 text-xs text-slate-500">
-        Track map data, not the real OFC/telecom route. Station equipment profiles arrive with the Jodhpur topologies (J1–J4) in later phases.
+        Track map data, not the real OFC/telecom route. Design role in the Jodhpur topologies: {siteRole(st.code)} ({hostname(st.code)}), Loopback0{' '}
+        {ipPlan().loopbacks.get(st.code) ?? '—'}/32.
       </p>
     </>
   );

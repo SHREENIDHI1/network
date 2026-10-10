@@ -17,7 +17,9 @@ export type WidgetId =
   | 'spf'
   | 'acl-eval'
   | 'hsrp'
-  | 'queue-sim';
+  | 'queue-sim'
+  | 'label-header'
+  | 'lsp-walk';
 export type DiagramId =
   | 'circuit-vs-packet'
   | 'osi-stack'

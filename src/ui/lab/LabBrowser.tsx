@@ -26,7 +26,8 @@ export default function LabBrowser() {
       .then(() => setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80));
   };
 
-  const levels = [...new Set(labs.map((l) => l.level))];
+  const groupOf = (l: Lab) => `${l.part ?? 'A'}${l.level}`;
+  const levels = [...new Set(labs.map(groupOf))];
   return (
     <div className="mx-auto max-w-4xl px-6 py-6">
       <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-50">
@@ -37,16 +38,16 @@ export default function LabBrowser() {
         5-question quiz aur field note. Pehle lesson padho, phir lab karo.
       </p>
       {levels.map((lvl) => {
-        const lesson = CURRICULUM.find((c) => c.id === `A${lvl}`);
+        const lesson = CURRICULUM.find((c) => c.id === lvl);
         return (
           <section key={lvl} className="mb-5">
             <h2 className="rn-label mb-1.5">
-              Level {lvl}
+              {lvl}
               {lesson && ` — ${lesson.title}`}
             </h2>
             <ul className="space-y-2">
               {labs
-                .filter((l) => l.level === lvl)
+                .filter((l) => groupOf(l) === lvl)
                 .map((lab) => {
                   const lock = labLockReason(lab);
                   const p = progress.labs?.[lab.id];
@@ -86,7 +87,7 @@ export default function LabBrowser() {
           </section>
         );
       })}
-      <p className="mt-6 text-xs text-slate-500">Part A labs (A4–A15) are ready; IP-MPLS labs (B-series) arrive from P4.</p>
+      <p className="mt-6 text-xs text-slate-500">Part A labs (A4–A15) and IP-MPLS labs B1–B4 are ready; more B-series labs arrive with each phase.</p>
     </div>
   );
 }

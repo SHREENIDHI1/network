@@ -37,6 +37,10 @@ export const TOPOLOGIES: readonly TopologyEntry[] = [
   { id: 'lab-mtd-hsrp', title: 'Lab A13: MTD gateway redundancy', load: () => import('./routingLabs').then((m) => m.mtdHsrp()) },
   { id: 'lab-mtd-qos', title: 'Lab A14: QoS on the MTD–JU uplink', load: () => import('./routingLabs').then((m) => m.mtdQos()) },
   { id: 'lab-capstone-mtd-ju', title: 'Lab A15: MTD + JU capstone', load: () => import('./routingLabs').then((m) => m.capstone()) },
+  { id: 'lab-b1-bno', title: 'Lab B1: commission BNO-LER', load: () => import('./mplsLabs').then((m) => m.b1Station()) },
+  { id: 'lab-b2-core', title: 'Lab B2: IGP for the J1 core', load: () => import('./mplsLabs').then((m) => m.b2Core()) },
+  { id: 'lab-b3-core', title: 'Lab B3: first LSP JU → DNA', load: () => import('./mplsLabs').then((m) => m.b3Core()) },
+  { id: 'lab-b4-j2', title: 'Lab B4: LDP troubleshooting on J2', load: () => import('./mplsLabs').then((m) => m.b4J2()) },
 ];
 
 export const TOPOLOGY_IDS: ReadonlySet<string> = new Set(TOPOLOGIES.map((t) => t.id));

@@ -18,6 +18,7 @@ import {
 import { spans } from '../../topologies/data/jodhpur';
 import { MacLearning, RootElection, SubnetCalc, VlanTag, VlsmPlanner } from './widgets2';
 import { AclEvalWidget, HsrpWidget, LpmWidget, QueueSimWidget, SpfWidget } from './widgets3';
+import { LabelHeaderWidget, LspWalkWidget } from './widgets4';
 
 export function Widget({ id }: { id: WidgetId }) {
   switch (id) {
@@ -49,6 +50,10 @@ export function Widget({ id }: { id: WidgetId }) {
       return <HsrpWidget />;
     case 'queue-sim':
       return <QueueSimWidget />;
+    case 'label-header':
+      return <LabelHeaderWidget />;
+    case 'lsp-walk':
+      return <LspWalkWidget />;
   }
 }
 

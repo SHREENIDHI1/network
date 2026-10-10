@@ -14,7 +14,8 @@ describe('curriculum', () => {
     for (const id of Object.keys(LESSON_LOADERS)) expect(CURRICULUM.some((c) => c.id === id)).toBe(true);
     expect(isAvailable('A0')).toBe(true);
     expect(['A4', 'A5', 'A6', 'A7', 'A8'].every(isAvailable)).toBe(true);
-    expect(isAvailable('B3')).toBe(false);
+    expect(['B0', 'B1', 'B2', 'B3', 'B4'].every(isAvailable)).toBe(true);
+    expect(isAvailable('B5')).toBe(false);
   });
 
   for (const id of Object.keys(LESSON_LOADERS)) {
@@ -267,5 +268,35 @@ describe('P3 widget maths', () => {
     const llq = queueSim(10, flows, [{ name: 'VOICE', dscp: [46], priorityPercent: 30 }]);
     expect(llq[0].lossPct).toBeCloseTo(0, 5);
     expect(llq[1].deliveredMbps).toBeCloseTo(8, 5);
+  });
+});
+
+describe('P4 widget maths', () => {
+  it('encodes and decodes an MPLS label stack entry', async () => {
+    const { encodeLabel, decodeLabel, reservedLabel } = await import('./widgetMath4');
+    const r = encodeLabel({ label: 18, tc: 5, s: 1, ttl: 63 });
+    if (typeof r === 'string') throw new Error(r);
+    expect(r.hex).toBe('0x00012b3f');
+    expect(decodeLabel(r.value)).toEqual({ label: 18, tc: 5, s: 1, ttl: 63 });
+    expect(encodeLabel({ label: 1 << 20, tc: 0, s: 1, ttl: 1 })).toMatch(/20 bits/);
+    expect(reservedLabel(3)).toMatch(/implicit-null/);
+    expect(reservedLabel(16)).toBeNull();
+  });
+
+  it('LSP walk: PHP pops at the penultimate hop; explicit-null pops at the egress', async () => {
+    const { lspWalk } = await import('./widgetMath4');
+    const path = ['A', 'B', 'C', 'D'];
+    const php = lspWalk(path, { explicitNull: false, propagateTtl: true });
+    expect(php[0].action).toMatch(/PUSH/);
+    expect(php[1].action).toMatch(/SWAP/);
+    expect(php[2].action).toMatch(/POP .*penultimate/);
+    expect(php[3].action).toMatch(/plain IP/);
+    expect(php[3].ipTtl).toBe(61); // 64 − 3 hops before the egress
+    const exp = lspWalk(path, { explicitNull: true, propagateTtl: true });
+    expect(exp[2].action).toMatch(/SWAP .* → 0/);
+    expect(exp[3].action).toMatch(/POP explicit-null/);
+    const pipe = lspWalk(path, { explicitNull: false, propagateTtl: false });
+    expect(pipe[0].labelTtl).toBe('255');
+    expect(pipe[3].ipTtl).toBe(63); // core hops hidden: only the ingress decremented
   });
 });

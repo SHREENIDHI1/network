@@ -165,7 +165,10 @@ export const spanKey = (s: { section: string; index: number }) => `${s.section}:
  * span /31 10.255.<section>.<2·index>, per-station VRF /24 10.<100+vrf>.<station no>.0.
  * Express links of the J1 core get 10.254.0.<2k>/31 (see expressPlan).
  */
+let cached: IpPlan | undefined;
+
 export function ipPlan(d: JodhpurData = JODHPUR): IpPlan {
+  if (d === JODHPUR && cached) return cached;
   const loopbacks = new Map<string, string>();
   const rows: IpPlanRow[] = [];
   for (const sec of d.sections) {
@@ -193,7 +196,9 @@ export function ipPlan(d: JodhpurData = JODHPUR): IpPlan {
   codes.forEach((code, i) => {
     VRFS.forEach((v, k) => rows.push({ kind: 'vrf', what: `${code} VRF ${v}`, prefix: `10.${100 + k}.${i + 1}.0/24`, site: code }));
   });
-  return { loopbacks, p2p, rows };
+  const result = { loopbacks, p2p, rows };
+  if (d === JODHPUR) cached = result;
+  return result;
 }
 
 /** Overlapping prefixes in a plan (should be empty). */

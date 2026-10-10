@@ -18,11 +18,29 @@ async function start(lab: Lab) {
   return { topology, sim };
 }
 
-describe('labs A4–A15', () => {
+describe('labs A4–A15 and B1–B4', () => {
   it('registry is valid and P2/P3 labs are unlocked', () => {
     expect(validateRegistry(LABS, TOPOLOGY_IDS)).toEqual([]);
     for (const l of LABS) expect(labLockReason(l), l.id).toBeNull();
-    expect(LABS.map((l) => l.lessonId)).toEqual(['A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A10', 'A11', 'A12', 'A13', 'A14', 'A15']);
+    expect(LABS.map((l) => l.lessonId)).toEqual([
+      'A4',
+      'A5',
+      'A6',
+      'A7',
+      'A8',
+      'A9',
+      'A10',
+      'A10',
+      'A11',
+      'A12',
+      'A13',
+      'A14',
+      'A15',
+      'B1',
+      'B2',
+      'B3',
+      'B4',
+    ]);
   });
 
   for (const lab of LABS) {
@@ -161,5 +179,26 @@ describe('practical quiz answers match the engine', () => {
     expect(out).toContain('GigabitEthernet0/1 is up, line protocol is up');
     expect(out).toContain('Hello 5, Dead 20');
     expect(out).toContain('Adjacent neighbor count is 0');
+  });
+  it('LB1.1: Loopback0 is up/up with the plan address', async () => {
+    const out = await solvedCli('LB1.1', 'BNO-LER', ['show ip interface brief']);
+    expect(out.split('\n').find((l) => l.startsWith('Loopback0'))).toMatch(/10\.0\.1\.3\s+YES manual up\s+up/);
+  });
+
+  it('LB2.1: SMR-LSR has three OSPF neighbours', async () => {
+    const out = await solvedCli('LB2.1', 'SMR-LSR', ['show ip ospf neighbor']);
+    expect(out.split('\n').filter((l) => /FULL/.test(l))).toHaveLength(3);
+  });
+
+  it('LB3.1: MTD-LSR pops the label for DNA', async () => {
+    const out = await solvedCli('LB3.1', 'MTD-LSR', ['show mpls forwarding-table']);
+    expect(out.split('\n').find((l) => l.includes('10.0.2.6/32'))).toMatch(/Pop Label/);
+  });
+
+  it('LB4.1: 25 labelled hops before FL answers', async () => {
+    const out = await solvedCli('LB4.1', 'JU-LSR', ['traceroute mpls ipv4 10.0.3.10/32']);
+    const lines = out.split('\n');
+    expect(lines.filter((l) => /^L \d+ /.test(l))).toHaveLength(25);
+    expect(lines.filter((l) => /^! \d+ /.test(l))).toHaveLength(1);
   });
 });
