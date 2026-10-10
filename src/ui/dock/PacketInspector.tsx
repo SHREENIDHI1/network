@@ -39,15 +39,18 @@ export default function PacketInspector() {
   );
   const flow = selectedFlowId !== undefined ? sim.flows.get(selectedFlowId) : flows[0];
   const steps = flow?.steps ?? [];
-  const idx = Math.max(0, steps.findIndex((s) => s.seq === selectedStepSeq));
+  const idx = Math.max(
+    0,
+    steps.findIndex((s) => s.seq === selectedStepSeq),
+  );
   const step: TraceStep | undefined = steps[idx];
   const children = flow ? [...sim.flows.values()].filter((f) => f.parentId === flow.id) : [];
 
   if (!sim.flows.size) {
     return (
       <p className="p-3 text-sm text-slate-400">
-        No packets yet. Open a CLI and run <code className="text-sky-300">ping</code> or <code className="text-sky-300">traceroute</code>. In Simulation mode, use Step / Play and
-        watch each hop here.
+        No packets yet. Open a CLI and run <code className="text-sky-300">ping</code> or <code className="text-sky-300">traceroute</code>. In
+        Simulation mode, use Step / Play and watch each hop here.
       </p>
     );
   }
@@ -199,6 +202,33 @@ function Headers({ f }: { f: FrameView }) {
           <p className="text-slate-500">Untagged on this hop</p>
         )}
       </section>
+      <section>
+        <h4 className="rn-label">MPLS label stack</h4>
+        {f.mpls?.length ? (
+          <table>
+            <thead>
+              <tr className="text-slate-500">
+                <td className="pr-3">Label</td>
+                <td className="pr-3">TC (EXP)</td>
+                <td className="pr-3">S</td>
+                <td>TTL</td>
+              </tr>
+            </thead>
+            <tbody>
+              {f.mpls.map((l, i) => (
+                <tr key={i} className="font-mono text-violet-200">
+                  <td className="pr-3">{l.label}</td>
+                  <td className="pr-3">{l.tc}</td>
+                  <td className="pr-3">{i === f.mpls!.length - 1 ? 1 : 0}</td>
+                  <td>{l.ttl}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-slate-500">None — plain IP on this hop</p>
+        )}
+      </section>
       {f.arp && (
         <section>
           <h4 className="rn-label">ARP</h4>
@@ -225,14 +255,10 @@ function Headers({ f }: { f: FrameView }) {
               {row('Total length', `${f.ip.sizeBytes} bytes`)}
             </tbody>
           </table>
-          <h4 className="rn-label mt-2">ICMP</h4>
+          <h4 className="rn-label mt-2">{f.ip.protocol.split(' ')[0]}</h4>
           <p className="font-mono text-slate-200">{f.ip.icmp}</p>
         </section>
       )}
-      <section>
-        <h4 className="rn-label">MPLS label stack</h4>
-        <p className="text-slate-500">None (MPLS arrives in Phase 5)</p>
-      </section>
     </div>
   );
 }

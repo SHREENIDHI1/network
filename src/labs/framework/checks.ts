@@ -526,6 +526,30 @@ export function lfibHasLabelFor(dev: string, fec: string): Check {
   };
 }
 
+/** The last LSP ping (or trace) from `src` to `fec` reached the egress. */
+export function lspPingSucceeds(src: string, fec: string, kind: 'ping' | 'trace' = 'ping'): Check {
+  return (snap) => {
+    const r = section(snap, 'lspResults', 'mpls');
+    if (isResult(r)) return r;
+    const last = [...r].reverse().find((x) => x.src === src && x.fec === fec && x.kind === kind);
+    if (!last) return fail(`No LSP ${kind === 'ping' ? 'ping' : 'traceroute'} from ${src} to ${fec} has been run yet.`);
+    return last.success
+      ? pass()
+      : fail(`The last LSP ${kind === 'ping' ? 'ping' : 'traceroute'} from ${src} to ${fec} failed (codes ${last.codes}).`);
+  };
+}
+
+/** `dev` pushes / swaps a real label (not "No Label", not pop) for `fec`. */
+export function labelledPath(dev: string, fec: string): Check {
+  return (snap) => {
+    const lf = section(snap, 'lfib', 'mpls');
+    if (isResult(lf)) return lf;
+    return lf.some((e) => e.device === dev && e.fec === fec && (e.action === 'push' || e.action === 'pop'))
+      ? pass()
+      : fail(`${dev} has no outgoing label for ${fec} (LDP binding from the next hop missing).`);
+  };
+}
+
 /**
  * PHP: on an LSP path [ingress, ..., penultimate, egress], the penultimate
  * hop must pop the label for the egress FEC (implicit-null advertised).

@@ -39,6 +39,8 @@ function ring(opts: { lanArea?: (stn: string) => number } = {}): Topology {
         defaultOriginate: 'off',
         redistributeStatic: false,
         referenceBandwidth: 100,
+        ldpSync: false,
+        ldpAutoconfig: false,
       };
     });
     t = host(t, `${s}-PC`, `10.${i + 1}.0.10`, `10.${i + 1}.0.1`);

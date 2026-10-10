@@ -65,6 +65,7 @@ export const BUILT_MODULES: ReadonlySet<EngineModule> = new Set<EngineModule>([
   'services',
   'qos',
   'resilience',
+  'mpls',
 ]);
 
 export function missingModules(required: readonly EngineModule[], built: ReadonlySet<EngineModule> = BUILT_MODULES): EngineModule[] {

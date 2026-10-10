@@ -22,6 +22,7 @@ import * as F from './format';
 import { phase3Cmds } from './ios3';
 import { igpCmds } from './iosIgp';
 import { mgmtCmds } from './iosMgmt';
+import { mplsCmds } from './iosMpls';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -118,7 +119,22 @@ export const EXEC: CliMode[] = ['user', 'priv'];
 export const PRIV: CliMode[] = ['priv'];
 export const CONF: CliMode[] = ['config'];
 export const IFM: CliMode[] = ['config-if', 'config-subif'];
-export const ANYCONF: CliMode[] = ['config', 'config-if', 'config-subif', 'config-vlan', 'config-router', 'config-router-isis', 'config-router-rip', 'config-line', 'config-std-nacl', 'config-ext-nacl', 'dhcp-config', 'config-cmap', 'config-pmap', 'config-pmap-c'];
+export const ANYCONF: CliMode[] = [
+  'config',
+  'config-if',
+  'config-subif',
+  'config-vlan',
+  'config-router',
+  'config-router-isis',
+  'config-router-rip',
+  'config-line',
+  'config-std-nacl',
+  'config-ext-nacl',
+  'dhcp-config',
+  'config-cmap',
+  'config-pmap',
+  'config-pmap-c',
+];
 
 const INVALID = "% Invalid input detected at '^' marker.";
 
@@ -147,7 +163,8 @@ function pingCmd(x: Exec, kind: 'ping' | 'traceroute'): string {
   const sim = x.ctx.sim;
   const repeat = typeof x.args.repeat === 'number' ? x.args.repeat : undefined;
   const sid = kind === 'ping' ? sim.ping(x.device.id, dst, { count: repeat }) : sim.traceroute(x.device.id, dst);
-  if (x.ctx.simulationMode) return `${kind === 'ping' ? 'Ping' : 'Traceroute'} queued (Simulation mode): press Step or Play, then read the Packet Inspector.`;
+  if (x.ctx.simulationMode)
+    return `${kind === 'ping' ? 'Ping' : 'Traceroute'} queued (Simulation mode): press Step or Play, then read the Packet Inspector.`;
   sim.runUntilIdle();
   const s = sim.session(sid)!;
   return kind === 'ping' ? F.iosPingOutput(s) : F.iosTraceOutput(s);
@@ -203,220 +220,609 @@ const CMDS: Cmd[] = [
   { modes: PRIV, toks: [kw('disable', 'Turn off privileged commands')], run: (x) => x.setMode('user') },
   { modes: EXEC, toks: [kw('exit', 'Exit from the EXEC')], run: (x) => x.setMode('user') },
   { modes: EXEC, toks: [kw('logout', 'Exit from the EXEC')], run: (x) => x.setMode('user') },
-  { modes: PRIV, toks: [kw('configure', 'Enter configuration mode'), kw('terminal', 'Configure from the terminal')], run: (x) => {
-    x.setMode('config');
-    return 'Enter configuration commands, one per line.  End with CNTL/Z.';
-  } },
+  {
+    modes: PRIV,
+    toks: [kw('configure', 'Enter configuration mode'), kw('terminal', 'Configure from the terminal')],
+    run: (x) => {
+      x.setMode('config');
+      return 'Enter configuration commands, one per line.  End with CNTL/Z.';
+    },
+  },
   { modes: EXEC, toks: [kw('ping', 'Send echo messages'), ip('dst', 'Ping destination address')], run: (x) => pingCmd(x, 'ping') },
-  { modes: EXEC, toks: [kw('ping', 'Send echo messages'), ip('dst', 'Ping destination address'), kw('repeat', 'specify repeat count'), num('repeat', 1, 100, '<1-100> Repeat count')], run: (x) => pingCmd(x, 'ping') },
-  { modes: EXEC, toks: [kw('traceroute', 'Trace route to destination'), ip('dst', 'Trace route to destination address')], run: (x) => pingCmd(x, 'traceroute') },
+  {
+    modes: EXEC,
+    toks: [
+      kw('ping', 'Send echo messages'),
+      ip('dst', 'Ping destination address'),
+      kw('repeat', 'specify repeat count'),
+      num('repeat', 1, 100, '<1-100> Repeat count'),
+    ],
+    run: (x) => pingCmd(x, 'ping'),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('traceroute', 'Trace route to destination'), ip('dst', 'Trace route to destination address')],
+    run: (x) => pingCmd(x, 'traceroute'),
+  },
   { modes: PRIV, toks: [kw('write', 'Write running configuration to memory'), kw('memory', 'Write to NV memory')], run: (x) => saveStartup(x) },
-  { modes: PRIV, toks: [kw('copy', 'Copy from one file to another'), kw('running-config', 'Copy from current system configuration'), kw('startup-config', 'Copy to startup configuration')], run: (x) => saveStartup(x) },
-  { modes: PRIV, toks: [kw('clear', 'Reset functions'), kw('mac', 'MAC forwarding table'), kw('address-table', 'MAC forwarding table'), kw('dynamic', 'dynamic entry type')], run: (x) => {
-    x.ctx.sim.clearMacTable(x.device.id);
-  } },
-  { modes: PRIV, toks: [kw('clear', 'Reset functions'), kw('arp-cache', 'Clear the entire ARP cache')], run: (x) => {
-    x.ctx.sim.clearArp(x.device.id);
-  } },
+  {
+    modes: PRIV,
+    toks: [
+      kw('copy', 'Copy from one file to another'),
+      kw('running-config', 'Copy from current system configuration'),
+      kw('startup-config', 'Copy to startup configuration'),
+    ],
+    run: (x) => saveStartup(x),
+  },
+  {
+    modes: PRIV,
+    toks: [
+      kw('clear', 'Reset functions'),
+      kw('mac', 'MAC forwarding table'),
+      kw('address-table', 'MAC forwarding table'),
+      kw('dynamic', 'dynamic entry type'),
+    ],
+    run: (x) => {
+      x.ctx.sim.clearMacTable(x.device.id);
+    },
+  },
+  {
+    modes: PRIV,
+    toks: [kw('clear', 'Reset functions'), kw('arp-cache', 'Clear the entire ARP cache')],
+    run: (x) => {
+      x.ctx.sim.clearArp(x.device.id);
+    },
+  },
 
   // show
-  { modes: PRIV, toks: [kw('show', 'Show running system information'), kw('running-config', 'Current operating configuration')], run: (x) => F.runningConfig(x.device, x.cfg) },
-  { modes: PRIV, toks: [kw('show', 'Show running system information'), kw('startup-config', 'Contents of startup configuration')], run: (x) =>
-    x.cfg.startup ? F.runningConfig(x.device, { ...x.cfg.startup }, 'Using startup configuration') : 'startup-config is not present' },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('ip', 'IP information'), kw('interface', 'IP interface status and configuration'), kw('brief', 'Brief summary of IP status and configuration')], run: (x) => F.showIpIntBrief(x.ctx.sim, x.device) },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('ip', 'IP information'), kw('route', 'IP routing table')], run: (x) => F.showIpRoute(x.ctx.sim, x.device) },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('ip', 'IP information'), kw('arp', 'IP ARP table')], run: (x) => F.showArp(x.ctx.sim, x.device) },
+  {
+    modes: PRIV,
+    toks: [kw('show', 'Show running system information'), kw('running-config', 'Current operating configuration')],
+    run: (x) => F.runningConfig(x.device, x.cfg),
+  },
+  {
+    modes: PRIV,
+    toks: [kw('show', 'Show running system information'), kw('startup-config', 'Contents of startup configuration')],
+    run: (x) => (x.cfg.startup ? F.runningConfig(x.device, { ...x.cfg.startup }, 'Using startup configuration') : 'startup-config is not present'),
+  },
+  {
+    modes: EXEC,
+    toks: [
+      kw('show', 'Show running system information'),
+      kw('ip', 'IP information'),
+      kw('interface', 'IP interface status and configuration'),
+      kw('brief', 'Brief summary of IP status and configuration'),
+    ],
+    run: (x) => F.showIpIntBrief(x.ctx.sim, x.device),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('ip', 'IP information'), kw('route', 'IP routing table')],
+    run: (x) => F.showIpRoute(x.ctx.sim, x.device),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('ip', 'IP information'), kw('arp', 'IP ARP table')],
+    run: (x) => F.showArp(x.ctx.sim, x.device),
+  },
   { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('arp', 'ARP table')], run: (x) => F.showArp(x.ctx.sim, x.device) },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('interfaces', 'Interface status and configuration'), iface()], run: (x) => F.showInterface(x.ctx.sim, x.device, String(x.args.if)) },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('interfaces', 'Interface status and configuration'), kw('trunk', 'Show interface trunk information')], run: (x) =>
-    isBridgeRole(roleOf(x.device.kind)) ? F.showTrunks(x.ctx.sim, x.device) : x.invalid() },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('interfaces', 'Interface status and configuration'), kw('status', 'Show interface line status')], run: (x) =>
-    isBridgeRole(roleOf(x.device.kind)) ? F.showInterfacesStatus(x.ctx.sim, x.device) : x.invalid() },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('vlan', 'VTP VLAN status'), kw('brief', 'VTP all VLAN status in brief')], run: (x) =>
-    isBridgeRole(roleOf(x.device.kind)) ? F.showVlanBrief(x.ctx.sim, x.device) : x.invalid() },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('vlan', 'VTP VLAN status')], run: (x) =>
-    isBridgeRole(roleOf(x.device.kind)) ? F.showVlanBrief(x.ctx.sim, x.device) : x.invalid() },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('mac', 'MAC configuration'), kw('address-table', 'MAC forwarding table')], run: (x) =>
-    isBridgeRole(roleOf(x.device.kind)) ? F.showMacTable(x.ctx.sim, x.device) : x.invalid() },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('spanning-tree', 'Spanning tree topology')], run: (x) => F.showSpanningTree(x.ctx.sim, x.device) },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('port-security', 'Show secure port information')], run: (x) =>
-    isBridgeRole(roleOf(x.device.kind)) ? F.showPortSecurity(x.ctx.sim, x.device) : x.invalid() },
-  { modes: EXEC, toks: [kw('show', 'Show running system information'), kw('port-security', 'Show secure port information'), kw('interface', 'Show secure interface'), iface()], run: (x) =>
-    isBridgeRole(roleOf(x.device.kind)) ? F.showPortSecurity(x.ctx.sim, x.device, String(x.args.if)) : x.invalid() },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('interfaces', 'Interface status and configuration'), iface()],
+    run: (x) => F.showInterface(x.ctx.sim, x.device, String(x.args.if)),
+  },
+  {
+    modes: EXEC,
+    toks: [
+      kw('show', 'Show running system information'),
+      kw('interfaces', 'Interface status and configuration'),
+      kw('trunk', 'Show interface trunk information'),
+    ],
+    run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showTrunks(x.ctx.sim, x.device) : x.invalid()),
+  },
+  {
+    modes: EXEC,
+    toks: [
+      kw('show', 'Show running system information'),
+      kw('interfaces', 'Interface status and configuration'),
+      kw('status', 'Show interface line status'),
+    ],
+    run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showInterfacesStatus(x.ctx.sim, x.device) : x.invalid()),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('vlan', 'VTP VLAN status'), kw('brief', 'VTP all VLAN status in brief')],
+    run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showVlanBrief(x.ctx.sim, x.device) : x.invalid()),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('vlan', 'VTP VLAN status')],
+    run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showVlanBrief(x.ctx.sim, x.device) : x.invalid()),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('mac', 'MAC configuration'), kw('address-table', 'MAC forwarding table')],
+    run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showMacTable(x.ctx.sim, x.device) : x.invalid()),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('spanning-tree', 'Spanning tree topology')],
+    run: (x) => F.showSpanningTree(x.ctx.sim, x.device),
+  },
+  {
+    modes: EXEC,
+    toks: [kw('show', 'Show running system information'), kw('port-security', 'Show secure port information')],
+    run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showPortSecurity(x.ctx.sim, x.device) : x.invalid()),
+  },
+  {
+    modes: EXEC,
+    toks: [
+      kw('show', 'Show running system information'),
+      kw('port-security', 'Show secure port information'),
+      kw('interface', 'Show secure interface'),
+      iface(),
+    ],
+    run: (x) => (isBridgeRole(roleOf(x.device.kind)) ? F.showPortSecurity(x.ctx.sim, x.device, String(x.args.if)) : x.invalid()),
+  },
 
   // ---------------------------------------------------------- global ----
   { modes: ANYCONF, toks: [kw('end', 'Exit from configure mode')], run: (x) => x.setMode('priv') },
-  { modes: ANYCONF, toks: [kw('exit', 'Exit from current mode')], run: (x) =>
-    x.session.mode === 'config' ? x.setMode('priv') : x.session.mode === 'config-pmap-c' ? x.setMode('config-pmap', { ctxName: x.session.ctxName }) : x.setMode('config') },
-  { modes: CONF, toks: [kw('hostname', 'Set system\'s network name'), word('name', 'This system\'s network name')], run: (x) => {
-    const n = String(x.args.name);
-    if (!/^[A-Za-z][A-Za-z0-9_-]{0,62}$/.test(n)) return '% Hostname must start with a letter and contain only letters, digits, - or _';
-    x.rename(n);
-  } },
+  {
+    modes: ANYCONF,
+    toks: [kw('exit', 'Exit from current mode')],
+    run: (x) =>
+      x.session.mode === 'config'
+        ? x.setMode('priv')
+        : x.session.mode === 'config-pmap-c'
+          ? x.setMode('config-pmap', { ctxName: x.session.ctxName })
+          : x.setMode('config'),
+  },
+  {
+    modes: CONF,
+    toks: [kw('hostname', "Set system's network name"), word('name', "This system's network name")],
+    run: (x) => {
+      const n = String(x.args.name);
+      if (!/^[A-Za-z][A-Za-z0-9_-]{0,62}$/.test(n)) return '% Hostname must start with a letter and contain only letters, digits, - or _';
+      x.rename(n);
+    },
+  },
   { modes: ANYCONF, toks: [kw('interface', 'Select an interface to configure'), iface()], run: (x) => enterInterface(x) },
-  { modes: ANYCONF, toks: [kw('interface', 'Select an interface to configure'), kw('range', 'interface range command'), line('spec', 'Interfaces, e.g. gi0/1 - 4 , gi0/23 - 24')], run: (x) => enterRange(x) },
-  { modes: ['config', 'config-vlan'], toks: [kw('vlan', 'VLAN commands'), num('id', 1, 4094, '<1-4094> ISL VLAN IDs 1-1005')], run: (x) => {
-    if (!isBridgeRole(roleOf(x.device.kind))) return x.invalid();
-    const id = Number(x.args.id);
-    if (!x.cfg.vlans[String(id)]) {
-      x.cfg.vlans[String(id)] = { name: `VLAN${String(id).padStart(4, '0')}` };
+  {
+    modes: ANYCONF,
+    toks: [
+      kw('interface', 'Select an interface to configure'),
+      kw('range', 'interface range command'),
+      line('spec', 'Interfaces, e.g. gi0/1 - 4 , gi0/23 - 24'),
+    ],
+    run: (x) => enterRange(x),
+  },
+  {
+    modes: ['config', 'config-vlan'],
+    toks: [kw('vlan', 'VLAN commands'), num('id', 1, 4094, '<1-4094> ISL VLAN IDs 1-1005')],
+    run: (x) => {
+      if (!isBridgeRole(roleOf(x.device.kind))) return x.invalid();
+      const id = Number(x.args.id);
+      if (!x.cfg.vlans[String(id)]) {
+        x.cfg.vlans[String(id)] = { name: `VLAN${String(id).padStart(4, '0')}` };
+        x.dirty();
+      }
+      x.setMode('config-vlan', { vlan: id });
+    },
+  },
+  {
+    modes: CONF,
+    toks: [kw('no', 'Negate a command or set its defaults'), kw('vlan', 'VLAN commands'), num('id', 1, 4094, '<1-4094> VLAN ID')],
+    run: (x) => {
+      if (!isBridgeRole(roleOf(x.device.kind))) return x.invalid();
+      const id = Number(x.args.id);
+      if (id === 1) return '%Default VLAN 1 may not be deleted.';
+      delete x.cfg.vlans[String(id)];
       x.dirty();
-    }
-    x.setMode('config-vlan', { vlan: id });
-  } },
-  { modes: CONF, toks: [kw('no', 'Negate a command or set its defaults'), kw('vlan', 'VLAN commands'), num('id', 1, 4094, '<1-4094> VLAN ID')], run: (x) => {
-    if (!isBridgeRole(roleOf(x.device.kind))) return x.invalid();
-    const id = Number(x.args.id);
-    if (id === 1) return '%Default VLAN 1 may not be deleted.';
-    delete x.cfg.vlans[String(id)];
-    x.dirty();
-  } },
-  { modes: ['config-vlan'], toks: [kw('name', 'Ascii name of the VLAN'), word('name', 'The ascii name for the VLAN')], run: (x) => {
-    x.cfg.vlans[String(x.session.vlan)] = { name: String(x.args.name).slice(0, 32) };
-    x.dirty();
-  } },
-  { modes: CONF, toks: [kw('ip', 'Global IP configuration subcommands'), kw('routing', 'Enable IP routing')], run: (x) => {
-    if (roleOf(x.device.kind) === 'switch') return x.invalid();
-    x.cfg.ipRouting = true;
-    x.dirty();
-  } },
-  { modes: CONF, toks: [kw('no', 'Negate a command or set its defaults'), kw('ip', 'Global IP configuration subcommands'), kw('routing', 'Enable IP routing')], run: (x) => {
-    if (roleOf(x.device.kind) === 'switch') return x.invalid();
-    x.cfg.ipRouting = false;
-    x.dirty();
-  } },
+    },
+  },
+  {
+    modes: ['config-vlan'],
+    toks: [kw('name', 'Ascii name of the VLAN'), word('name', 'The ascii name for the VLAN')],
+    run: (x) => {
+      x.cfg.vlans[String(x.session.vlan)] = { name: String(x.args.name).slice(0, 32) };
+      x.dirty();
+    },
+  },
+  {
+    modes: CONF,
+    toks: [kw('ip', 'Global IP configuration subcommands'), kw('routing', 'Enable IP routing')],
+    run: (x) => {
+      if (roleOf(x.device.kind) === 'switch') return x.invalid();
+      x.cfg.ipRouting = true;
+      x.dirty();
+    },
+  },
+  {
+    modes: CONF,
+    toks: [kw('no', 'Negate a command or set its defaults'), kw('ip', 'Global IP configuration subcommands'), kw('routing', 'Enable IP routing')],
+    run: (x) => {
+      if (roleOf(x.device.kind) === 'switch') return x.invalid();
+      x.cfg.ipRouting = false;
+      x.dirty();
+    },
+  },
   ...(['add', 'remove'] as const).flatMap((op) => {
     const lead = op === 'remove' ? [kw('no', 'Negate a command or set its defaults')] : [];
-    const base = [...lead, kw('ip', 'Global IP configuration subcommands'), kw('route', 'Establish static routes'), ip('prefix', 'Destination prefix'), mask('mask', 'Destination prefix mask')];
+    const base = [
+      ...lead,
+      kw('ip', 'Global IP configuration subcommands'),
+      kw('route', 'Establish static routes'),
+      ip('prefix', 'Destination prefix'),
+      mask('mask', 'Destination prefix mask'),
+    ];
     return [
-      { modes: CONF, toks: [...base, ip('nh', 'Forwarding router\'s address')], run: (x: Exec) => staticRoute(x, op === 'remove') },
-      { modes: CONF, toks: [...base, ip('nh', 'Forwarding router\'s address'), num('ad', 1, 255, '<1-255> Distance metric for this route')], run: (x: Exec) => staticRoute(x, op === 'remove') },
+      { modes: CONF, toks: [...base, ip('nh', "Forwarding router's address")], run: (x: Exec) => staticRoute(x, op === 'remove') },
+      {
+        modes: CONF,
+        toks: [...base, ip('nh', "Forwarding router's address"), num('ad', 1, 255, '<1-255> Distance metric for this route')],
+        run: (x: Exec) => staticRoute(x, op === 'remove'),
+      },
       { modes: CONF, toks: [...base, iface('exit', 'Outgoing interface')], run: (x: Exec) => staticRoute(x, op === 'remove') },
-      { modes: CONF, toks: [...base, iface('exit', 'Outgoing interface'), ip('nh', 'Forwarding router\'s address')], run: (x: Exec) => staticRoute(x, op === 'remove') },
+      {
+        modes: CONF,
+        toks: [...base, iface('exit', 'Outgoing interface'), ip('nh', "Forwarding router's address")],
+        run: (x: Exec) => staticRoute(x, op === 'remove'),
+      },
     ] satisfies Cmd[];
   }),
-  { modes: CONF, toks: [kw('ip', 'Global IP configuration subcommands'), kw('default-gateway', 'Specify default gateway (if not routing IP)'), ip('gw', 'IP address of default gateway')], run: (x) => {
-    x.cfg.defaultGateway = String(x.args.gw);
-    x.dirty();
-  } },
-  { modes: CONF, toks: [kw('no', 'Negate a command or set its defaults'), kw('ip', 'Global IP configuration subcommands'), kw('default-gateway', 'Specify default gateway (if not routing IP)')], run: (x) => {
-    delete x.cfg.defaultGateway;
-    x.dirty();
-  } },
-  { modes: CONF, toks: [kw('spanning-tree', 'Spanning Tree Subsystem'), kw('vlan', 'VLAN Switch Spanning Tree'), vlans('vl', 'Spanning tree VLAN id(s)'), kw('priority', 'Set the bridge priority for the spanning tree'), num('prio', 0, 61440, '<0-61440> bridge priority in increments of 4096')], run: (x) => stpPriority(x) },
-  { modes: CONF, toks: [kw('spanning-tree', 'Spanning Tree Subsystem'), kw('mst', 'Multiple spanning tree configuration'), num('inst', 0, 0, '<0> MST instance'), kw('priority', 'Set the bridge priority'), num('prio', 0, 61440, '<0-61440> bridge priority in increments of 4096')], run: (x) => stpPriority(x) },
-  { modes: CONF, toks: [kw('no', 'Negate a command or set its defaults'), kw('spanning-tree', 'Spanning Tree Subsystem'), kw('vlan', 'VLAN Switch Spanning Tree'), vlans('vl', 'Spanning tree VLAN id(s)'), kw('priority', 'Set the bridge priority')], run: (x) => {
-    if (!isBridgeRole(roleOf(x.device.kind))) return x.invalid();
-    x.cfg.stpPriority = 32768;
-    x.dirty();
-  } },
-  { modes: ANYCONF, toks: [kw('do', 'To run exec commands in config mode'), line('cmd', 'Exec Command')], run: (x) => {
-    const r = execIos(String(x.args.cmd), { ...x.session, mode: 'priv' }, x.ctx);
-    return r.output;
-  } },
+  {
+    modes: CONF,
+    toks: [
+      kw('ip', 'Global IP configuration subcommands'),
+      kw('default-gateway', 'Specify default gateway (if not routing IP)'),
+      ip('gw', 'IP address of default gateway'),
+    ],
+    run: (x) => {
+      x.cfg.defaultGateway = String(x.args.gw);
+      x.dirty();
+    },
+  },
+  {
+    modes: CONF,
+    toks: [
+      kw('no', 'Negate a command or set its defaults'),
+      kw('ip', 'Global IP configuration subcommands'),
+      kw('default-gateway', 'Specify default gateway (if not routing IP)'),
+    ],
+    run: (x) => {
+      delete x.cfg.defaultGateway;
+      x.dirty();
+    },
+  },
+  {
+    modes: CONF,
+    toks: [
+      kw('spanning-tree', 'Spanning Tree Subsystem'),
+      kw('vlan', 'VLAN Switch Spanning Tree'),
+      vlans('vl', 'Spanning tree VLAN id(s)'),
+      kw('priority', 'Set the bridge priority for the spanning tree'),
+      num('prio', 0, 61440, '<0-61440> bridge priority in increments of 4096'),
+    ],
+    run: (x) => stpPriority(x),
+  },
+  {
+    modes: CONF,
+    toks: [
+      kw('spanning-tree', 'Spanning Tree Subsystem'),
+      kw('mst', 'Multiple spanning tree configuration'),
+      num('inst', 0, 0, '<0> MST instance'),
+      kw('priority', 'Set the bridge priority'),
+      num('prio', 0, 61440, '<0-61440> bridge priority in increments of 4096'),
+    ],
+    run: (x) => stpPriority(x),
+  },
+  {
+    modes: CONF,
+    toks: [
+      kw('no', 'Negate a command or set its defaults'),
+      kw('spanning-tree', 'Spanning Tree Subsystem'),
+      kw('vlan', 'VLAN Switch Spanning Tree'),
+      vlans('vl', 'Spanning tree VLAN id(s)'),
+      kw('priority', 'Set the bridge priority'),
+    ],
+    run: (x) => {
+      if (!isBridgeRole(roleOf(x.device.kind))) return x.invalid();
+      x.cfg.stpPriority = 32768;
+      x.dirty();
+    },
+  },
+  {
+    modes: ANYCONF,
+    toks: [kw('do', 'To run exec commands in config mode'), line('cmd', 'Exec Command')],
+    run: (x) => {
+      const r = execIos(String(x.args.cmd), { ...x.session, mode: 'priv' }, x.ctx);
+      return r.output;
+    },
+  },
 
   // ------------------------------------------------------- interface ----
-  { modes: IFM, toks: [kw('description', 'Interface specific description'), line('text', 'Up to 240 characters describing this interface')], run: (x) => {
-    ifCfg(x).description = String(x.args.text).slice(0, 240);
-    x.dirty();
-  } },
-  { modes: IFM, toks: [kw('no', 'Negate a command or set its defaults'), kw('description', 'Interface specific description')], run: (x) => {
-    delete ifCfg(x).description;
-    x.dirty();
-  } },
-  { modes: IFM, toks: [kw('shutdown', 'Shutdown the selected interface')], run: (x) => {
-    ifCfg(x).shutdown = true;
-    x.dirty();
-  } },
-  { modes: IFM, toks: [kw('no', 'Negate a command or set its defaults'), kw('shutdown', 'Shutdown the selected interface')], run: (x) => {
-    ifCfg(x).shutdown = false;
-    x.dirty();
-  } },
-  { modes: IFM, toks: [kw('ip', 'Interface Internet Protocol config commands'), kw('address', 'Set the IP address of an interface'), ip('addr', 'IP address'), mask('mask', 'IP subnet mask')], run: (x) => setIpAddress(x) },
-  { modes: IFM, toks: [kw('no', 'Negate a command or set its defaults'), kw('ip', 'Interface Internet Protocol config commands'), kw('address', 'Set the IP address of an interface')], run: (x) => {
-    delete ifCfg(x).ip;
-    x.dirty();
-  } },
-  { modes: ['config-subif'], toks: [kw('encapsulation', 'Set encapsulation type for an interface'), kw('dot1q', 'IEEE 802.1Q Virtual LAN'), num('vlan', 1, 4094, '<1-4094> IEEE 802.1Q VLAN ID')], run: (x) => encap(x, false) },
-  { modes: ['config-subif'], toks: [kw('encapsulation', 'Set encapsulation type for an interface'), kw('dot1q', 'IEEE 802.1Q Virtual LAN'), num('vlan', 1, 4094, '<1-4094> IEEE 802.1Q VLAN ID'), kw('native', 'Make this as native vlan')], run: (x) => encap(x, true) },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics')], run: (x) => {
-    if (roleOf(x.device.kind) !== 'l3switch' || !x.device.ports.some((p) => p.id === x.session.iface)) return x.invalid();
-    const c = ifCfg(x);
-    c.switchport = true;
-    delete c.ip;
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('no', 'Negate a command or set its defaults'), kw('switchport', 'Set switching mode characteristics')], run: (x) => {
-    if (roleOf(x.device.kind) !== 'l3switch' || !x.device.ports.some((p) => p.id === x.session.iface)) return x.invalid();
-    ifCfg(x).switchport = false;
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('mode', 'Set trunking mode of the interface'), kw('access', 'Set trunking mode to ACCESS unconditionally')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    ifCfg(x).mode = 'access';
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('mode', 'Set trunking mode of the interface'), kw('trunk', 'Set trunking mode to TRUNK unconditionally')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    ifCfg(x).mode = 'trunk';
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('access', 'Set access mode characteristics of the interface'), kw('vlan', 'Set VLAN when interface is in access mode'), num('vlan', 1, 4094, '<1-4094> VLAN ID of the VLAN when this port is in access mode')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    const id = Number(x.args.vlan);
-    ifCfg(x).accessVlan = id;
-    x.dirty();
-    // IOS creates the VLAN automatically when assigning an access port to it.
-    if (!x.cfg.vlans[String(id)]) {
-      x.cfg.vlans[String(id)] = { name: `VLAN${String(id).padStart(4, '0')}` };
-      return `% Access VLAN does not exist. Creating vlan ${id}`;
-    }
-  } },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('trunk', 'Set trunking characteristics of the interface'), kw('native', 'Set trunking native characteristics'), kw('vlan', 'Set native VLAN'), num('vlan', 1, 4094, '<1-4094> VLAN ID of the native VLAN')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    ifCfg(x).nativeVlan = Number(x.args.vlan);
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('no', 'Negate a command or set its defaults'), kw('switchport', 'Set switching mode characteristics'), kw('trunk', 'Set trunking characteristics of the interface'), kw('native', 'Set trunking native characteristics'), kw('vlan', 'Set native VLAN')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    delete ifCfg(x).nativeVlan;
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('trunk', 'Set trunking characteristics of the interface'), kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'), kw('vlan', 'Set allowed VLANs when interface is in trunking mode'), vlans()], run: (x) => trunkAllowed(x, 'set') },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('trunk', 'Set trunking characteristics of the interface'), kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'), kw('vlan', 'Set allowed VLANs when interface is in trunking mode'), kw('add', 'add VLANs to the current list'), vlans()], run: (x) => trunkAllowed(x, 'add') },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('trunk', 'Set trunking characteristics of the interface'), kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'), kw('vlan', 'Set allowed VLANs when interface is in trunking mode'), kw('remove', 'remove VLANs from the current list'), vlans()], run: (x) => trunkAllowed(x, 'remove') },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('trunk', 'Set trunking characteristics of the interface'), kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'), kw('vlan', 'Set allowed VLANs when interface is in trunking mode'), kw('all', 'all VLANs')], run: (x) => trunkAllowed(x, 'all') },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('trunk', 'Set trunking characteristics of the interface'), kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'), kw('vlan', 'Set allowed VLANs when interface is in trunking mode'), kw('none', 'no VLANs')], run: (x) => trunkAllowed(x, 'none') },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('port-security', 'Security related command')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    const c = ifCfg(x);
-    c.portSecurity = { enabled: true, maximum: c.portSecurity?.maximum ?? 1, violation: c.portSecurity?.violation ?? 'shutdown' };
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('no', 'Negate a command or set its defaults'), kw('switchport', 'Set switching mode characteristics'), kw('port-security', 'Security related command')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    const c = ifCfg(x);
-    if (c.portSecurity) c.portSecurity = { ...c.portSecurity, enabled: false };
-    x.dirty();
-  } },
-  { modes: ['config-if'], toks: [kw('switchport', 'Set switching mode characteristics'), kw('port-security', 'Security related command'), kw('maximum', 'Max secure addresses'), num('max', 1, 8192, '<1-8192> Maximum addresses')], run: (x) => {
-    const e = needSwitchport(x);
-    if (e) return e;
-    const c = ifCfg(x);
-    c.portSecurity = { enabled: c.portSecurity?.enabled ?? false, maximum: Number(x.args.max), violation: c.portSecurity?.violation ?? 'shutdown' };
-    x.dirty();
-  } },
+  {
+    modes: IFM,
+    toks: [kw('description', 'Interface specific description'), line('text', 'Up to 240 characters describing this interface')],
+    run: (x) => {
+      ifCfg(x).description = String(x.args.text).slice(0, 240);
+      x.dirty();
+    },
+  },
+  {
+    modes: IFM,
+    toks: [kw('no', 'Negate a command or set its defaults'), kw('description', 'Interface specific description')],
+    run: (x) => {
+      delete ifCfg(x).description;
+      x.dirty();
+    },
+  },
+  {
+    modes: IFM,
+    toks: [kw('shutdown', 'Shutdown the selected interface')],
+    run: (x) => {
+      ifCfg(x).shutdown = true;
+      x.dirty();
+    },
+  },
+  {
+    modes: IFM,
+    toks: [kw('no', 'Negate a command or set its defaults'), kw('shutdown', 'Shutdown the selected interface')],
+    run: (x) => {
+      ifCfg(x).shutdown = false;
+      x.dirty();
+    },
+  },
+  {
+    modes: IFM,
+    toks: [
+      kw('ip', 'Interface Internet Protocol config commands'),
+      kw('address', 'Set the IP address of an interface'),
+      ip('addr', 'IP address'),
+      mask('mask', 'IP subnet mask'),
+    ],
+    run: (x) => setIpAddress(x),
+  },
+  {
+    modes: IFM,
+    toks: [
+      kw('no', 'Negate a command or set its defaults'),
+      kw('ip', 'Interface Internet Protocol config commands'),
+      kw('address', 'Set the IP address of an interface'),
+    ],
+    run: (x) => {
+      delete ifCfg(x).ip;
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-subif'],
+    toks: [
+      kw('encapsulation', 'Set encapsulation type for an interface'),
+      kw('dot1q', 'IEEE 802.1Q Virtual LAN'),
+      num('vlan', 1, 4094, '<1-4094> IEEE 802.1Q VLAN ID'),
+    ],
+    run: (x) => encap(x, false),
+  },
+  {
+    modes: ['config-subif'],
+    toks: [
+      kw('encapsulation', 'Set encapsulation type for an interface'),
+      kw('dot1q', 'IEEE 802.1Q Virtual LAN'),
+      num('vlan', 1, 4094, '<1-4094> IEEE 802.1Q VLAN ID'),
+      kw('native', 'Make this as native vlan'),
+    ],
+    run: (x) => encap(x, true),
+  },
+  {
+    modes: ['config-if'],
+    toks: [kw('switchport', 'Set switching mode characteristics')],
+    run: (x) => {
+      if (roleOf(x.device.kind) !== 'l3switch' || !x.device.ports.some((p) => p.id === x.session.iface)) return x.invalid();
+      const c = ifCfg(x);
+      c.switchport = true;
+      delete c.ip;
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [kw('no', 'Negate a command or set its defaults'), kw('switchport', 'Set switching mode characteristics')],
+    run: (x) => {
+      if (roleOf(x.device.kind) !== 'l3switch' || !x.device.ports.some((p) => p.id === x.session.iface)) return x.invalid();
+      ifCfg(x).switchport = false;
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('mode', 'Set trunking mode of the interface'),
+      kw('access', 'Set trunking mode to ACCESS unconditionally'),
+    ],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      ifCfg(x).mode = 'access';
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('mode', 'Set trunking mode of the interface'),
+      kw('trunk', 'Set trunking mode to TRUNK unconditionally'),
+    ],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      ifCfg(x).mode = 'trunk';
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('access', 'Set access mode characteristics of the interface'),
+      kw('vlan', 'Set VLAN when interface is in access mode'),
+      num('vlan', 1, 4094, '<1-4094> VLAN ID of the VLAN when this port is in access mode'),
+    ],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      const id = Number(x.args.vlan);
+      ifCfg(x).accessVlan = id;
+      x.dirty();
+      // IOS creates the VLAN automatically when assigning an access port to it.
+      if (!x.cfg.vlans[String(id)]) {
+        x.cfg.vlans[String(id)] = { name: `VLAN${String(id).padStart(4, '0')}` };
+        return `% Access VLAN does not exist. Creating vlan ${id}`;
+      }
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('trunk', 'Set trunking characteristics of the interface'),
+      kw('native', 'Set trunking native characteristics'),
+      kw('vlan', 'Set native VLAN'),
+      num('vlan', 1, 4094, '<1-4094> VLAN ID of the native VLAN'),
+    ],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      ifCfg(x).nativeVlan = Number(x.args.vlan);
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('no', 'Negate a command or set its defaults'),
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('trunk', 'Set trunking characteristics of the interface'),
+      kw('native', 'Set trunking native characteristics'),
+      kw('vlan', 'Set native VLAN'),
+    ],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      delete ifCfg(x).nativeVlan;
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('trunk', 'Set trunking characteristics of the interface'),
+      kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'),
+      kw('vlan', 'Set allowed VLANs when interface is in trunking mode'),
+      vlans(),
+    ],
+    run: (x) => trunkAllowed(x, 'set'),
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('trunk', 'Set trunking characteristics of the interface'),
+      kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'),
+      kw('vlan', 'Set allowed VLANs when interface is in trunking mode'),
+      kw('add', 'add VLANs to the current list'),
+      vlans(),
+    ],
+    run: (x) => trunkAllowed(x, 'add'),
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('trunk', 'Set trunking characteristics of the interface'),
+      kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'),
+      kw('vlan', 'Set allowed VLANs when interface is in trunking mode'),
+      kw('remove', 'remove VLANs from the current list'),
+      vlans(),
+    ],
+    run: (x) => trunkAllowed(x, 'remove'),
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('trunk', 'Set trunking characteristics of the interface'),
+      kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'),
+      kw('vlan', 'Set allowed VLANs when interface is in trunking mode'),
+      kw('all', 'all VLANs'),
+    ],
+    run: (x) => trunkAllowed(x, 'all'),
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('trunk', 'Set trunking characteristics of the interface'),
+      kw('allowed', 'Set allowed VLAN characteristics when interface is in trunking mode'),
+      kw('vlan', 'Set allowed VLANs when interface is in trunking mode'),
+      kw('none', 'no VLANs'),
+    ],
+    run: (x) => trunkAllowed(x, 'none'),
+  },
+  {
+    modes: ['config-if'],
+    toks: [kw('switchport', 'Set switching mode characteristics'), kw('port-security', 'Security related command')],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      const c = ifCfg(x);
+      c.portSecurity = { enabled: true, maximum: c.portSecurity?.maximum ?? 1, violation: c.portSecurity?.violation ?? 'shutdown' };
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('no', 'Negate a command or set its defaults'),
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('port-security', 'Security related command'),
+    ],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      const c = ifCfg(x);
+      if (c.portSecurity) c.portSecurity = { ...c.portSecurity, enabled: false };
+      x.dirty();
+    },
+  },
+  {
+    modes: ['config-if'],
+    toks: [
+      kw('switchport', 'Set switching mode characteristics'),
+      kw('port-security', 'Security related command'),
+      kw('maximum', 'Max secure addresses'),
+      num('max', 1, 8192, '<1-8192> Maximum addresses'),
+    ],
+    run: (x) => {
+      const e = needSwitchport(x);
+      if (e) return e;
+      const c = ifCfg(x);
+      c.portSecurity = { enabled: c.portSecurity?.enabled ?? false, maximum: Number(x.args.max), violation: c.portSecurity?.violation ?? 'shutdown' };
+      x.dirty();
+    },
+  },
   ...(['protect', 'restrict', 'shutdown'] as const).map(
     (v): Cmd => ({
       modes: ['config-if'],
-      toks: [kw('switchport', 'Set switching mode characteristics'), kw('port-security', 'Security related command'), kw('violation', 'Security violation mode'), kw(v, `Security violation ${v} mode`)],
+      toks: [
+        kw('switchport', 'Set switching mode characteristics'),
+        kw('port-security', 'Security related command'),
+        kw('violation', 'Security violation mode'),
+        kw(v, `Security violation ${v} mode`),
+      ],
       run: (x) => {
         const e = needSwitchport(x);
         if (e) return e;
@@ -428,7 +834,7 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds());
+CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds());
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;
@@ -801,7 +1207,20 @@ export function helpIos(input: string, session: CliSession, topology: Topology):
     if (t.k === 'kw') {
       if (t.w.toLowerCase().startsWith(partial)) rows.set(t.w, t.help);
     } else if (!partial) {
-      const label = t.k === 'ip' ? 'A.B.C.D' : t.k === 'mask' ? 'A.B.C.D' : t.k === 'num' ? `<${t.min}-${t.max}>` : t.k === 'line' ? 'LINE' : t.k === 'if' ? 'INTERFACE' : t.k === 'vlans' ? 'WORD' : 'WORD';
+      const label =
+        t.k === 'ip'
+          ? 'A.B.C.D'
+          : t.k === 'mask'
+            ? 'A.B.C.D'
+            : t.k === 'num'
+              ? `<${t.min}-${t.max}>`
+              : t.k === 'line'
+                ? 'LINE'
+                : t.k === 'if'
+                  ? 'INTERFACE'
+                  : t.k === 'vlans'
+                    ? 'WORD'
+                    : 'WORD';
       rows.set(label, t.help);
     }
   }

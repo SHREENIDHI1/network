@@ -71,6 +71,6 @@ describe('module locks', () => {
   it('reports missing modules with their phase', () => {
     expect(missingModules(['topology', 'physical', 'ethernet', 'ip'])).toEqual([]);
     expect(lockReason(['topology'])).toBeNull();
-    expect(lockReason(['topology', 'ospf', 'mpls', 'bgp'])).toMatch(/Locked – needs MPLS .*, VRF .* \(Phase 4\/5\)/);
+    expect(lockReason(['topology', 'ospf', 'mpls', 'bgp'])).toMatch(/Locked – needs VRF .* \(Phase 5\)/);
   });
 });

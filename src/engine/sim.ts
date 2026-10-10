@@ -1,7 +1,8 @@
 import type { Device, Topology } from '../model/types';
 import { effectivePort, getNetConfig, isBridgeRole, longIfName, roleOf, type DeviceRole, type NetConfig } from './config/netConfig';
 import { EventQueue } from './core/eventQueue';
-import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet } from './core/types';
+import { BROADCAST_MAC, etherTypeOf, type ArpPacket, type Frame, type IcmpMessage, type Ipv4Packet, type MplsLabel } from './core/types';
+import { computeLdp, emptyLdp, ldpSyncHolddown, OSPF_MAX_METRIC, prefixKey, type LdpResult, type LfibEntry } from './mpls/ldp';
 import { computeSegments, type Segment } from './ethernet/segments';
 import { computeStp, type StpState } from './ethernet/stp';
 import { bundleByName, computeEtherChannel, emptyEtherChannel, pickMember, type Bundle, type EtherChannelState } from './ethernet/etherchannel';
@@ -62,6 +63,8 @@ export interface Probe {
   /** TTL of the received echo reply (shown by Windows ping). */
   replyTtl?: number;
   code?: string;
+  /** Label stack quoted by an MPLS router in its time-exceeded message (RFC 4950). */
+  labels?: Array<{ label: number; exp: number }>;
 }
 
 export interface ProbeSession {
@@ -85,6 +88,8 @@ export interface FrameView {
   srcMac: string;
   dstMac: string;
   vlanTag?: number;
+  /** MPLS label stack, top first. */
+  mpls?: Array<{ label: number; tc: number; ttl: number }>;
   etherType: string;
   summary: string;
   arp?: { op: string; senderMac: string; senderIp: string; targetMac: string; targetIp: string };
@@ -101,7 +106,21 @@ export interface TraceStep {
   iface?: string;
   action: TraceAction;
   /** Which table/function made the decision. */
-  table?: 'Interface' | 'STP' | 'VLAN' | 'Port security' | 'EtherChannel' | 'MAC table' | 'ARP cache' | 'Routing table' | 'ICMP' | 'Host stack' | 'ACL' | 'NAT' | 'DHCP';
+  table?:
+    | 'Interface'
+    | 'STP'
+    | 'VLAN'
+    | 'Port security'
+    | 'EtherChannel'
+    | 'MAC table'
+    | 'ARP cache'
+    | 'Routing table'
+    | 'ICMP'
+    | 'Host stack'
+    | 'ACL'
+    | 'NAT'
+    | 'DHCP'
+    | 'LFIB';
   detail: string;
   frame?: FrameView;
 }
@@ -171,7 +190,39 @@ type SimEvent =
   | { type: 'probe-timeout'; sessionId: number; index: number }
   | { type: 'arp-expire'; deviceId: string; ip: number }
   | { type: 'app-send'; sessionId: number }
-  | { type: 'app-timeout'; sessionId: number; attempt: number };
+  | { type: 'app-timeout'; sessionId: number; attempt: number }
+  | { type: 'lsp-send'; sessionId: number }
+  | { type: 'lsp-timeout'; sessionId: number; index: number };
+
+/** One MPLS echo request of an LSP ping / LSP traceroute. */
+export interface LspProbe {
+  seq: number;
+  ttl: number;
+  flowId: number;
+  sentAt: number;
+  /** IOS codes: '!' success, 'Q' not sent, '.' timeout, 'L' / 'B' / 'N' / 'f' replies. */
+  code: string;
+  from?: number;
+  rttMs?: number;
+  info?: string;
+}
+
+/** "ping mpls ipv4 P/L" / "traceroute mpls ipv4 P/L". */
+export interface LspSession {
+  id: number;
+  kind: 'ping' | 'trace';
+  srcDeviceId: string;
+  network: number;
+  prefixLen: number;
+  count: number;
+  timeoutMs: number;
+  maxTtl: number;
+  probes: LspProbe[];
+  done: boolean;
+  /** Ingress label (hop 0 line of traceroute mpls). */
+  ingress?: { iface: string; nextHop: number; out: LfibEntry['out'] };
+  error?: string;
+}
 
 /** DNS lookup, NTP poll or SSH/Telnet connection attempt started from a device. */
 export interface AppSession {
@@ -211,7 +262,7 @@ export const APP_ATTEMPTS = 3;
 interface PendingArp {
   iface: string;
   requestedAt: number;
-  queue: Array<{ pkt: Ipv4Packet; flowId: number }>;
+  queue: Array<{ pkt: Ipv4Packet; flowId: number; mpls?: MplsLabel[]; iface?: string }>;
 }
 
 interface Runtime {
@@ -281,7 +332,23 @@ export class Sim {
   private nextXid = 0x3903f326;
   isis: IsisResult = emptyIsis();
   rip: RipResult = emptyRip();
-  ospf: OspfResult = { routerIds: new Map(), interfaces: [], neighbors: [], routes: new Map(), problems: [], lsdb: [], abrs: new Set(), asbrs: new Set() };
+  ospf: OspfResult = {
+    routerIds: new Map(),
+    interfaces: [],
+    neighbors: [],
+    routes: new Map(),
+    problems: [],
+    lsdb: [],
+    abrs: new Set(),
+    asbrs: new Set(),
+  };
+
+  ldp: LdpResult = emptyLdp();
+  /** Interfaces whose OSPF cost is held at max by "mpls ldp sync" (no LDP session yet). */
+  ldpSyncHeld: Array<{ deviceId: string; iface: string }> = [];
+  readonly lspSessions = new Map<number, LspSession>();
+  /** Bytes label-switched per LFIB entry (key "deviceId|inLabel"). */
+  readonly lfibBytes = new Map<string, number>();
 
   readonly cuts = new Set<string>();
   readonly errDisabled = new Map<string, Set<string>>();
@@ -388,9 +455,28 @@ export class Sim {
     this.ospf = computeOspf(this.topology, this.configs, this.l3, this.phys, this.segments, base);
     this.isis = computeIsis(this.topology, this.configs, this.l3, this.segments);
     this.rip = computeRip(this.topology, this.configs, this.l3, this.segments);
-    for (const d of this.topology.devices) {
-      const dynamic = [...(this.ospf.routes.get(d.id) ?? []), ...(this.isis.routes.get(d.id) ?? []), ...(this.rip.routes.get(d.id) ?? [])];
-      this.routes.set(d.id, buildRoutingTable(d.kind, this.configs.get(d.id)!, this.l3.get(d.id)!, dynamic));
+    const buildTables = () => {
+      for (const d of this.topology.devices) {
+        const dynamic = [...(this.ospf.routes.get(d.id) ?? []), ...(this.isis.routes.get(d.id) ?? []), ...(this.rip.routes.get(d.id) ?? [])];
+        this.routes.set(d.id, buildRoutingTable(d.kind, this.configs.get(d.id)!, this.l3.get(d.id)!, dynamic));
+      }
+    };
+    buildTables();
+
+    // MPLS / LDP on top of the IGP. "mpls ldp sync": a link whose LDP session is not up is
+    // advertised with max OSPF cost, so traffic avoids it until labels are exchanged.
+    this.ldp = computeLdp(this.topology, this.configs, this.l3, this.segments, this.routes, this.ospf);
+    this.ldpSyncHeld = ldpSyncHolddown(this.ldp, this.configs);
+    if (this.ldpSyncHeld.length) {
+      const held = new Map(this.configs);
+      for (const h of this.ldpSyncHeld) {
+        const c = structuredClone(held.get(h.deviceId)!);
+        c.interfaces[h.iface] = { ...(c.interfaces[h.iface] ?? {}), ospfCost: OSPF_MAX_METRIC };
+        held.set(h.deviceId, c);
+      }
+      this.ospf = computeOspf(this.topology, held, this.l3, this.phys, this.segments, base);
+      buildTables();
+      this.ldp = computeLdp(this.topology, this.configs, this.l3, this.segments, this.routes, this.ospf);
     }
 
     // First-hop redundancy. A change of active router is announced by its hellos
@@ -405,8 +491,7 @@ export class Sim {
       if (this.fhrpActive.get(g.key) !== k) movedMacs.add(g.vmac);
     }
     this.fhrpActive = nextActive;
-    if (movedMacs.size)
-      for (const rtm of this.runtime.values()) for (const t of rtm.mac.values()) for (const m of movedMacs) t.delete(m);
+    if (movedMacs.size) for (const rtm of this.runtime.values()) for (const t of rtm.mac.values()) for (const m of movedMacs) t.delete(m);
 
     // DHCP clients: start on NICs that need an address; forget NICs no longer using DHCP.
     for (const d of this.topology.devices) {
@@ -440,6 +525,17 @@ export class Sim {
       const ifs = this.l3.get(devId) ?? [];
       for (const [ip, a] of rt.arp) if (!ifs.some((i) => i.name === a.iface && i.up)) rt.arp.delete(ip);
     }
+
+    // Unicast control-plane exchanges (OSPF DBD/LSU to FULL neighbours, LDP's TCP session)
+    // have already resolved ARP between neighbouring routers.
+    const prime = (devId: string, iface: string, peerDev: string, peerIp: number) => {
+      const rt = this.rt(devId);
+      if (rt.arp.has(peerIp)) return;
+      const mac = this.l3.get(peerDev)?.find((i) => i.up && i.ip === peerIp)?.mac;
+      if (mac) rt.arp.set(peerIp, { mac, iface, at: this.now });
+    };
+    for (const n of this.ospf.neighbors) if (n.state === 'FULL') prime(n.deviceId, n.iface, n.neighborDeviceId, n.neighborIp);
+    for (const d of this.ldp.discoveries) prime(d.deviceId, d.iface, d.neighborDeviceId, d.neighborIp);
   }
 
   /** Clears dynamic state (MAC/ARP tables, queue, sessions, traces). Config is kept. */
@@ -458,6 +554,8 @@ export class Sim {
     this.ntpState.clear();
     this.logs.clear();
     this.inbox.clear();
+    this.lspSessions.clear();
+    this.lfibBytes.clear();
     this.now = 0;
     this.lastEvent = undefined;
     this.recompute();
@@ -577,30 +675,52 @@ export class Sim {
 
   /** Human-readable list of queued events (Events tab in Simulation mode). */
   describePending(limit = 50): Array<{ time: number; text: string; linkId?: string; deviceId?: string }> {
-    return this.queue.list().slice(0, limit).map((e) => {
-      const d = e.data;
-      switch (d.type) {
-        case 'deliver':
-          return { time: e.time, text: `${viewFrame(d.frame).summary} → ${this.name(d.deviceId)} ${d.portId}`, linkId: d.linkId, deviceId: d.deviceId };
-        case 'probe-send': {
-          const s = this.sessions.get(d.sessionId);
-          return { time: e.time, text: `${s?.kind ?? 'probe'} from ${this.name(s?.srcDeviceId ?? '')}: send next probe`, deviceId: s?.srcDeviceId };
+    return this.queue
+      .list()
+      .slice(0, limit)
+      .map((e) => {
+        const d = e.data;
+        switch (d.type) {
+          case 'deliver':
+            return {
+              time: e.time,
+              text: `${viewFrame(d.frame).summary} → ${this.name(d.deviceId)} ${d.portId}`,
+              linkId: d.linkId,
+              deviceId: d.deviceId,
+            };
+          case 'probe-send': {
+            const s = this.sessions.get(d.sessionId);
+            return { time: e.time, text: `${s?.kind ?? 'probe'} from ${this.name(s?.srcDeviceId ?? '')}: send next probe`, deviceId: s?.srcDeviceId };
+          }
+          case 'probe-timeout':
+            return { time: e.time, text: `timeout check for probe ${d.index + 1} of session ${d.sessionId}` };
+          case 'lsp-send': {
+            const s = this.lspSessions.get(d.sessionId);
+            return {
+              time: e.time,
+              text: `LSP ${s?.kind ?? 'ping'} from ${this.name(s?.srcDeviceId ?? '')}: send next MPLS echo`,
+              deviceId: s?.srcDeviceId,
+            };
+          }
+          case 'lsp-timeout':
+            return { time: e.time, text: `timeout check for MPLS echo ${d.index + 1} of session ${d.sessionId}` };
+          case 'arp-expire':
+            return { time: e.time, text: `ARP hold timer at ${this.name(d.deviceId)} for ${formatIpv4(d.ip)}`, deviceId: d.deviceId };
+          case 'dhcp-start':
+            return { time: e.time, text: `DHCP client start on ${this.name(d.deviceId)} ${d.iface}`, deviceId: d.deviceId };
+          case 'dhcp-timeout':
+            return { time: e.time, text: `DHCP timeout check on ${this.name(d.deviceId)} ${d.iface}`, deviceId: d.deviceId };
+          case 'app-send':
+          case 'app-timeout': {
+            const a = this.appSessions.get(d.sessionId);
+            return {
+              time: e.time,
+              text: `${a?.kind.toUpperCase() ?? 'APP'} ${d.type === 'app-send' ? 'request' : 'timeout check'} from ${this.name(a?.deviceId ?? '')}`,
+              deviceId: a?.deviceId,
+            };
+          }
         }
-        case 'probe-timeout':
-          return { time: e.time, text: `timeout check for probe ${d.index + 1} of session ${d.sessionId}` };
-        case 'arp-expire':
-          return { time: e.time, text: `ARP hold timer at ${this.name(d.deviceId)} for ${formatIpv4(d.ip)}`, deviceId: d.deviceId };
-        case 'dhcp-start':
-          return { time: e.time, text: `DHCP client start on ${this.name(d.deviceId)} ${d.iface}`, deviceId: d.deviceId };
-        case 'dhcp-timeout':
-          return { time: e.time, text: `DHCP timeout check on ${this.name(d.deviceId)} ${d.iface}`, deviceId: d.deviceId };
-        case 'app-send':
-        case 'app-timeout': {
-          const a = this.appSessions.get(d.sessionId);
-          return { time: e.time, text: `${a?.kind.toUpperCase() ?? 'APP'} ${d.type === 'app-send' ? 'request' : 'timeout check'} from ${this.name(a?.deviceId ?? '')}`, deviceId: a?.deviceId };
-        }
-      }
-    });
+      });
   }
 
   /** Links that have a frame in flight (for canvas animation in Simulation mode). */
@@ -690,7 +810,12 @@ export class Sim {
   private handle(ev: SimEvent): void {
     switch (ev.type) {
       case 'deliver':
-        this.lastEvent = { time: this.now, description: `Frame arrives at ${this.name(ev.deviceId)} ${ev.portId}`, deviceId: ev.deviceId, linkId: ev.linkId };
+        this.lastEvent = {
+          time: this.now,
+          description: `Frame arrives at ${this.name(ev.deviceId)} ${ev.portId}`,
+          deviceId: ev.deviceId,
+          linkId: ev.linkId,
+        };
         this.receiveFrame(ev.deviceId, ev.portId, ev.frame);
         break;
       case 'probe-send':
@@ -725,9 +850,25 @@ export class Sim {
       case 'app-timeout': {
         const a = this.appSessions.get(ev.sessionId);
         if (!a || a.status !== 'pending' || a.attempts !== ev.attempt) break;
-        this.lastEvent = { time: this.now, description: `${a.kind.toUpperCase()} request from ${this.name(a.deviceId)} timed out (try ${a.attempts})` };
+        this.lastEvent = {
+          time: this.now,
+          description: `${a.kind.toUpperCase()} request from ${this.name(a.deviceId)} timed out (try ${a.attempts})`,
+        };
         if (a.attempts < APP_ATTEMPTS) this.queue.push(this.now, { type: 'app-send', sessionId: a.id });
         else this.finishApp(a, 'fail', `% Connection timed out; remote host not responding (${a.attempts} attempts)`);
+        break;
+      }
+      case 'lsp-send':
+        this.lspSend(ev.sessionId);
+        break;
+      case 'lsp-timeout': {
+        const s = this.lspSessions.get(ev.sessionId);
+        const p = s?.probes[ev.index];
+        if (s && p && p.code === 'pending') {
+          p.code = '.';
+          this.lastEvent = { time: this.now, description: `MPLS echo ${p.seq + 1} timed out` };
+          this.afterLsp(s);
+        }
         break;
       }
       case 'arp-expire': {
@@ -735,7 +876,13 @@ export class Sim {
         const pend = rt.pending.get(ev.ip);
         if (pend && this.now - pend.requestedAt >= ARP_QUEUE_HOLD_MS - 1e-9) {
           for (const q of pend.queue)
-            this.trace(q.flowId, { deviceId: ev.deviceId, iface: pend.iface, action: 'drop', table: 'ARP cache', detail: `ARP for ${formatIpv4(ev.ip)} unanswered — queued packet discarded.` });
+            this.trace(q.flowId, {
+              deviceId: ev.deviceId,
+              iface: pend.iface,
+              action: 'drop',
+              table: 'ARP cache',
+              detail: `ARP for ${formatIpv4(ev.ip)} unanswered — queued packet discarded.`,
+            });
           rt.pending.delete(ev.ip);
         }
         break;
@@ -751,7 +898,9 @@ export class Sim {
     const index = s.probes.length;
     let ttl = 255;
     if (s.kind === 'traceroute') ttl = Math.floor(index / s.probesPerHop) + 1;
-    const flowId = this.newFlow(`${s.kind === 'ping' ? 'Ping' : 'Traceroute'} ${this.name(s.srcDeviceId)} → ${formatIpv4(s.dst)} #${index + 1}${s.kind === 'traceroute' ? ` (TTL ${ttl})` : ''}`);
+    const flowId = this.newFlow(
+      `${s.kind === 'ping' ? 'Ping' : 'Traceroute'} ${this.name(s.srcDeviceId)} → ${formatIpv4(s.dst)} #${index + 1}${s.kind === 'traceroute' ? ` (TTL ${ttl})` : ''}`,
+    );
     const probe: Probe = { seq: index, ttl, flowId, sentAt: this.now, outcome: 'pending' };
     s.probes.push(probe);
 
@@ -780,7 +929,12 @@ export class Sim {
       probe.outcome = 'reply';
       probe.from = s.dst;
       probe.rttMs = 0;
-      this.trace(flowId, { deviceId: s.srcDeviceId, action: 'deliver', table: 'Host stack', detail: 'Destination is a local address — answered internally.' });
+      this.trace(flowId, {
+        deviceId: s.srcDeviceId,
+        action: 'deliver',
+        table: 'Host stack',
+        detail: 'Destination is a local address — answered internally.',
+      });
       this.afterProbe(s);
       return;
     }
@@ -883,7 +1037,11 @@ export class Sim {
   private transmit(deviceId: string, portId: string, frame: Frame): void {
     const st = this.phys.ports.get(portKey(deviceId, portId));
     if (!st?.operUp || !st.peer || !st.linkId) {
-      this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'Interface', detail: `${portId} is down (${st?.reason ?? 'not connected'}).` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, portId, action: 'drop', table: 'Interface', detail: `${portId} is down (${st?.reason ?? 'not connected'}).` },
+        frame,
+      );
       this.count(deviceId, portId, 'drops');
       return;
     }
@@ -900,11 +1058,27 @@ export class Sim {
         const full = st.duplex === 'half' ? { d: st.peer.deviceId, p: st.peer.portId } : { d: deviceId, p: portId };
         this.count(half.d, half.p, 'lateCollisions');
         this.count(full.d, full.p, 'crc');
-        this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'Interface', detail: `Duplex mismatch on this link (${st.duplex} here, ${peer?.duplex ?? '?'} at the far end): the frame was destroyed by a late collision / CRC error.` }, frame);
+        this.trace(
+          frame.flowId,
+          {
+            deviceId,
+            portId,
+            action: 'drop',
+            table: 'Interface',
+            detail: `Duplex mismatch on this link (${st.duplex} here, ${peer?.duplex ?? '?'} at the far end): the frame was destroyed by a late collision / CRC error.`,
+          },
+          frame,
+        );
         return;
       }
     }
-    this.queue.push(this.now + delay, { type: 'deliver', deviceId: st.peer.deviceId, portId: st.peer.portId, frame: { ...frame }, linkId: st.linkId });
+    this.queue.push(this.now + delay, {
+      type: 'deliver',
+      deviceId: st.peer.deviceId,
+      portId: st.peer.portId,
+      frame: { ...frame },
+      linkId: st.linkId,
+    });
   }
 
   // ------------------------------------------------------------ receive --
@@ -924,7 +1098,17 @@ export class Sim {
     const cfg = this.configs.get(deviceId)!;
     if (role === 'hub') {
       const out = this.devices.get(deviceId)!.ports.filter((p) => p.id !== portId && this.phys.ports.get(portKey(deviceId, p.id))?.operUp);
-      this.trace(frame.flowId, { deviceId, portId, action: 'flood', table: 'Interface', detail: `Hub repeats the bits out of every other port (${out.map((p) => p.id).join(', ') || 'none'}) — no MAC learning, one collision domain.` }, frame);
+      this.trace(
+        frame.flowId,
+        {
+          deviceId,
+          portId,
+          action: 'flood',
+          table: 'Interface',
+          detail: `Hub repeats the bits out of every other port (${out.map((p) => p.id).join(', ') || 'none'}) — no MAC learning, one collision domain.`,
+        },
+        frame,
+      );
       for (const p of out) this.transmit(deviceId, p.id, frame);
       return;
     }
@@ -938,7 +1122,17 @@ export class Sim {
     if (frame.vlanTag !== undefined) {
       iface = ifs.find((i) => i.kind === 'sub' && i.port === portId && i.vlan === frame.vlanTag && !i.native);
       if (!iface) {
-        this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'Interface', detail: `Tagged frame (VLAN ${frame.vlanTag}) but no subinterface with that encapsulation on ${portId}.` }, frame);
+        this.trace(
+          frame.flowId,
+          {
+            deviceId,
+            portId,
+            action: 'drop',
+            table: 'Interface',
+            detail: `Tagged frame (VLAN ${frame.vlanTag}) but no subinterface with that encapsulation on ${portId}.`,
+          },
+          frame,
+        );
         this.count(deviceId, portId, 'drops');
         return;
       }
@@ -946,11 +1140,26 @@ export class Sim {
       iface = ifs.find((i) => i.kind === 'sub' && i.port === portId && i.native) ?? ifs.find((i) => i.kind === 'port' && i.port === portId);
     }
     if (!iface || !iface.up) {
-      this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'Interface', detail: `No up L3 interface for this frame on ${portId}.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, portId, action: 'drop', table: 'Interface', detail: `No up L3 interface for this frame on ${portId}.` },
+        frame,
+      );
       return;
     }
     if (frame.dstMac !== iface.mac && frame.dstMac !== BROADCAST_MAC && !this.ownedVips(deviceId, iface.name).some((v) => v.vmac === frame.dstMac)) {
-      this.trace(frame.flowId, { deviceId, portId, iface: iface.name, action: 'drop', table: 'Interface', detail: 'Destination MAC is not this interface — NIC filters the frame.' }, frame);
+      this.trace(
+        frame.flowId,
+        {
+          deviceId,
+          portId,
+          iface: iface.name,
+          action: 'drop',
+          table: 'Interface',
+          detail: 'Destination MAC is not this interface — NIC filters the frame.',
+        },
+        frame,
+      );
       return;
     }
     this.l3Input(deviceId, iface, frame, portId);
@@ -964,14 +1173,22 @@ export class Sim {
     const p = effectivePort(role, cfg.interfaces[portId]);
     const flag = this.ec.flags.get(portKey(deviceId, portId));
     if (flag === 's') {
-      this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'EtherChannel', detail: `${portId} is a suspended EtherChannel member — frame discarded.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, portId, action: 'drop', table: 'EtherChannel', detail: `${portId} is a suspended EtherChannel member — frame discarded.` },
+        frame,
+      );
       this.count(deviceId, portId, 'drops');
       return;
     }
     const lp = this.lport(deviceId, portId);
     const stp = this.stp.ports.get(portKey(deviceId, portId));
     if (stp?.state !== 'forwarding') {
-      this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'STP', detail: `${portId} is ${stp?.role ?? 'disabled'}/discarding — frame discarded.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, portId, action: 'drop', table: 'STP', detail: `${portId} is ${stp?.role ?? 'disabled'}/discarding — frame discarded.` },
+        frame,
+      );
       this.count(deviceId, portId, 'drops');
       return;
     }
@@ -980,7 +1197,11 @@ export class Sim {
     let vlan: number;
     if (p.mode === 'access') {
       if (frame.vlanTag !== undefined) {
-        this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'VLAN', detail: 'Tagged frame received on an access port — dropped.' }, frame);
+        this.trace(
+          frame.flowId,
+          { deviceId, portId, action: 'drop', table: 'VLAN', detail: 'Tagged frame received on an access port — dropped.' },
+          frame,
+        );
         this.count(deviceId, portId, 'drops');
         return;
       }
@@ -989,13 +1210,21 @@ export class Sim {
       vlan = frame.vlanTag ?? p.nativeVlan!;
       const allowed = p.trunkAllowed === 'all' || (p.trunkAllowed ?? []).includes(vlan);
       if (!allowed) {
-        this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'VLAN', detail: `VLAN ${vlan} is not allowed on trunk ${portId}.` }, frame);
+        this.trace(
+          frame.flowId,
+          { deviceId, portId, action: 'drop', table: 'VLAN', detail: `VLAN ${vlan} is not allowed on trunk ${portId}.` },
+          frame,
+        );
         this.count(deviceId, portId, 'drops');
         return;
       }
     }
     if (!vlanExists(cfg, vlan)) {
-      this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'VLAN', detail: `VLAN ${vlan} does not exist in the VLAN database — port is inactive for it.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, portId, action: 'drop', table: 'VLAN', detail: `VLAN ${vlan} does not exist in the VLAN database — port is inactive for it.` },
+        frame,
+      );
       this.count(deviceId, portId, 'drops');
       return;
     }
@@ -1008,17 +1237,47 @@ export class Sim {
         if (set.size < p.portSecurity.maximum) {
           set.add(frame.srcMac);
           rt.secure.set(portId, set);
-          this.trace(frame.flowId, { deviceId, portId, action: 'learn', table: 'Port security', detail: `Secure MAC ${frame.srcMac} learned (${set.size}/${p.portSecurity.maximum}).` }, frame);
+          this.trace(
+            frame.flowId,
+            {
+              deviceId,
+              portId,
+              action: 'learn',
+              table: 'Port security',
+              detail: `Secure MAC ${frame.srcMac} learned (${set.size}/${p.portSecurity.maximum}).`,
+            },
+            frame,
+          );
         } else {
           rt.violations.set(portId, (rt.violations.get(portId) ?? 0) + 1);
           if (p.portSecurity.violation === 'shutdown') {
             const ed = this.errDisabled.get(deviceId) ?? new Set<string>();
             ed.add(portId);
             this.errDisabled.set(deviceId, ed);
-            this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'Port security', detail: `Security violation from ${frame.srcMac}: port ${portId} err-disabled.` }, frame);
+            this.trace(
+              frame.flowId,
+              {
+                deviceId,
+                portId,
+                action: 'drop',
+                table: 'Port security',
+                detail: `Security violation from ${frame.srcMac}: port ${portId} err-disabled.`,
+              },
+              frame,
+            );
             this.recompute();
           } else {
-            this.trace(frame.flowId, { deviceId, portId, action: 'drop', table: 'Port security', detail: `Security violation from ${frame.srcMac} (${p.portSecurity.violation}) — frame dropped.` }, frame);
+            this.trace(
+              frame.flowId,
+              {
+                deviceId,
+                portId,
+                action: 'drop',
+                table: 'Port security',
+                detail: `Security violation from ${frame.srcMac} (${p.portSecurity.violation}) — frame dropped.`,
+              },
+              frame,
+            );
           }
           this.count(deviceId, portId, 'drops');
           return;
@@ -1036,7 +1295,11 @@ export class Sim {
     const secure = !!p.portSecurity?.enabled;
     if (!existing || existing.port !== lp) {
       const via = lp !== portId ? ` (member ${portId})` : '';
-      this.trace(frame.flowId, { deviceId, portId, action: 'learn', table: 'MAC table', detail: `Learned ${frame.srcMac} on ${lp}${via} in VLAN ${vlan}.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, portId, action: 'learn', table: 'MAC table', detail: `Learned ${frame.srcMac} on ${lp}${via} in VLAN ${vlan}.` },
+        frame,
+      );
     }
     table.set(frame.srcMac, { port: lp, at: this.now, secure });
 
@@ -1050,7 +1313,17 @@ export class Sim {
     const svi = this.interfaces(deviceId).find((i) => i.kind === 'svi' && i.vlan === vlan && i.up);
 
     if (ingress !== 'cpu' && svi && (frame.dstMac === svi.mac || this.ownedVips(deviceId, svi.name).some((v) => v.vmac === frame.dstMac))) {
-      this.trace(frame.flowId, { deviceId, iface: svi.name, action: 'deliver', table: 'MAC table', detail: `Destination is the switch's own ${svi.name} MAC — passed to the IP stack.` }, frame);
+      this.trace(
+        frame.flowId,
+        {
+          deviceId,
+          iface: svi.name,
+          action: 'deliver',
+          table: 'MAC table',
+          detail: `Destination is the switch's own ${svi.name} MAC — passed to the IP stack.`,
+        },
+        frame,
+      );
       this.l3Input(deviceId, svi, frame, ingress);
       return;
     }
@@ -1073,7 +1346,17 @@ export class Sim {
 
     const flood = (why: string) => {
       const out = members(ingress);
-      this.trace(frame.flowId, { deviceId, portId: ingress === 'cpu' ? undefined : ingress, action: 'flood', table: 'MAC table', detail: `${why} — flooded in VLAN ${vlan} to ${out.length ? out.join(', ') : 'no other ports'}.` }, frame);
+      this.trace(
+        frame.flowId,
+        {
+          deviceId,
+          portId: ingress === 'cpu' ? undefined : ingress,
+          action: 'flood',
+          table: 'MAC table',
+          detail: `${why} — flooded in VLAN ${vlan} to ${out.length ? out.join(', ') : 'no other ports'}.`,
+        },
+        frame,
+      );
       for (const lp of out) this.egressSwitchport(deviceId, lp, vlan, frame);
     };
 
@@ -1089,14 +1372,28 @@ export class Sim {
       return;
     }
     if (entry.port === ingress) {
-      this.trace(frame.flowId, { deviceId, portId: ingress, action: 'drop', table: 'MAC table', detail: `${frame.dstMac} is on the ingress port — filtered.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, portId: ingress, action: 'drop', table: 'MAC table', detail: `${frame.dstMac} is on the ingress port — filtered.` },
+        frame,
+      );
       return;
     }
     if (!members('').includes(entry.port)) {
       flood(`MAC table points to ${entry.port}, which is not forwarding for VLAN ${vlan}`);
       return;
     }
-    this.trace(frame.flowId, { deviceId, portId: entry.port, action: 'forward', table: 'MAC table', detail: `${frame.dstMac} found on ${entry.port} (VLAN ${vlan}) — forwarded.` }, frame);
+    this.trace(
+      frame.flowId,
+      {
+        deviceId,
+        portId: entry.port,
+        action: 'forward',
+        table: 'MAC table',
+        detail: `${frame.dstMac} found on ${entry.port} (VLAN ${vlan}) — forwarded.`,
+      },
+      frame,
+    );
     this.egressSwitchport(deviceId, entry.port, vlan, frame);
   }
 
@@ -1107,7 +1404,12 @@ export class Sim {
       this.trace(frame.flowId, { deviceId, action: 'drop', table: 'EtherChannel', detail: `${lp} has no bundled member up.` }, frame);
       return;
     }
-    if (portId !== lp) this.trace(frame.flowId, { deviceId, portId, action: 'forward', table: 'EtherChannel', detail: `${lp}: src/dst MAC hash chose member ${portId}.` }, frame);
+    if (portId !== lp)
+      this.trace(
+        frame.flowId,
+        { deviceId, portId, action: 'forward', table: 'EtherChannel', detail: `${lp}: src/dst MAC hash chose member ${portId}.` },
+        frame,
+      );
     const p = effectivePort(this.role(deviceId), this.configs.get(deviceId)!.interfaces[portId]);
     const tagged = p.mode === 'trunk' && vlan !== p.nativeVlan;
     this.transmit(deviceId, portId, { ...frame, vlanTag: tagged ? vlan : undefined });
@@ -1117,7 +1419,11 @@ export class Sim {
 
   private sendOnIface(deviceId: string, iface: L3Interface, frame: Frame): void {
     if (iface.kind === 'loop') {
-      this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Interface', detail: `${iface.name} is a loopback: no other host can live on it.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, iface: iface.name, action: 'drop', table: 'Interface', detail: `${iface.name} is a loopback: no other host can live on it.` },
+        frame,
+      );
       return;
     }
     if (iface.kind === 'svi') {
@@ -1125,7 +1431,18 @@ export class Sim {
       return;
     }
     const tag = iface.kind === 'sub' && !iface.native ? iface.vlan : undefined;
-    this.trace(frame.flowId, { deviceId, portId: iface.port, iface: iface.name, action: 'send', table: 'Interface', detail: `Sent out ${iface.name}${tag !== undefined ? ` tagged VLAN ${tag}` : ''}.` }, { ...frame, vlanTag: tag });
+    this.trace(
+      frame.flowId,
+      {
+        deviceId,
+        portId: iface.port,
+        iface: iface.name,
+        action: 'send',
+        table: 'Interface',
+        detail: `Sent out ${iface.name}${tag !== undefined ? ` tagged VLAN ${tag}` : ''}.`,
+      },
+      { ...frame, vlanTag: tag },
+    );
     this.transmit(deviceId, iface.port!, { ...frame, vlanTag: tag });
   }
 
@@ -1148,6 +1465,10 @@ export class Sim {
   }
 
   private l3Input(deviceId: string, iface: L3Interface, frame: Frame, portId: string): void {
+    if (frame.mpls?.length) {
+      this.mplsInput(deviceId, iface, frame);
+      return;
+    }
     const pl = frame.payload;
     const rt = this.rt(deviceId);
     if (pl.kind === 'arp') {
@@ -1168,11 +1489,26 @@ export class Sim {
         // RFC 826: refresh an existing entry for the sender even if not the target.
         const ex = rt.arp.get(pl.senderIp);
         if (ex && ex.iface === iface.name) rt.arp.set(pl.senderIp, { mac: pl.senderMac, iface: iface.name, at: this.now });
-        if (pl.op === 'request') this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'drop', table: 'ARP cache', detail: `ARP request for ${formatIpv4(pl.targetIp)} — not my address, ignored.` }, frame);
+        if (pl.op === 'request')
+          this.trace(
+            frame.flowId,
+            {
+              deviceId,
+              iface: iface.name,
+              action: 'drop',
+              table: 'ARP cache',
+              detail: `ARP request for ${formatIpv4(pl.targetIp)} — not my address, ignored.`,
+            },
+            frame,
+          );
         return;
       }
       rt.arp.set(pl.senderIp, { mac: pl.senderMac, iface: iface.name, at: this.now });
-      this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'learn', table: 'ARP cache', detail: `ARP cache: ${formatIpv4(pl.senderIp)} is at ${pl.senderMac}.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, iface: iface.name, action: 'learn', table: 'ARP cache', detail: `ARP cache: ${formatIpv4(pl.senderIp)} is at ${pl.senderMac}.` },
+        frame,
+      );
       if (pl.op === 'request') {
         const reply: Frame = {
           srcMac: answerMac,
@@ -1180,7 +1516,17 @@ export class Sim {
           flowId: frame.flowId,
           payload: { kind: 'arp', op: 'reply', senderMac: answerMac, senderIp: pl.targetIp, targetMac: pl.senderMac, targetIp: pl.senderIp },
         };
-        this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'reply', table: 'ARP cache', detail: `ARP reply: ${formatIpv4(pl.targetIp)} is at ${answerMac}${why}.` }, reply);
+        this.trace(
+          frame.flowId,
+          {
+            deviceId,
+            iface: iface.name,
+            action: 'reply',
+            table: 'ARP cache',
+            detail: `ARP reply: ${formatIpv4(pl.targetIp)} is at ${answerMac}${why}.`,
+          },
+          reply,
+        );
         this.sendOnIface(deviceId, iface, reply);
       }
       this.drainPending(deviceId, pl.senderIp);
@@ -1201,15 +1547,39 @@ export class Sim {
     if (this.ifCfg(deviceId, iface.name)?.natRole === 'outside') {
       const t = this.natInbound(deviceId, pkt);
       if (t) {
-        this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'forward', table: 'NAT', detail: `NAT outside→inside: destination ${formatIpv4(pkt.dst)} → ${formatIpv4(t.dst)}.` });
+        this.trace(frame.flowId, {
+          deviceId,
+          iface: iface.name,
+          action: 'forward',
+          table: 'NAT',
+          detail: `NAT outside→inside: destination ${formatIpv4(pkt.dst)} → ${formatIpv4(t.dst)}.`,
+        });
         pkt = t;
       }
     }
 
-    // 3. Local delivery (own address, owned virtual IP, broadcast).
-    const directedBcast = iface.network !== undefined && iface.prefixLen !== undefined && pkt.dst === broadcastOf(iface.network, iface.prefixLen);
+    // MPLS echo requests are addressed to 127/8: the LSR at the end of the LSP answers them.
+    if (pkt.udp?.app?.kind === 'mpls-echo-request' && pkt.dst >>> 24 === 127) {
+      this.lspEchoEgress(deviceId, iface, pkt, frame.flowId);
+      return;
+    }
+
+    // 3. Local delivery (own address, owned virtual IP, broadcast). /31 links have no broadcast address.
+    const directedBcast =
+      iface.network !== undefined && iface.prefixLen !== undefined && iface.prefixLen < 31 && pkt.dst === broadcastOf(iface.network, iface.prefixLen);
     if (this.isLocalAddress(deviceId, pkt.dst) || pkt.dst === 0xffffffff || directedBcast) {
-      this.trace(frame.flowId, { deviceId, portId: portId === 'cpu' ? undefined : portId, iface: iface.name, action: 'deliver', table: 'Host stack', detail: `Packet for ${formatIpv4(pkt.dst)} is for this device.` }, frame);
+      this.trace(
+        frame.flowId,
+        {
+          deviceId,
+          portId: portId === 'cpu' ? undefined : portId,
+          iface: iface.name,
+          action: 'deliver',
+          table: 'Host stack',
+          detail: `Packet for ${formatIpv4(pkt.dst)} is for this device.`,
+        },
+        frame,
+      );
       if (pkt.tcp) this.localTcp(deviceId, iface, pkt, frame.flowId);
       else if (pkt.udp?.app) this.localApp(deviceId, iface, pkt, frame.flowId);
       else if (pkt.udp) this.localUdp(deviceId, iface, pkt, frame.flowId);
@@ -1219,16 +1589,302 @@ export class Sim {
 
     // 4. Forwarding.
     if (!routing) {
-      this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Host stack', detail: `Not for me and IP routing is disabled — dropped.` }, frame);
+      this.trace(
+        frame.flowId,
+        { deviceId, iface: iface.name, action: 'drop', table: 'Host stack', detail: `Not for me and IP routing is disabled — dropped.` },
+        frame,
+      );
       return;
     }
     if (pkt.ttl <= 1) {
-      this.trace(frame.flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Routing table', detail: 'TTL expired in transit — sending ICMP time exceeded.' }, frame);
-      if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined) this.sendIcmpError(deviceId, iface.ip, pkt, 'time-exceeded', 'ttl-exceeded', frame.flowId);
+      this.trace(
+        frame.flowId,
+        { deviceId, iface: iface.name, action: 'drop', table: 'Routing table', detail: 'TTL expired in transit — sending ICMP time exceeded.' },
+        frame,
+      );
+      if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined)
+        this.sendIcmpError(deviceId, iface.ip, pkt, 'time-exceeded', 'ttl-exceeded', frame.flowId);
       return;
     }
     const fwd: Ipv4Packet = { ...pkt, ttl: pkt.ttl - 1 };
     this.routeAndSend(deviceId, fwd, frame.flowId, { originated: false, ingress: iface });
+  }
+
+  // --------------------------------------------------------------- MPLS --
+
+  /** Labelled frame received on an L3 interface: LFIB lookup, swap / pop, TTL. */
+  private mplsInput(deviceId: string, iface: L3Interface, frame: Frame): void {
+    const stack = frame.mpls!;
+    const top = stack[0];
+    const pkt = frame.payload as Ipv4Packet;
+    const flowId = frame.flowId;
+    const labels = stack.map((l) => ({ label: l.label, exp: l.tc }));
+    if (!this.ldp.routers.get(deviceId)?.mplsIfaces.includes(iface.name)) {
+      this.trace(
+        flowId,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'drop',
+          table: 'LFIB',
+          detail: `Labelled packet (label ${top.label}) received on ${iface.name}, but MPLS is not enabled there ("mpls ip" missing) — dropped.`,
+        },
+        frame,
+      );
+      return;
+    }
+    const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
+    const ttl = top.ttl - 1;
+    const rest = stack.slice(1);
+    // Label 0 (explicit-null): this router is the egress; pop and handle the IP packet.
+    if (top.label === 0) {
+      this.trace(
+        flowId,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'forward',
+          table: 'LFIB',
+          detail: 'Label 0 (explicit-null): pop — this router is the end of the LSP.',
+        },
+        frame,
+      );
+      const ipTtl = propagate ? Math.min(pkt.ttl, top.ttl) : pkt.ttl;
+      this.l3Input(deviceId, iface, { ...frame, mpls: rest.length ? rest : undefined, payload: { ...pkt, ttl: ipTtl } }, iface.port ?? 'cpu');
+      return;
+    }
+    const entry = this.ldp.lfib.find((e) => e.deviceId === deviceId && e.inLabel === top.label);
+    if (!entry) {
+      this.trace(
+        flowId,
+        { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `No LFIB entry for local label ${top.label} — dropped.` },
+        frame,
+      );
+      return;
+    }
+    const fec = `${formatIpv4(entry.network)}/${entry.prefixLen}`;
+    const bytesKey = `${deviceId}|${top.label}`;
+    this.lfibBytes.set(bytesKey, (this.lfibBytes.get(bytesKey) ?? 0) + pkt.sizeBytes + 4 * stack.length);
+    if (ttl <= 0) {
+      this.trace(
+        flowId,
+        { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Label TTL expired (label ${top.label}, FEC ${fec}).` },
+        frame,
+      );
+      const app = pkt.udp?.app;
+      if (app?.kind === 'mpls-echo-request') {
+        const code = entry.out === 'none' ? 'B' : 'L';
+        const info = entry.out === 'none' ? 'no label towards next hop' : `Labels: ${entry.out === 'pop' ? 'implicit-null' : entry.out}`;
+        this.lspReply(deviceId, pkt, app.id, app.seq, code, info, flowId);
+      } else if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined) {
+        // RFC 4950: the time-exceeded message quotes the label stack.
+        const err: Ipv4Packet = {
+          kind: 'ipv4',
+          src: iface.ip,
+          dst: pkt.src,
+          ttl: 255,
+          dscp: 0,
+          protocol: 'icmp',
+          icmp: { type: 'time-exceeded', id: pkt.icmp.id, seq: pkt.icmp.seq, code: 'ttl-exceeded', mplsLabels: labels },
+          sizeBytes: 56,
+        };
+        this.routeAndSend(deviceId, err, flowId, { originated: true });
+      }
+      return;
+    }
+    const out = this.interfaces(deviceId).find((i) => i.name === entry.iface && i.up);
+    if (!out) {
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Outgoing interface ${entry.iface} is down.` }, frame);
+      return;
+    }
+    if (typeof entry.out === 'number') {
+      const next = [{ ...top, label: entry.out, ttl }, ...rest];
+      this.trace(
+        flowId,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'forward',
+          table: 'LFIB',
+          detail: `MPLS swap: label ${top.label} → ${entry.out} (FEC ${fec}) towards ${formatIpv4(entry.nextHop)} on ${entry.iface}, label TTL ${ttl}.`,
+        },
+        frame,
+      );
+      this.sendToNextHop(deviceId, out, entry.nextHop, pkt, next, flowId, false);
+      return;
+    }
+    const ipTtl = propagate ? Math.min(pkt.ttl, ttl) : pkt.ttl;
+    if (entry.out === 'pop') {
+      this.trace(
+        flowId,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'forward',
+          table: 'LFIB',
+          detail: `MPLS pop: label ${top.label} removed (FEC ${fec}; next hop advertised implicit-null — penultimate hop popping). Sent ${rest.length ? 'with the remaining labels' : 'as plain IP'} to ${formatIpv4(entry.nextHop)}.`,
+        },
+        frame,
+      );
+      this.sendToNextHop(deviceId, out, entry.nextHop, { ...pkt, ttl: ipTtl }, rest.length ? rest : undefined, flowId, false);
+      return;
+    }
+    // No outgoing label (next hop not an LDP peer / no binding): forward as IP.
+    this.trace(
+      flowId,
+      {
+        deviceId,
+        iface: iface.name,
+        action: 'forward',
+        table: 'LFIB',
+        detail: `Label ${top.label} (FEC ${fec}) has no outgoing label ("No Label") — label removed, packet routed as IP.`,
+      },
+      frame,
+    );
+    if (ipTtl <= 0) return;
+    this.routeAndSend(deviceId, { ...pkt, ttl: ipTtl }, flowId, { originated: false, ingress: iface });
+  }
+
+  /** MPLS echo request that reached the end of the LSP (IP destination 127/8). */
+  private lspEchoEgress(deviceId: string, iface: L3Interface, pkt: Ipv4Packet, flowId: number): void {
+    const app = pkt.udp!.app as Extract<AppMessage, { kind: 'mpls-echo-request' }>;
+    if (!this.ldp.routers.has(deviceId) && !this.forwards(deviceId)) {
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'drop',
+        table: 'Host stack',
+        detail: 'MPLS echo request on a device that does not run MPLS — dropped.',
+      });
+      return;
+    }
+    const [net, len] = app.fec.split('/');
+    const n = parseIpv4(net);
+    const own = this.routingTable(deviceId).some((r) => r.protocol === 'C' && r.network === n && r.prefixLen === Number(len));
+    this.trace(flowId, {
+      deviceId,
+      iface: iface.name,
+      action: 'deliver',
+      table: 'LFIB',
+      detail: own
+        ? `MPLS echo request: ${app.fec} is my own prefix — I am the egress (return code 3).`
+        : `MPLS echo request arrived here, but ${app.fec} is not my prefix (FEC mismatch).`,
+    });
+    this.lspReply(deviceId, pkt, app.id, app.seq, own ? '!' : 'f', own ? '' : 'FEC mismatch', flowId);
+  }
+
+  private lspReply(deviceId: string, req: Ipv4Packet, id: number, seq: number, code: string, info: string, flowId: number): void {
+    const src = this.ldp.routers.get(deviceId)?.routerId ?? this.interfaces(deviceId).find((i) => i.up && i.ip !== undefined)?.ip;
+    if (src === undefined) return;
+    const reply: Ipv4Packet = {
+      kind: 'ipv4',
+      src,
+      dst: req.src,
+      ttl: 255,
+      dscp: 0,
+      protocol: 'udp',
+      udp: { srcPort: 3503, dstPort: 3503, app: { kind: 'mpls-echo-reply', id, seq, code, info } },
+      sizeBytes: 100,
+    };
+    this.trace(flowId, { deviceId, action: 'reply', table: 'LFIB', detail: `MPLS echo reply (code ${code}) to ${formatIpv4(req.src)}.` });
+    this.routeAndSend(deviceId, reply, flowId, { originated: true });
+  }
+
+  /** "ping mpls ipv4 P/L": MPLS echo requests along the LSP for the FEC. */
+  lspPing(srcDeviceId: string, network: number, prefixLen: number, opts: { count?: number; timeoutMs?: number } = {}): number {
+    return this.startLsp('ping', srcDeviceId, network, prefixLen, {
+      count: opts.count ?? 5,
+      timeoutMs: opts.timeoutMs ?? PING_TIMEOUT_MS,
+      maxTtl: 255,
+    });
+  }
+
+  /** "traceroute mpls ipv4 P/L": echo requests with label TTL 1, 2, 3… */
+  lspTrace(srcDeviceId: string, network: number, prefixLen: number, opts: { maxTtl?: number; timeoutMs?: number } = {}): number {
+    return this.startLsp('trace', srcDeviceId, network, prefixLen, {
+      count: 0,
+      timeoutMs: opts.timeoutMs ?? PING_TIMEOUT_MS,
+      maxTtl: opts.maxTtl ?? 30,
+    });
+  }
+
+  lspSession(id: number): LspSession | undefined {
+    return this.lspSessions.get(id);
+  }
+
+  private startLsp(
+    kind: LspSession['kind'],
+    srcDeviceId: string,
+    network: number,
+    prefixLen: number,
+    o: { count: number; timeoutMs: number; maxTtl: number },
+  ): number {
+    const id = this.nextSession++;
+    const s: LspSession = { id, kind, srcDeviceId, network, prefixLen, probes: [], done: false, ...o };
+    this.lspSessions.set(id, s);
+    if (!this.ldp.routers.has(srcDeviceId)) {
+      s.error = '% MPLS is not enabled on this device.';
+      s.done = true;
+    } else this.queue.push(this.now, { type: 'lsp-send', sessionId: id });
+    this.changed();
+    return id;
+  }
+
+  private lspSend(sessionId: number): void {
+    const s = this.lspSessions.get(sessionId);
+    if (!s || s.done) return;
+    const index = s.probes.length;
+    const ttl = s.kind === 'trace' ? index + 1 : 255;
+    const fec = prefixKey(s.network, s.prefixLen);
+    const fecText = `${formatIpv4(s.network)}/${s.prefixLen}`;
+    const flowId = this.newFlow(
+      `LSP ${s.kind === 'ping' ? 'ping' : 'trace'} ${this.name(s.srcDeviceId)} → ${fecText} #${index + 1}${s.kind === 'trace' ? ` (TTL ${ttl})` : ''}`,
+    );
+    const probe: LspProbe = { seq: index, ttl, flowId, sentAt: this.now, code: 'pending' };
+    s.probes.push(probe);
+    const ftn = this.ldp.lfib.find((e) => e.deviceId === s.srcDeviceId && prefixKey(e.network, e.prefixLen) === fec);
+    s.ingress ??= ftn ? { iface: ftn.iface, nextHop: ftn.nextHop, out: ftn.out } : undefined;
+    const out = ftn ? this.interfaces(s.srcDeviceId).find((i) => i.name === ftn.iface && i.up && i.ip !== undefined) : undefined;
+    if (!ftn || ftn.out === 'none' || !out) {
+      probe.code = 'Q';
+      this.trace(flowId, {
+        deviceId: s.srcDeviceId,
+        action: 'drop',
+        table: 'LFIB',
+        detail: `No label for FEC ${fecText} — MPLS echo request not sent.`,
+      });
+      this.afterLsp(s);
+      return;
+    }
+    const pkt: Ipv4Packet = {
+      kind: 'ipv4',
+      src: out.ip!,
+      dst: 0x7f000001,
+      ttl: s.kind === 'trace' ? ttl : 1,
+      dscp: 0,
+      protocol: 'udp',
+      udp: { srcPort: 3503, dstPort: 3503, app: { kind: 'mpls-echo-request', id: s.id, seq: index, fec: fecText } },
+      sizeBytes: 100,
+    };
+    const mpls = typeof ftn.out === 'number' ? [{ label: ftn.out, tc: 0, ttl }] : undefined;
+    this.queue.push(this.now + s.timeoutMs, { type: 'lsp-timeout', sessionId: s.id, index });
+    this.trace(flowId, {
+      deviceId: s.srcDeviceId,
+      iface: out.name,
+      action: 'send',
+      table: 'LFIB',
+      detail: `MPLS echo request for ${fecText}: ${mpls ? `label ${ftn.out}, label TTL ${ttl}` : 'next hop is the egress (implicit-null) — sent unlabelled'}, IP destination 127.0.0.1.`,
+    });
+    this.sendToNextHop(s.srcDeviceId, out, ftn.nextHop, pkt, mpls, flowId, true);
+  }
+
+  private afterLsp(s: LspSession): void {
+    if (s.done) return;
+    const last = s.probes[s.probes.length - 1];
+    if (s.kind === 'ping') s.done = s.probes.length >= s.count;
+    else s.done = last.code === '!' || last.code === 'Q' || last.code === 'f' || last.ttl >= s.maxTtl;
+    if (!s.done) this.queue.push(this.now + 0.001, { type: 'lsp-send', sessionId: s.id });
+    this.changed();
   }
 
   // --------------------------------------------------------------- ACL --
@@ -1253,7 +1909,8 @@ export class Sim {
 
   /** ICMP "administratively prohibited" back to the source of a denied packet (not for ICMP errors or DHCP). */
   private adminProhibited(deviceId: string, iface: L3Interface, pkt: Ipv4Packet, flowId: number): void {
-    if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined) this.sendIcmpError(deviceId, iface.ip, pkt, 'dest-unreachable', 'admin-prohibited', flowId);
+    if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined)
+      this.sendIcmpError(deviceId, iface.ip, pkt, 'dest-unreachable', 'admin-prohibited', flowId);
   }
 
   // --------------------------------------------------------------- NAT --
@@ -1297,7 +1954,11 @@ export class Sim {
   }
 
   natTranslations(deviceId: string): NatTranslation[] {
-    const statics = (this.configs.get(deviceId)?.nat.statics ?? []).map((st) => ({ insideLocal: parseIpv4(st.local)!, insideGlobal: parseIpv4(st.global)!, static: true }));
+    const statics = (this.configs.get(deviceId)?.nat.statics ?? []).map((st) => ({
+      insideLocal: parseIpv4(st.local)!,
+      insideGlobal: parseIpv4(st.global)!,
+      static: true,
+    }));
     return [...statics, ...(this.natTable.get(deviceId) ?? [])];
   }
 
@@ -1328,7 +1989,9 @@ export class Sim {
 
   /** Name servers in use: configured, else learned by DHCP (hosts). */
   nameServersOf(deviceId: string): number[] {
-    const cfg = this.mgmt(deviceId).nameServers.map((n) => parseIpv4(n)).filter((n): n is number => n !== null);
+    const cfg = this.mgmt(deviceId)
+      .nameServers.map((n) => parseIpv4(n))
+      .filter((n): n is number => n !== null);
     if (cfg.length) return cfg;
     const leases = [...this.dhcpClients.entries()].filter(([k]) => k.startsWith(`${deviceId}|`)).map(([, c]) => c.lease?.dns);
     return leases.filter((d): d is number => d !== undefined);
@@ -1376,7 +2039,9 @@ export class Sim {
 
   /** Polls the first configured NTP server (UDP 123). */
   ntpPoll(deviceId: string): number | undefined {
-    const server = this.mgmt(deviceId).ntpServers.map((n) => parseIpv4(n)).find((n): n is number => n !== null);
+    const server = this.mgmt(deviceId)
+      .ntpServers.map((n) => parseIpv4(n))
+      .find((n): n is number => n !== null);
     if (server === undefined) return undefined;
     const a = this.newApp('ntp', deviceId, server);
     this.queue.push(this.now, { type: 'app-send', sessionId: a.id });
@@ -1402,14 +2067,41 @@ export class Sim {
     let pkt: Ipv4Packet;
     let label: string;
     if (a.kind === 'dns') {
-      pkt = { kind: 'ipv4', src: eg.srcIp, dst: a.target, ttl: 64, dscp: 0, protocol: 'udp', udp: { srcPort: 49152 + a.id, dstPort: 53, app: { kind: 'dns-query', id: a.id, name: a.name! } }, sizeBytes: 74 };
+      pkt = {
+        kind: 'ipv4',
+        src: eg.srcIp,
+        dst: a.target,
+        ttl: 64,
+        dscp: 0,
+        protocol: 'udp',
+        udp: { srcPort: 49152 + a.id, dstPort: 53, app: { kind: 'dns-query', id: a.id, name: a.name! } },
+        sizeBytes: 74,
+      };
       label = `DNS ${this.name(a.deviceId)}: ${a.name}?`;
     } else if (a.kind === 'ntp') {
-      pkt = { kind: 'ipv4', src: eg.srcIp, dst: a.target, ttl: 64, dscp: 0, protocol: 'udp', udp: { srcPort: 123, dstPort: 123, app: { kind: 'ntp-request', id: a.id } }, sizeBytes: 76 };
+      pkt = {
+        kind: 'ipv4',
+        src: eg.srcIp,
+        dst: a.target,
+        ttl: 64,
+        dscp: 0,
+        protocol: 'udp',
+        udp: { srcPort: 123, dstPort: 123, app: { kind: 'ntp-request', id: a.id } },
+        sizeBytes: 76,
+      };
       label = `NTP ${this.name(a.deviceId)} → ${formatIpv4(a.target)}`;
     } else {
       const port = a.kind === 'ssh' ? 22 : 23;
-      pkt = { kind: 'ipv4', src: eg.srcIp, dst: a.target, ttl: 64, dscp: 16, protocol: 'tcp', tcp: { srcPort: 49152 + a.id, dstPort: port, flags: 'SYN', id: a.id }, sizeBytes: 60 };
+      pkt = {
+        kind: 'ipv4',
+        src: eg.srcIp,
+        dst: a.target,
+        ttl: 64,
+        dscp: 16,
+        protocol: 'tcp',
+        tcp: { srcPort: 49152 + a.id, dstPort: port, flags: 'SYN', id: a.id },
+        sizeBytes: 60,
+      };
       label = `${a.kind === 'ssh' ? 'SSH' : 'Telnet'} ${this.name(a.deviceId)} → ${formatIpv4(a.target)}`;
     }
     a.flowId = this.newFlow(`${label}${a.attempts > 1 ? ` (retry ${a.attempts - 1})` : ''}`);
@@ -1423,7 +2115,21 @@ export class Sim {
     const eg = this.egressFor(deviceId, dst);
     if (!eg) return;
     const flow = this.newFlow(`${app.kind === 'syslog' ? 'Syslog' : 'SNMP trap'} ${this.name(deviceId)} → ${formatIpv4(dst)}`);
-    this.routeAndSend(deviceId, { kind: 'ipv4', src: eg.srcIp, dst, ttl: 64, dscp: 0, protocol: 'udp', udp: { srcPort: dstPort === 514 ? 514 : 49999, dstPort, app }, sizeBytes: 120 }, flow, { originated: true });
+    this.routeAndSend(
+      deviceId,
+      {
+        kind: 'ipv4',
+        src: eg.srcIp,
+        dst,
+        ttl: 64,
+        dscp: 0,
+        protocol: 'udp',
+        udp: { srcPort: dstPort === 514 ? 514 : 49999, dstPort, app },
+        sizeBytes: 120,
+      },
+      flow,
+      { originated: true },
+    );
   }
 
   private log(deviceId: string, text: string): void {
@@ -1445,7 +2151,10 @@ export class Sim {
         const now = this.phys.ports.get(portKey(d.id, p.id));
         if (!before || !now || before.operUp === now.operUp) continue;
         const st = now.operUp ? 'up' : 'down';
-        const msgs = [`%LINK-3-UPDOWN: Interface ${longIfName(p.id)}, changed state to ${st}`, `%LINEPROTO-5-UPDOWN: Line protocol on Interface ${longIfName(p.id)}, changed state to ${st}`];
+        const msgs = [
+          `%LINK-3-UPDOWN: Interface ${longIfName(p.id)}, changed state to ${st}`,
+          `%LINEPROTO-5-UPDOWN: Line protocol on Interface ${longIfName(p.id)}, changed state to ${st}`,
+        ];
         for (const t of msgs) this.log(d.id, t);
         for (const h of m.loggingHosts) {
           const ip = parseIpv4(h);
@@ -1454,7 +2163,12 @@ export class Sim {
         if (m.snmpTraps)
           for (const th of m.snmpTrapHosts) {
             const ip = parseIpv4(th.ip);
-            if (ip !== null) this.sendOneWay(d.id, ip, 162, { kind: 'snmp-trap', community: th.community, text: `${d.name}: ${now.operUp ? 'linkUp' : 'linkDown'} ${longIfName(p.id)}` });
+            if (ip !== null)
+              this.sendOneWay(d.id, ip, 162, {
+                kind: 'snmp-trap',
+                community: th.community,
+                text: `${d.name}: ${now.operUp ? 'linkUp' : 'linkDown'} ${longIfName(p.id)}`,
+              });
           }
       }
     }
@@ -1470,37 +2184,100 @@ export class Sim {
     const kind = this.devices.get(deviceId)!.kind;
     const role = this.role(deviceId);
     const m = this.mgmt(deviceId);
-    const notListening = (what: string) => this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Host stack', detail: `UDP ${pkt.udp!.dstPort} (${what}) is not served by this device — dropped.` });
+    const notListening = (what: string) =>
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'drop',
+        table: 'Host stack',
+        detail: `UDP ${pkt.udp!.dstPort} (${what}) is not served by this device — dropped.`,
+      });
     switch (app.kind) {
+      case 'mpls-echo-request':
+        return notListening('MPLS echo');
+      case 'mpls-echo-reply': {
+        const ls = this.lspSessions.get(app.id);
+        const p = ls?.probes[app.seq];
+        if (!ls || !p || ls.srcDeviceId !== deviceId || p.code !== 'pending') return;
+        p.code = app.code;
+        p.from = pkt.src;
+        p.info = app.info;
+        p.rttMs = this.now - p.sentAt;
+        this.trace(flowId, {
+          deviceId,
+          iface: iface.name,
+          action: 'deliver',
+          table: 'LFIB',
+          detail: `MPLS echo reply from ${formatIpv4(pkt.src)}: return code ${app.code}${app.info ? ` (${app.info})` : ''}.`,
+        });
+        this.afterLsp(ls);
+        return;
+      }
       case 'dns-query': {
         const isServer = kind === 'dns-dhcp' || ((role === 'router' || role === 'l3switch') && m.dnsServer);
         if (!isServer) return notListening('DNS');
         const n = app.name.toLowerCase();
         const hit = m.hosts[n] ?? (m.domainName ? m.hosts[n.split('.')[0]] : undefined);
-        const address = hit ? parseIpv4(hit) ?? undefined : undefined;
-        this.trace(flowId, { deviceId, iface: iface.name, action: 'reply', table: 'Host stack', detail: `DNS server: ${n} → ${hit ?? 'NXDOMAIN (no such record)'}.` });
-        this.reply(deviceId, pkt.src, pkt.dst, { ...pkt, udp: { srcPort: 53, dstPort: pkt.udp!.srcPort, app: { kind: 'dns-reply', id: app.id, name: n, address } } }, flowId);
+        const address = hit ? (parseIpv4(hit) ?? undefined) : undefined;
+        this.trace(flowId, {
+          deviceId,
+          iface: iface.name,
+          action: 'reply',
+          table: 'Host stack',
+          detail: `DNS server: ${n} → ${hit ?? 'NXDOMAIN (no such record)'}.`,
+        });
+        this.reply(
+          deviceId,
+          pkt.src,
+          pkt.dst,
+          { ...pkt, udp: { srcPort: 53, dstPort: pkt.udp!.srcPort, app: { kind: 'dns-reply', id: app.id, name: n, address } } },
+          flowId,
+        );
         return;
       }
       case 'ntp-request': {
         const synced = this.ntpState.get(deviceId);
         const stratum = m.ntpMaster ?? (kind === 'dns-dhcp' ? 2 : synced ? synced.stratum : undefined);
         if (stratum === undefined) {
-          this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Host stack', detail: 'NTP request ignored: this device has no reliable clock (not ntp master, not synchronised).' });
+          this.trace(flowId, {
+            deviceId,
+            iface: iface.name,
+            action: 'drop',
+            table: 'Host stack',
+            detail: 'NTP request ignored: this device has no reliable clock (not ntp master, not synchronised).',
+          });
           return;
         }
         this.trace(flowId, { deviceId, iface: iface.name, action: 'reply', table: 'Host stack', detail: `NTP server reply, stratum ${stratum}.` });
-        this.reply(deviceId, pkt.src, pkt.dst, { ...pkt, udp: { srcPort: 123, dstPort: 123, app: { kind: 'ntp-reply', id: app.id, stratum } } }, flowId);
+        this.reply(
+          deviceId,
+          pkt.src,
+          pkt.dst,
+          { ...pkt, udp: { srcPort: 123, dstPort: 123, app: { kind: 'ntp-reply', id: app.id, stratum } } },
+          flowId,
+        );
         return;
       }
       case 'syslog':
       case 'snmp-trap': {
         if (kind !== 'nms') return notListening(app.kind === 'syslog' ? 'syslog' : 'SNMP trap');
         const list = this.inbox.get(deviceId) ?? [];
-        list.push({ at: this.now, from: pkt.src, kind: app.kind === 'syslog' ? 'syslog' : 'trap', text: app.text, community: app.kind === 'snmp-trap' ? app.community : undefined });
+        list.push({
+          at: this.now,
+          from: pkt.src,
+          kind: app.kind === 'syslog' ? 'syslog' : 'trap',
+          text: app.text,
+          community: app.kind === 'snmp-trap' ? app.community : undefined,
+        });
         if (list.length > 500) list.shift();
         this.inbox.set(deviceId, list);
-        this.trace(flowId, { deviceId, iface: iface.name, action: 'deliver', table: 'Host stack', detail: `NMS stored ${app.kind === 'syslog' ? 'syslog message' : 'SNMP trap'}.` });
+        this.trace(flowId, {
+          deviceId,
+          iface: iface.name,
+          action: 'deliver',
+          table: 'Host stack',
+          detail: `NMS stored ${app.kind === 'syslog' ? 'syslog message' : 'SNMP trap'}.`,
+        });
         this.changed();
         return;
       }
@@ -1509,7 +2286,8 @@ export class Sim {
         const a = this.appSessions.get(app.id);
         if (!a || a.deviceId !== deviceId || a.status !== 'pending') return;
         if (app.kind === 'dns-reply') {
-          if (app.address !== undefined) this.finishApp(a, 'ok', `${app.name} is ${formatIpv4(app.address)} (DNS server ${formatIpv4(pkt.src)})`, app.address);
+          if (app.address !== undefined)
+            this.finishApp(a, 'ok', `${app.name} is ${formatIpv4(app.address)} (DNS server ${formatIpv4(pkt.src)})`, app.address);
           else this.finishApp(a, 'fail', `*** ${formatIpv4(pkt.src)} can't find ${app.name}: Non-existent domain`);
         } else {
           this.ntpState.set(deviceId, { server: pkt.src, stratum: Math.min(16, app.stratum + 1), at: this.now });
@@ -1535,7 +2313,13 @@ export class Sim {
     const role = this.role(deviceId);
     const answer = (flags: 'SYN-ACK' | 'RST', note: string, payload?: string) => {
       this.trace(flowId, { deviceId, iface: iface.name, action: 'reply', table: 'Host stack', detail: `${flags}: ${note}` });
-      this.reply(deviceId, pkt.src, pkt.dst, { ...pkt, tcp: { srcPort: tcp.dstPort, dstPort: tcp.srcPort, flags, id: tcp.id, note, payload } }, flowId);
+      this.reply(
+        deviceId,
+        pkt.src,
+        pkt.dst,
+        { ...pkt, tcp: { srcPort: tcp.dstPort, dstPort: tcp.srcPort, flags, id: tcp.id, note, payload } },
+        flowId,
+      );
     };
     if (!proto || role === 'host' || role === 'hub' || role === 'opaque') return answer('RST', '% Connection refused by remote host (port closed)');
     const m = this.mgmt(deviceId);
@@ -1545,13 +2329,15 @@ export class Sim {
       if (!acl || !this.aclPermits(deviceId, vty.accessClass, pkt, flowId, 'vty', 'in'))
         return answer('RST', `% Connection refused by remote host (vty access-class ${vty.accessClass} denies ${formatIpv4(pkt.src)})`);
     }
-    if (vty.transport === 'none' || (vty.transport !== 'all' && vty.transport !== proto)) return answer('RST', `% Connection refused by remote host (transport input ${vty.transport})`);
+    if (vty.transport === 'none' || (vty.transport !== 'all' && vty.transport !== proto))
+      return answer('RST', `% Connection refused by remote host (transport input ${vty.transport})`);
     if (proto === 'ssh' && (!m.rsaModulus || !m.domainName))
       return answer('RST', '% Connection refused by remote host (SSH is not enabled: needs ip domain-name and crypto key generate rsa)');
     const a = this.appSessions.get(tcp.id);
     const user = a?.user;
     const wire = (secret: string) => (proto === 'telnet' ? `cleartext on the wire: ${secret}` : 'encrypted (SSH-2.0) — contents not readable');
-    if (vty.login === 'none') return answer('SYN-ACK', 'Open — no login required (insecure: anyone can configure this device)', wire('session in cleartext'));
+    if (vty.login === 'none')
+      return answer('SYN-ACK', 'Open — no login required (insecure: anyone can configure this device)', wire('session in cleartext'));
     if (vty.login === 'line') {
       if (!vty.passwordSet) return answer('SYN-ACK', 'Password required, but none set — connection closed by foreign host');
       return answer('SYN-ACK', 'Open — line password prompt (interactive session not simulated)', wire('Password: <line password visible>'));
@@ -1560,7 +2346,11 @@ export class Sim {
     if (!users.length) return answer('SYN-ACK', '% Login invalid — login local is set but no usernames exist (nobody can log in)');
     if (!user) return answer('SYN-ACK', 'Open — Username: prompt (interactive session not simulated)', wire('Username/Password typed by the user'));
     if (!m.users[user]) return answer('SYN-ACK', `% Login invalid — no local user "${user}"`, wire(`Username: ${user}`));
-    return answer('SYN-ACK', `Logged in as ${user} (privilege ${m.users[user].privilege}) — interactive session not simulated; use this device's console`, wire(`Username: ${user} Password: <visible>`));
+    return answer(
+      'SYN-ACK',
+      `Logged in as ${user} (privilege ${m.users[user].privilege}) — interactive session not simulated; use this device's console`,
+      wire(`Username: ${user} Password: <visible>`),
+    );
   }
 
   private dhcpKey(deviceId: string, iface: string): string {
@@ -1627,19 +2417,44 @@ export class Sim {
     const iface = this.interfaces(deviceId).find((i) => i.name === ifName);
     if (!c || !iface) return;
     const h = parseInt(iface.mac.replace(/:/g, '').slice(-4), 16);
-    const ip = (((169 << 24) | (254 << 16) | ((1 + (h >> 8) % 254) << 8) | (1 + (h & 0xff) % 254)) >>> 0);
+    const ip = ((169 << 24) | (254 << 16) | ((1 + ((h >> 8) % 254)) << 8) | (1 + ((h & 0xff) % 254))) >>> 0;
     c.state = 'apipa';
     c.lease = { ip, prefixLen: 16, obtainedAt: this.now, apipa: true };
     const flowId = this.newFlow(`DHCP ${this.name(deviceId)}: no server answered — APIPA`);
-    this.trace(flowId, { deviceId, iface: ifName, action: 'learn', table: 'DHCP', detail: `No DHCP offer after ${c.attempts} attempts — self-assigned APIPA address ${formatIpv4(ip)}/16 (no gateway).` });
+    this.trace(flowId, {
+      deviceId,
+      iface: ifName,
+      action: 'learn',
+      table: 'DHCP',
+      detail: `No DHCP offer after ${c.attempts} attempts — self-assigned APIPA address ${formatIpv4(ip)}/16 (no gateway).`,
+    });
     this.recompute();
   }
 
   /** Sends a DHCP message as an IP broadcast on an interface (client → servers, or relay/server → client). */
   private dhcpBroadcast(deviceId: string, iface: L3Interface, msg: DhcpMessage, srcPort: number, dstPort: number, src: number, flowId: number): void {
-    const pkt: Ipv4Packet = { kind: 'ipv4', src, dst: 0xffffffff, ttl: 64, dscp: 48, protocol: 'udp', udp: { srcPort, dstPort, dhcp: msg }, sizeBytes: 342 };
+    const pkt: Ipv4Packet = {
+      kind: 'ipv4',
+      src,
+      dst: 0xffffffff,
+      ttl: 64,
+      dscp: 48,
+      protocol: 'udp',
+      udp: { srcPort, dstPort, dhcp: msg },
+      sizeBytes: 342,
+    };
     const frame: Frame = { srcMac: iface.mac, dstMac: BROADCAST_MAC, payload: pkt, flowId };
-    this.trace(flowId, { deviceId, iface: iface.name, action: 'send', table: 'DHCP', detail: `DHCP ${msg.op.toUpperCase()} broadcast (xid 0x${msg.xid.toString(16)}).` }, frame);
+    this.trace(
+      flowId,
+      {
+        deviceId,
+        iface: iface.name,
+        action: 'send',
+        table: 'DHCP',
+        detail: `DHCP ${msg.op.toUpperCase()} broadcast (xid 0x${msg.xid.toString(16)}).`,
+      },
+      frame,
+    );
     this.sendOnIface(deviceId, iface, frame);
   }
 
@@ -1659,13 +2474,34 @@ export class Sim {
         for (const h of helpers) {
           const dst = parseIpv4(h);
           if (dst === null) continue;
-          const relayed: Ipv4Packet = { kind: 'ipv4', src: iface.ip, dst, ttl: 64, dscp: 48, protocol: 'udp', udp: { srcPort: 67, dstPort: 67, dhcp: { ...msg, giaddr: iface.ip } }, sizeBytes: 342 };
-          this.trace(flowId, { deviceId, iface: iface.name, action: 'forward', table: 'DHCP', detail: `DHCP relay (ip helper-address): ${msg.op.toUpperCase()} unicast to ${h}, giaddr ${formatIpv4(iface.ip)}.` });
+          const relayed: Ipv4Packet = {
+            kind: 'ipv4',
+            src: iface.ip,
+            dst,
+            ttl: 64,
+            dscp: 48,
+            protocol: 'udp',
+            udp: { srcPort: 67, dstPort: 67, dhcp: { ...msg, giaddr: iface.ip } },
+            sizeBytes: 342,
+          };
+          this.trace(flowId, {
+            deviceId,
+            iface: iface.name,
+            action: 'forward',
+            table: 'DHCP',
+            detail: `DHCP relay (ip helper-address): ${msg.op.toUpperCase()} unicast to ${h}, giaddr ${formatIpv4(iface.ip)}.`,
+          });
           this.routeAndSend(deviceId, relayed, flowId, { originated: true });
         }
         return;
       }
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'DHCP', detail: hasPools ? 'No DHCP pool matches this subnet.' : 'No DHCP server or relay (ip helper-address) on this interface.' });
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'drop',
+        table: 'DHCP',
+        detail: hasPools ? 'No DHCP pool matches this subnet.' : 'No DHCP server or relay (ip helper-address) on this interface.',
+      });
       return;
     }
 
@@ -1674,7 +2510,13 @@ export class Sim {
       // We are the relay: hand the reply to the client on the giaddr interface.
       const out = this.interfaces(deviceId).find((i) => i.ip === msg.giaddr && i.up);
       if (out) {
-        this.trace(flowId, { deviceId, iface: out.name, action: 'forward', table: 'DHCP', detail: `DHCP relay: ${msg.op.toUpperCase()} from server delivered to client segment ${out.name}.` });
+        this.trace(flowId, {
+          deviceId,
+          iface: out.name,
+          action: 'forward',
+          table: 'DHCP',
+          detail: `DHCP relay: ${msg.op.toUpperCase()} from server delivered to client segment ${out.name}.`,
+        });
         this.dhcpBroadcast(deviceId, out, msg, 67, 68, out.ip!, flowId);
       }
       return;
@@ -1684,12 +2526,40 @@ export class Sim {
     if (msg.op === 'offer' && c.state === 'selecting') {
       c.state = 'requesting';
       c.offer = msg;
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'learn', table: 'DHCP', detail: `OFFER ${formatIpv4(msg.yiaddr!)} from server ${formatIpv4(msg.serverId ?? 0)} — sending REQUEST.` });
-      this.dhcpBroadcast(deviceId, iface, { op: 'request', xid: c.xid, chaddr: iface.mac, requestedIp: msg.yiaddr, serverId: msg.serverId }, 68, 67, 0, flowId);
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'learn',
+        table: 'DHCP',
+        detail: `OFFER ${formatIpv4(msg.yiaddr!)} from server ${formatIpv4(msg.serverId ?? 0)} — sending REQUEST.`,
+      });
+      this.dhcpBroadcast(
+        deviceId,
+        iface,
+        { op: 'request', xid: c.xid, chaddr: iface.mac, requestedIp: msg.yiaddr, serverId: msg.serverId },
+        68,
+        67,
+        0,
+        flowId,
+      );
     } else if (msg.op === 'ack' && c.state === 'requesting') {
       c.state = 'bound';
-      c.lease = { ip: msg.yiaddr!, prefixLen: maskToPrefix(formatIpv4(msg.mask ?? 0)) ?? 24, router: msg.router, dns: msg.dns, server: msg.serverId, obtainedAt: this.now, apipa: false };
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'learn', table: 'DHCP', detail: `ACK — bound to ${formatIpv4(msg.yiaddr!)}${msg.router !== undefined ? `, gateway ${formatIpv4(msg.router)}` : ''}.` });
+      c.lease = {
+        ip: msg.yiaddr!,
+        prefixLen: maskToPrefix(formatIpv4(msg.mask ?? 0)) ?? 24,
+        router: msg.router,
+        dns: msg.dns,
+        server: msg.serverId,
+        obtainedAt: this.now,
+        apipa: false,
+      };
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'learn',
+        table: 'DHCP',
+        detail: `ACK — bound to ${formatIpv4(msg.yiaddr!)}${msg.router !== undefined ? `, gateway ${formatIpv4(msg.router)}` : ''}.`,
+      });
       this.recompute();
     } else if (msg.op === 'nak') {
       this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'DHCP', detail: 'NAK — restarting DHCP.' });
@@ -1736,12 +2606,27 @@ export class Sim {
         giaddr: msg.giaddr,
         mask: parseIpv4(pool.mask!) ?? undefined,
         router: gw ?? undefined,
-        dns: pool.dnsServer ? parseIpv4(pool.dnsServer) ?? undefined : undefined,
+        dns: pool.dnsServer ? (parseIpv4(pool.dnsServer) ?? undefined) : undefined,
         leaseSec: Math.round(pool.leaseDays * 86400),
       };
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'reply', table: 'DHCP', detail: `DHCP server pool ${poolName}: ${op.toUpperCase()}${yiaddr !== undefined ? ` ${formatIpv4(yiaddr)}` : ''}.` });
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'reply',
+        table: 'DHCP',
+        detail: `DHCP server pool ${poolName}: ${op.toUpperCase()}${yiaddr !== undefined ? ` ${formatIpv4(yiaddr)}` : ''}.`,
+      });
       if (msg.giaddr) {
-        const pkt: Ipv4Packet = { kind: 'ipv4', src: serverId, dst: msg.giaddr, ttl: 64, dscp: 48, protocol: 'udp', udp: { srcPort: 67, dstPort: 67, dhcp: out }, sizeBytes: 342 };
+        const pkt: Ipv4Packet = {
+          kind: 'ipv4',
+          src: serverId,
+          dst: msg.giaddr,
+          ttl: 64,
+          dscp: 48,
+          protocol: 'udp',
+          udp: { srcPort: 67, dstPort: 67, dhcp: out },
+          sizeBytes: 342,
+        };
         this.routeAndSend(deviceId, pkt, flowId, { originated: true });
       } else this.dhcpBroadcast(deviceId, iface, out, 67, 68, serverId, flowId);
     };
@@ -1810,17 +2695,30 @@ export class Sim {
     } else if (icmp.type === 'time-exceeded') {
       m.p.outcome = 'ttl-exceeded';
       m.p.from = pkt.src;
+      m.p.labels = icmp.mplsLabels;
     } else {
       m.p.outcome = 'unreachable';
       m.p.from = pkt.src;
       m.p.code = icmp.code;
     }
     m.p.rttMs = this.now - m.p.sentAt;
-    this.trace(flowId, { deviceId, action: 'deliver', table: 'ICMP', detail: `ICMP ${icmp.type} from ${formatIpv4(pkt.src)} (RTT ${m.p.rttMs.toFixed(3)} ms).` });
+    this.trace(flowId, {
+      deviceId,
+      action: 'deliver',
+      table: 'ICMP',
+      detail: `ICMP ${icmp.type} from ${formatIpv4(pkt.src)} (RTT ${m.p.rttMs.toFixed(3)} ms).`,
+    });
     this.afterProbe(m.s);
   }
 
-  private sendIcmpError(deviceId: string, src: number, orig: Ipv4Packet, type: 'time-exceeded' | 'dest-unreachable', code: string, flowId: number): void {
+  private sendIcmpError(
+    deviceId: string,
+    src: number,
+    orig: Ipv4Packet,
+    type: 'time-exceeded' | 'dest-unreachable',
+    code: string,
+    flowId: number,
+  ): void {
     const err: Ipv4Packet = {
       kind: 'ipv4',
       src,
@@ -1847,8 +2745,17 @@ export class Sim {
       }
       return;
     }
-    const via = r.route.protocol === 'C' || r.route.protocol === 'L' ? `directly connected via ${iface.name}` : `${r.route.protocol} route ${formatIpv4(r.route.network)}/${r.route.prefixLen} via ${formatIpv4(r.nextHop)} (${iface.name})`;
-    this.trace(flowId, { deviceId, iface: iface.name, action: o.originated ? 'send' : 'forward', table: 'Routing table', detail: `${formatIpv4(pkt.dst)}: ${via}${o.originated ? '' : `, TTL now ${pkt.ttl}`}.` });
+    const via =
+      r.route.protocol === 'C' || r.route.protocol === 'L'
+        ? `directly connected via ${iface.name}`
+        : `${r.route.protocol} route ${formatIpv4(r.route.network)}/${r.route.prefixLen} via ${formatIpv4(r.nextHop)} (${iface.name})`;
+    this.trace(flowId, {
+      deviceId,
+      iface: iface.name,
+      action: o.originated ? 'send' : 'forward',
+      table: 'Routing table',
+      detail: `${formatIpv4(pkt.dst)}: ${via}${o.originated ? '' : `, TTL now ${pkt.ttl}`}.`,
+    });
 
     if (!o.originated && o.ingress) {
       // NAT inside → outside happens after routing (IOS order of operations).
@@ -1866,11 +2773,55 @@ export class Sim {
       }
     }
 
+    // MPLS imposition (FTN): push the label learned from the next hop's LSR for this prefix.
+    const ftn = this.ldp.lfib.find(
+      (e) =>
+        e.deviceId === deviceId &&
+        e.network === r.route.network &&
+        e.prefixLen === r.route.prefixLen &&
+        e.nextHop === r.nextHop &&
+        e.iface === iface.name,
+    );
+    let mpls: MplsLabel[] | undefined;
+    if (ftn && typeof ftn.out === 'number') {
+      const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
+      mpls = [{ label: ftn.out, tc: pkt.dscp >> 3, ttl: propagate ? pkt.ttl : 255 }];
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'forward',
+        table: 'LFIB',
+        detail: `MPLS push: label ${ftn.out} for FEC ${formatIpv4(ftn.network)}/${ftn.prefixLen} (learned by LDP from the next hop)${propagate ? '' : ', label TTL 255 (no propagate-ttl)'}.`,
+      });
+    }
+    this.sendToNextHop(deviceId, iface, r.nextHop, pkt, mpls, flowId, o.originated);
+  }
+
+  /** ARP resolution + transmission towards a next hop (shared by IP routing and label switching). */
+  private sendToNextHop(
+    deviceId: string,
+    iface: L3Interface,
+    nextHop: number,
+    pkt: Ipv4Packet,
+    mpls: MplsLabel[] | undefined,
+    flowId: number,
+    originated: boolean,
+  ): void {
+    if (iface.ip === undefined) {
+      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'Interface', detail: `${iface.name} has no IP address.` });
+      return;
+    }
+    const r = { nextHop };
+    const o = { originated };
     const rt = this.rt(deviceId);
     const arp = rt.arp.get(r.nextHop);
     if (arp && arp.iface === iface.name && this.now - arp.at <= ARP_TIMEOUT_MS) {
-      const frame: Frame = { srcMac: iface.mac, dstMac: arp.mac, payload: pkt, flowId };
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'send', table: 'ARP cache', detail: `Next hop ${formatIpv4(r.nextHop)} is at ${arp.mac}.` }, frame);
+      const frame: Frame = { srcMac: iface.mac, dstMac: arp.mac, payload: pkt, flowId, mpls };
+      this.trace(
+        flowId,
+        { deviceId, iface: iface.name, action: 'send', table: 'ARP cache', detail: `Next hop ${formatIpv4(r.nextHop)} is at ${arp.mac}.` },
+        frame,
+      );
       this.sendOnIface(deviceId, iface, frame);
       return;
     }
@@ -1888,18 +2839,40 @@ export class Sim {
         flowId: arpFlow,
         payload: { kind: 'arp', op: 'request', senderMac: iface.mac, senderIp: iface.ip, targetMac: '00:00:00:00:00:00', targetIp: r.nextHop },
       };
-      this.trace(arpFlow, { deviceId, iface: iface.name, action: 'send', table: 'ARP cache', detail: `ARP request: who has ${formatIpv4(r.nextHop)}? Tell ${formatIpv4(iface.ip)}.` }, req);
+      this.trace(
+        arpFlow,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'send',
+          table: 'ARP cache',
+          detail: `ARP request: who has ${formatIpv4(r.nextHop)}? Tell ${formatIpv4(iface.ip)}.`,
+        },
+        req,
+      );
       rt.pending.set(r.nextHop, { iface: iface.name, requestedAt: this.now, queue: routing ? [] : (pend?.queue ?? []) });
       this.queue.push(this.now + ARP_QUEUE_HOLD_MS, { type: 'arp-expire', deviceId, ip: r.nextHop });
       this.sendOnIface(deviceId, iface, req);
     }
     if (routing) {
       // IOS drops the packet that triggers ARP resolution (the familiar ".!!!!").
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'ARP cache', detail: `ARP entry for ${formatIpv4(r.nextHop)} incomplete — packet dropped (router behaviour).` });
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'drop',
+        table: 'ARP cache',
+        detail: `ARP entry for ${formatIpv4(r.nextHop)} incomplete — packet dropped (router behaviour).`,
+      });
     } else {
       const p = rt.pending.get(r.nextHop)!;
-      if (p.queue.length < 5) p.queue.push({ pkt, flowId });
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'queue', table: 'ARP cache', detail: `Waiting for ARP reply for ${formatIpv4(r.nextHop)} — packet queued.` });
+      if (p.queue.length < 5) p.queue.push({ pkt, flowId, mpls, iface: iface.name });
+      this.trace(flowId, {
+        deviceId,
+        iface: iface.name,
+        action: 'queue',
+        table: 'ARP cache',
+        detail: `Waiting for ARP reply for ${formatIpv4(r.nextHop)} — packet queued.`,
+      });
     }
   }
 
@@ -1908,7 +2881,11 @@ export class Sim {
     const pend = rt.pending.get(ip);
     if (!pend) return;
     rt.pending.delete(ip);
-    for (const q of pend.queue) this.routeAndSend(deviceId, q.pkt, q.flowId, { originated: true });
+    for (const q of pend.queue) {
+      const out = q.iface ? this.interfaces(deviceId).find((i) => i.name === q.iface && i.up) : undefined;
+      if (q.mpls && out) this.sendToNextHop(deviceId, out, ip, q.pkt, q.mpls, q.flowId, true);
+      else this.routeAndSend(deviceId, q.pkt, q.flowId, { originated: true });
+    }
   }
 }
 
@@ -1917,13 +2894,16 @@ export class Sim {
 // ---------------------------------------------------------------------------
 
 export function viewFrame(f: Frame): FrameView {
-  const base = { srcMac: f.srcMac, dstMac: f.dstMac, vlanTag: f.vlanTag, etherType: etherTypeOf(f) };
+  const base = { srcMac: f.srcMac, dstMac: f.dstMac, vlanTag: f.vlanTag, etherType: etherTypeOf(f), mpls: f.mpls?.map((l) => ({ ...l })) };
   const p = f.payload;
   if (p.kind === 'arp') {
     const a = p as ArpPacket;
     return {
       ...base,
-      summary: a.op === 'request' ? `ARP who-has ${formatIpv4(a.targetIp)} tell ${formatIpv4(a.senderIp)}` : `ARP ${formatIpv4(a.senderIp)} is-at ${a.senderMac}`,
+      summary:
+        a.op === 'request'
+          ? `ARP who-has ${formatIpv4(a.targetIp)} tell ${formatIpv4(a.senderIp)}`
+          : `ARP ${formatIpv4(a.senderIp)} is-at ${a.senderMac}`,
       arp: { op: a.op, senderMac: a.senderMac, senderIp: formatIpv4(a.senderIp), targetMac: a.targetMac, targetIp: formatIpv4(a.targetIp) },
     };
   }
@@ -1938,13 +2918,15 @@ export function viewFrame(f: Frame): FrameView {
       : `UDP ${ip.udp?.srcPort} → ${ip.udp?.dstPort}${dhcp ? ` DHCP ${dhcp.op.toUpperCase()} xid=0x${dhcp.xid.toString(16)}${dhcp.yiaddr !== undefined ? ` yiaddr=${formatIpv4(dhcp.yiaddr)}` : ''}${dhcp.giaddr ? ` giaddr=${formatIpv4(dhcp.giaddr)}` : ''}` : ''}${appText ? ` ${appText}` : ''}`;
   return {
     ...base,
-    summary: ip.icmp
-      ? `ICMP ${ip.icmp.type} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)} TTL ${ip.ttl}`
-      : ip.tcp
-        ? `${ip.tcp.dstPort === 22 || ip.tcp.srcPort === 22 ? 'SSH' : ip.tcp.dstPort === 23 || ip.tcp.srcPort === 23 ? 'Telnet' : 'TCP'} ${ip.tcp.flags} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`
-        : app
-          ? `${appText} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`
-          : `DHCP ${dhcp?.op.toUpperCase() ?? 'UDP'} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`,
+    summary:
+      (f.mpls?.length ? `MPLS [${f.mpls.map((l) => l.label).join('/')}] ` : '') +
+      (ip.icmp
+        ? `ICMP ${ip.icmp.type} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)} TTL ${ip.ttl}`
+        : ip.tcp
+          ? `${ip.tcp.dstPort === 22 || ip.tcp.srcPort === 22 ? 'SSH' : ip.tcp.dstPort === 23 || ip.tcp.srcPort === 23 ? 'Telnet' : 'TCP'} ${ip.tcp.flags} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`
+          : app
+            ? `${appText} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`
+            : `DHCP ${dhcp?.op.toUpperCase() ?? 'UDP'} ${formatIpv4(ip.src)} → ${formatIpv4(ip.dst)}`),
     ip: {
       src: formatIpv4(ip.src),
       dst: formatIpv4(ip.dst),
@@ -1975,5 +2957,9 @@ function describeApp(a: AppMessage): string {
       return `Syslog "${a.text}"`;
     case 'snmp-trap':
       return `SNMP trap (community ${a.community}) "${a.text}"`;
+    case 'mpls-echo-request':
+      return `MPLS echo request (LSP ping) FEC ${a.fec}`;
+    case 'mpls-echo-reply':
+      return `MPLS echo reply, return code ${a.code}${a.info ? ` (${a.info})` : ''}`;
   }
 }

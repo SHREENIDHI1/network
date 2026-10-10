@@ -1,5 +1,15 @@
 import type { Device } from '../../model/types';
-import { effectivePort, isBridgeRole, isSubinterface, longIfName, loopbackId, portChannelId, roleOf, sviVlan, type NetConfig } from '../config/netConfig';
+import {
+  effectivePort,
+  isBridgeRole,
+  isSubinterface,
+  longIfName,
+  loopbackId,
+  portChannelId,
+  roleOf,
+  sviVlan,
+  type NetConfig,
+} from '../config/netConfig';
 import { ciscoMac } from '../core/mac';
 import { formatBridgeId } from '../ethernet/stp';
 import { formatIpv4, prefixToMask } from '../ip/ipv4';
@@ -82,7 +92,9 @@ export function runningConfig(device: Device, cfg: NetConfig, header = 'Current 
     L.push('spanning-tree mode rapid-pvst');
     if (cfg.stpPriority !== 32768) L.push(`spanning-tree vlan 1-4094 priority ${cfg.stpPriority}`);
     L.push('!');
-    for (const id of Object.keys(cfg.vlans).map(Number).sort((a, b) => a - b)) {
+    for (const id of Object.keys(cfg.vlans)
+      .map(Number)
+      .sort((a, b) => a - b)) {
       if (id === 1) continue;
       L.push(`vlan ${id}`, ` name ${cfg.vlans[String(id)].name}`, '!');
     }
@@ -123,7 +135,9 @@ export function runningConfig(device: Device, cfg: NetConfig, header = 'Current 
   }
   L.push(...globalLinesAfterInterfaces(cfg));
   for (const r of cfg.staticRoutes) {
-    L.push(`ip route ${r.prefix} ${r.mask}${r.exitInterface ? ` ${longIfName(r.exitInterface)}` : ''}${r.nextHop ? ` ${r.nextHop}` : ''}${r.distance ? ` ${r.distance}` : ''}`);
+    L.push(
+      `ip route ${r.prefix} ${r.mask}${r.exitInterface ? ` ${longIfName(r.exitInterface)}` : ''}${r.nextHop ? ` ${r.nextHop}` : ''}${r.distance ? ` ${r.distance}` : ''}`,
+    );
   }
   if (cfg.defaultGateway) L.push(`ip default-gateway ${cfg.defaultGateway}`);
   L.push('!', 'end');
@@ -173,7 +187,13 @@ export function showInterface(sim: Sim, device: Device, name: string): string {
     const st = sim.phys.ports.get(portKey(device.id, name))!;
     const ed = sim.isErrDisabled(device.id, name);
     const status = !st.adminUp ? 'administratively down' : st.operUp ? 'up' : 'down';
-    const extra = ed ? ' (err-disabled)' : isBridgeRole(role) && effectivePort(role, ic).switchport ? (st.operUp ? ' (connected)' : ' (notconnect)') : '';
+    const extra = ed
+      ? ' (err-disabled)'
+      : isBridgeRole(role) && effectivePort(role, ic).switchport
+        ? st.operUp
+          ? ' (connected)'
+          : ' (notconnect)'
+        : '';
     L.push(`${longIfName(name)} is ${status}, line protocol is ${st.operUp ? 'up' : 'down'}${extra}`);
     const idx = device.ports.indexOf(port);
     const mac = l3?.mac ?? `02:00:00:00:00:${idx.toString(16).padStart(2, '0')}`;
@@ -197,7 +217,9 @@ export function showInterface(sim: Sim, device: Device, name: string): string {
     const b = sim.etherChannels(device.id).find((x) => x.name === name);
     const admin = !ic?.shutdown;
     const up = admin && !!b?.up;
-    L.push(`${longIfName(name)} is ${!admin ? 'administratively down' : up ? 'up' : 'down'}, line protocol is ${up ? 'up' : 'down'}${up ? ' (connected)' : ''}`);
+    L.push(
+      `${longIfName(name)} is ${!admin ? 'administratively down' : up ? 'up' : 'down'}, line protocol is ${up ? 'up' : 'down'}${up ? ' (connected)' : ''}`,
+    );
     L.push('  Hardware is EtherChannel');
     if (ic?.description) L.push(`  Description: ${ic.description}`);
     if (b) {
@@ -207,7 +229,11 @@ export function showInterface(sim: Sim, device: Device, name: string): string {
     } else L.push('  No member ports configured');
   } else if (l3) {
     L.push(`${longIfName(name)} is ${!l3.adminUp ? 'administratively down' : l3.up ? 'up' : 'down'}, line protocol is ${l3.up ? 'up' : 'down'}`);
-    L.push(l3.kind === 'loop' ? '  Hardware is Loopback' : `  Hardware is ${l3.kind === 'svi' ? 'Ethernet SVI' : 'Gigabit Ethernet subinterface'}, address is ${ciscoMac(l3.mac)}`);
+    L.push(
+      l3.kind === 'loop'
+        ? '  Hardware is Loopback'
+        : `  Hardware is ${l3.kind === 'svi' ? 'Ethernet SVI' : 'Gigabit Ethernet subinterface'}, address is ${ciscoMac(l3.mac)}`,
+    );
     if (ic?.description) L.push(`  Description: ${ic.description}`);
     if (l3.ip !== undefined) L.push(`  Internet address is ${formatIpv4(l3.ip)}/${l3.prefixLen}`);
     if (l3.kind === 'sub') L.push(`  Encapsulation 802.1Q Virtual LAN, Vlan ID  ${l3.vlan ?? '-'}${l3.native ? ' (native)' : ''}.`);
@@ -227,7 +253,9 @@ export function showInterfacesStatus(sim: Sim, device: Device): string {
     const status = sim.isErrDisabled(device.id, p.id) ? 'err-disabled' : !st.adminUp ? 'disabled' : st.operUp ? 'connected' : 'notconnect';
     const vlan = !eff.switchport ? 'routed' : eff.mode === 'trunk' ? 'trunk' : String(eff.accessVlan);
     const speed = st.operUp ? (st.speedGbps >= 1 ? `a-${st.speedGbps}G` : 'a-100') : 'auto';
-    L.push(`${pad(p.name, 10)}${pad((ic?.description ?? '').slice(0, 18), 19)}${pad(status, 13)}${pad(vlan, 11)}${pad(st.operUp ? `${ic?.duplex && ic.duplex !== 'auto' ? '' : 'a-'}${st.duplex}` : 'auto', 7)}${pad(speed, 7)}${p.kind === 'sfp' ? 'SFP' : '10/100/1000BaseTX'}`);
+    L.push(
+      `${pad(p.name, 10)}${pad((ic?.description ?? '').slice(0, 18), 19)}${pad(status, 13)}${pad(vlan, 11)}${pad(st.operUp ? `${ic?.duplex && ic.duplex !== 'auto' ? '' : 'a-'}${st.duplex}` : 'auto', 7)}${pad(speed, 7)}${p.kind === 'sfp' ? 'SFP' : '10/100/1000BaseTX'}`,
+    );
   }
   return L.join('\n');
 }
@@ -240,7 +268,9 @@ export function showVlanBrief(sim: Sim, device: Device): string {
   const role = roleOf(device.kind);
   const cfg = sim.config(device.id)!;
   const L = [`${pad('VLAN', 5)}${pad('Name', 33)}${pad('Status', 10)}Ports`, `${'-'.repeat(4)} ${'-'.repeat(32)} ${'-'.repeat(9)} ${'-'.repeat(31)}`];
-  for (const id of Object.keys(cfg.vlans).map(Number).sort((a, b) => a - b)) {
+  for (const id of Object.keys(cfg.vlans)
+    .map(Number)
+    .sort((a, b) => a - b)) {
     const ports = device.ports
       .filter((p) => {
         const e = effectivePort(role, cfg.interfaces[p.id]);
@@ -265,7 +295,13 @@ export function showVlanBrief(sim: Sim, device: Device): string {
 
 export function showMacTable(sim: Sim, device: Device): string {
   const rows = sim.macTable(device.id);
-  const L = ['          Mac Address Table', '-------------------------------------------', '', `${pad('Vlan', 8)}${pad('Mac Address', 18)}${pad('Type', 12)}Ports`, `${pad('----', 8)}${pad('-----------', 18)}${pad('--------', 12)}-----`];
+  const L = [
+    '          Mac Address Table',
+    '-------------------------------------------',
+    '',
+    `${pad('Vlan', 8)}${pad('Mac Address', 18)}${pad('Type', 12)}Ports`,
+    `${pad('----', 8)}${pad('-----------', 18)}${pad('--------', 12)}-----`,
+  ];
   for (const r of rows) L.push(`${lpad(r.vlan, 4)}    ${pad(ciscoMac(r.mac), 18)}${pad(r.type, 12)}${r.port}`);
   L.push(`Total Mac Addresses for this criterion: ${rows.length}`);
   return L.join('\n');
@@ -295,7 +331,8 @@ export function showTrunks(sim: Sim, device: Device): string {
     return a === 'all' ? ids : a.filter((v) => ids.includes(v));
   };
   const L = [`${pad('Port', 12)}${pad('Mode', 13)}${pad('Encapsulation', 15)}${pad('Status', 14)}Native vlan`];
-  for (const p of trunks) L.push(`${pad(p.name, 12)}${pad('on', 13)}${pad('802.1q', 15)}${pad('trunking', 14)}${effectivePort(role, cfg.interfaces[p.id]).nativeVlan}`);
+  for (const p of trunks)
+    L.push(`${pad(p.name, 12)}${pad('on', 13)}${pad('802.1q', 15)}${pad('trunking', 14)}${effectivePort(role, cfg.interfaces[p.id]).nativeVlan}`);
   L.push('', `${pad('Port', 12)}Vlans allowed on trunk`);
   for (const p of trunks) L.push(`${pad(p.name, 12)}${formatVlanList(allowed(p.id))}`);
   L.push('', `${pad('Port', 12)}Vlans allowed and active in management domain`);
@@ -331,7 +368,9 @@ export function showPortSecurity(sim: Sim, device: Device, port?: string): strin
   for (const p of device.ports) {
     const ps = cfg.interfaces[p.id]?.portSecurity;
     if (!ps?.enabled) continue;
-    L.push(`${lpad(p.name, 11)}${lpad(ps.maximum, 15)}${lpad(sim.secureMacs(device.id, p.id).length, 13)}${lpad(sim.violationCount(device.id, p.id), 19)}         ${ps.violation[0].toUpperCase() + ps.violation.slice(1)}`);
+    L.push(
+      `${lpad(p.name, 11)}${lpad(ps.maximum, 15)}${lpad(sim.secureMacs(device.id, p.id).length, 13)}${lpad(sim.violationCount(device.id, p.id), 19)}         ${ps.violation[0].toUpperCase() + ps.violation.slice(1)}`,
+    );
   }
   L.push('---------------------------------------------------------------------------');
   return L.join('\n');
@@ -352,7 +391,9 @@ export function showSpanningTree(sim: Sim, device: Device): string {
     br.isRoot ? '             This bridge is the root' : `             Cost        ${br.rootCost}`,
     ...(br.isRoot
       ? []
-      : [`             Port        ${rootPort?.portNumber ?? '-'} (${longIfName(sim.ec.logical.get(portKey(device.id, br.rootPortId ?? '')) ?? br.rootPortId ?? '')})`]),
+      : [
+          `             Port        ${rootPort?.portNumber ?? '-'} (${longIfName(sim.ec.logical.get(portKey(device.id, br.rootPortId ?? '')) ?? br.rootPortId ?? '')})`,
+        ]),
     '             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec',
     '',
     `  Bridge ID  Priority    ${br.bridgeId.priority}`,
@@ -364,7 +405,9 @@ export function showSpanningTree(sim: Sim, device: Device): string {
   for (const p of ports) {
     const po = sim.ec.logical.get(portKey(device.id, p.portId));
     if (po && sim.etherChannels(device.id).find((b) => b.name === po)?.primary !== p.portId) continue;
-    L.push(`${pad(po ?? p.portId, 20)}${pad(STP_ROLE[p.role], 5)}${pad(p.state === 'forwarding' ? 'FWD' : 'BLK', 4)}${pad(p.cost, 10)}${pad(`${p.portPriority}.${p.portNumber}`, 9)}P2p${p.edge ? ' Edge' : ''}`);
+    L.push(
+      `${pad(po ?? p.portId, 20)}${pad(STP_ROLE[p.role], 5)}${pad(p.state === 'forwarding' ? 'FWD' : 'BLK', 4)}${pad(p.cost, 10)}${pad(`${p.portPriority}.${p.portNumber}`, 9)}P2p${p.edge ? ' Edge' : ''}`,
+    );
   }
   L.push('', `(Bridge ID ${formatBridgeId(br.bridgeId)})`);
   return L.join('\n');
@@ -384,7 +427,12 @@ export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: str
   const table = sim.routingTable(device.id).filter((r) => !only || only(r));
   if (!routesPackets(device.kind, cfg)) {
     const gw = table.find((r) => r.isGateway);
-    return [`Default gateway is ${gw ? formatIpv4(gw.nextHop!) : cfg.defaultGateway ?? 'not set'}`, '', 'Host               Gateway           Last Use    Total Uses  Interface', 'ICMP redirect cache is empty'].join('\n');
+    return [
+      `Default gateway is ${gw ? formatIpv4(gw.nextHop!) : (cfg.defaultGateway ?? 'not set')}`,
+      '',
+      'Host               Gateway           Last Use    Total Uses  Interface',
+      'ICMP redirect cache is empty',
+    ].join('\n');
   }
   const L = [
     'Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP',
@@ -396,7 +444,12 @@ export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: str
     '',
   ];
   const def = table.find((r) => r.prefixLen === 0);
-  L.push(def ? `Gateway of last resort is ${def.nextHop !== undefined ? formatIpv4(def.nextHop) : 'directly connected'} to network 0.0.0.0` : 'Gateway of last resort is not set', '');
+  L.push(
+    def
+      ? `Gateway of last resort is ${def.nextHop !== undefined ? formatIpv4(def.nextHop) : 'directly connected'} to network 0.0.0.0`
+      : 'Gateway of last resort is not set',
+    '',
+  );
   const line = (r: (typeof table)[number], indent: string) => {
     const star = r.prefixLen === 0 ? '*' : '';
     const code = r.protocol === 'O E2' ? `O${star}E2` : r.protocol.startsWith('i ') && star ? `i*${r.protocol.slice(2)}` : `${r.protocol}${star}`;
@@ -405,7 +458,9 @@ export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: str
     if (r.protocol === 'C' || r.protocol === 'L') return `${head}${pfx} is directly connected, ${longIfName(r.iface!)}`;
     if (r.paths && r.paths.length) {
       const first = `${head}${pfx} [${r.ad}/${r.metric}] via ${formatIpv4(r.paths[0].nextHop)}, ${longIfName(r.paths[0].iface)}`;
-      const more = r.paths.slice(1).map((p) => `${' '.repeat(head.length + pfx.length + 1)}[${r.ad}/${r.metric}] via ${formatIpv4(p.nextHop)}, ${longIfName(p.iface)}`);
+      const more = r.paths
+        .slice(1)
+        .map((p) => `${' '.repeat(head.length + pfx.length + 1)}[${r.ad}/${r.metric}] via ${formatIpv4(p.nextHop)}, ${longIfName(p.iface)}`);
       return [first, ...more].join('\n');
     }
     const via = r.nextHop !== undefined ? `via ${formatIpv4(r.nextHop)}` : 'is directly connected';
@@ -425,7 +480,11 @@ export function showIpRoute(sim: Sim, device: Device, only?: (r: { protocol: str
   for (const r of top) L.push(line(r, '      '));
   for (const [major, rs] of groups) {
     const masks = new Set(rs.map((r) => r.prefixLen));
-    L.push(masks.size === 1 ? `      ${major.split('/')[0]}/${[...masks][0]} is subnetted, ${rs.length} subnets` : `      ${major} is variably subnetted, ${rs.length} subnets, ${masks.size} masks`);
+    L.push(
+      masks.size === 1
+        ? `      ${major.split('/')[0]}/${[...masks][0]} is subnetted, ${rs.length} subnets`
+        : `      ${major} is variably subnetted, ${rs.length} subnets, ${masks.size} masks`,
+    );
     for (const r of rs) L.push(line(r, '         '));
   }
   return L.join('\n');
@@ -437,7 +496,8 @@ export function showArp(sim: Sim, device: Device): string {
   for (const i of sim.interfaces(device.id)) if (i.ip !== undefined && i.up) rows.push([i.ip, '-', i.mac, i.name]);
   for (const a of sim.arpTable(device.id)) rows.push([a.ip, String(Math.floor(a.ageMs / 60000)), a.mac, a.iface]);
   rows.sort((a, b) => a[0] - b[0]);
-  for (const [ip, age, mac, ifn] of rows) L.push(`${pad('Internet', 10)}${pad(formatIpv4(ip), 17)}${lpad(age, 9)}  ${pad(ciscoMac(mac), 16)}${pad('ARPA', 7)}${longIfName(ifn)}`);
+  for (const [ip, age, mac, ifn] of rows)
+    L.push(`${pad('Internet', 10)}${pad(formatIpv4(ip), 17)}${lpad(age, 9)}  ${pad(ciscoMac(mac), 16)}${pad('ARPA', 7)}${longIfName(ifn)}`);
   return L.join('\n');
 }
 
@@ -448,15 +508,22 @@ export function showArp(sim: Sim, device: Device): string {
 const ms = (x?: number) => Math.max(1, Math.ceil(x ?? 0));
 
 export function iosPingOutput(s: ProbeSession): string {
-  const L = ['Type escape sequence to abort.', `Sending ${s.count}, ${s.sizeBytes}-byte ICMP Echos to ${formatIpv4(s.dst)}, timeout is ${s.timeoutMs / 1000} seconds:`];
+  const L = [
+    'Type escape sequence to abort.',
+    `Sending ${s.count}, ${s.sizeBytes}-byte ICMP Echos to ${formatIpv4(s.dst)}, timeout is ${s.timeoutMs / 1000} seconds:`,
+  ];
   if (s.error) return [...L, `% ${s.error}`].join('\n');
-  const sym = s.probes.map((p) => (p.outcome === 'reply' ? '!' : p.outcome === 'unreachable' ? 'U' : p.outcome === 'ttl-exceeded' ? '&' : '.')).join('');
+  const sym = s.probes
+    .map((p) => (p.outcome === 'reply' ? '!' : p.outcome === 'unreachable' ? 'U' : p.outcome === 'ttl-exceeded' ? '&' : '.'))
+    .join('');
   L.push(sym);
   const ok = s.probes.filter((p) => p.outcome === 'reply');
   const pct = Math.round((ok.length / Math.max(1, s.count)) * 100);
   if (ok.length) {
     const r = ok.map((p) => ms(p.rttMs));
-    L.push(`Success rate is ${pct} percent (${ok.length}/${s.count}), round-trip min/avg/max = ${Math.min(...r)}/${Math.round(r.reduce((a, b) => a + b, 0) / r.length)}/${Math.max(...r)} ms`);
+    L.push(
+      `Success rate is ${pct} percent (${ok.length}/${s.count}), round-trip min/avg/max = ${Math.min(...r)}/${Math.round(r.reduce((a, b) => a + b, 0) / r.length)}/${Math.max(...r)} ms`,
+    );
   } else L.push(`Success rate is 0 percent (0/${s.count})`);
   return L.join('\n');
 }
@@ -467,8 +534,18 @@ export function iosTraceOutput(s: ProbeSession): string {
   for (let h = 0; h * s.probesPerHop < s.probes.length; h++) {
     const ps = s.probes.slice(h * s.probesPerHop, (h + 1) * s.probesPerHop);
     const from = ps.find((p) => p.from !== undefined)?.from;
-    const cells = ps.map((p) => (p.outcome === 'timeout' || p.outcome === 'no-route' || p.outcome === 'pending' ? '*' : p.outcome === 'unreachable' ? `${ms(p.rttMs)} msec !${p.code === 'host-unreachable' ? 'H' : p.code === 'admin-prohibited' ? 'A' : 'N'}` : `${ms(p.rttMs)} msec`));
-    L.push(`${lpad(h + 1, 3)} ${from !== undefined ? `${formatIpv4(from)} ` : ''}${cells.join(' ')}`);
+    const cells = ps.map((p) =>
+      p.outcome === 'timeout' || p.outcome === 'no-route' || p.outcome === 'pending'
+        ? '*'
+        : p.outcome === 'unreachable'
+          ? `${ms(p.rttMs)} msec !${p.code === 'host-unreachable' ? 'H' : p.code === 'admin-prohibited' ? 'A' : 'N'}`
+          : `${ms(p.rttMs)} msec`,
+    );
+    const labels = ps.find((p) => p.labels?.length)?.labels;
+    const mpls = labels
+      ? `[MPLS: ${labels.length > 1 ? 'Labels' : 'Label'} ${labels.map((l) => l.label).join('/')} Exp ${labels.map((l) => l.exp).join('/')}] `
+      : '';
+    L.push(`${lpad(h + 1, 3)} ${from !== undefined ? `${formatIpv4(from)} ` : ''}${mpls}${cells.join(' ')}`);
   }
   return L.join('\n');
 }
@@ -477,16 +554,28 @@ export function windowsPingOutput(s: ProbeSession): string {
   const L = ['', `Pinging ${formatIpv4(s.dst)} with ${s.sizeBytes} bytes of data:`];
   if (s.error) return [...L, s.error].join('\n');
   for (const p of s.probes) {
-    if (p.outcome === 'reply') L.push(`Reply from ${formatIpv4(p.from!)}: bytes=${s.sizeBytes} time${(p.rttMs ?? 0) < 1 ? '<1ms' : `=${Math.round(p.rttMs!)}ms`} TTL=${p.replyTtl ?? 128}`);
-    else if (p.outcome === 'unreachable') L.push(`Reply from ${formatIpv4(p.from!)}: Destination ${p.code === 'host-unreachable' ? 'host' : 'net'} unreachable.`);
+    if (p.outcome === 'reply')
+      L.push(
+        `Reply from ${formatIpv4(p.from!)}: bytes=${s.sizeBytes} time${(p.rttMs ?? 0) < 1 ? '<1ms' : `=${Math.round(p.rttMs!)}ms`} TTL=${p.replyTtl ?? 128}`,
+      );
+    else if (p.outcome === 'unreachable')
+      L.push(`Reply from ${formatIpv4(p.from!)}: Destination ${p.code === 'host-unreachable' ? 'host' : 'net'} unreachable.`);
     else if (p.outcome === 'ttl-exceeded') L.push(`Reply from ${formatIpv4(p.from!)}: TTL expired in transit.`);
     else if (p.outcome === 'no-route') L.push('PING: transmit failed. General failure.');
     else L.push('Request timed out.');
   }
   const recv = s.probes.filter((p) => p.outcome === 'reply' || p.outcome === 'unreachable' || p.outcome === 'ttl-exceeded').length;
-  L.push('', `Ping statistics for ${formatIpv4(s.dst)}:`, `    Packets: Sent = ${s.count}, Received = ${recv}, Lost = ${s.count - recv} (${Math.round(((s.count - recv) / s.count) * 100)}% loss),`);
+  L.push(
+    '',
+    `Ping statistics for ${formatIpv4(s.dst)}:`,
+    `    Packets: Sent = ${s.count}, Received = ${recv}, Lost = ${s.count - recv} (${Math.round(((s.count - recv) / s.count) * 100)}% loss),`,
+  );
   const ok = s.probes.filter((p) => p.outcome === 'reply').map((p) => Math.round(p.rttMs ?? 0));
-  if (ok.length) L.push('Approximate round trip times in milli-seconds:', `    Minimum = ${Math.min(...ok)}ms, Maximum = ${Math.max(...ok)}ms, Average = ${Math.round(ok.reduce((a, b) => a + b, 0) / ok.length)}ms`);
+  if (ok.length)
+    L.push(
+      'Approximate round trip times in milli-seconds:',
+      `    Minimum = ${Math.min(...ok)}ms, Maximum = ${Math.max(...ok)}ms, Average = ${Math.round(ok.reduce((a, b) => a + b, 0) / ok.length)}ms`,
+    );
   return L.join('\n');
 }
 
@@ -496,7 +585,11 @@ export function windowsTraceOutput(s: ProbeSession): string {
   for (let h = 0; h * s.probesPerHop < s.probes.length; h++) {
     const ps = s.probes.slice(h * s.probesPerHop, (h + 1) * s.probesPerHop);
     const from = ps.find((p) => p.from !== undefined)?.from;
-    const cells = ps.map((p) => (p.outcome === 'reply' || p.outcome === 'ttl-exceeded' || p.outcome === 'unreachable' ? lpad((p.rttMs ?? 0) < 1 ? '<1 ms' : `${Math.round(p.rttMs!)} ms`, 8) : lpad('*', 8)));
+    const cells = ps.map((p) =>
+      p.outcome === 'reply' || p.outcome === 'ttl-exceeded' || p.outcome === 'unreachable'
+        ? lpad((p.rttMs ?? 0) < 1 ? '<1 ms' : `${Math.round(p.rttMs!)} ms`, 8)
+        : lpad('*', 8),
+    );
     L.push(`${lpad(h + 1, 3)} ${cells.join(' ')}  ${from !== undefined ? formatIpv4(from) : 'Request timed out.'}`);
   }
   L.push('', 'Trace complete.');

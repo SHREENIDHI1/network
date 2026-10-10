@@ -24,6 +24,8 @@ export interface IcmpMessage {
   seq: number;
   /** For errors: the code (e.g. 'net-unreachable', 'host-unreachable', 'ttl-exceeded'). */
   code?: string;
+  /** RFC 4950 extension: label stack of the packet whose TTL expired in an LSP. */
+  mplsLabels?: Array<{ label: number; exp: number }>;
 }
 
 export type DhcpOp = 'discover' | 'offer' | 'request' | 'ack' | 'nak' | 'release';
@@ -53,7 +55,11 @@ export type AppMessage =
   | { kind: 'ntp-request'; id: number }
   | { kind: 'ntp-reply'; id: number; stratum: number }
   | { kind: 'syslog'; text: string }
-  | { kind: 'snmp-trap'; community: string; text: string };
+  | { kind: 'snmp-trap'; community: string; text: string }
+  /** RFC 8029 LSP ping / trace (UDP 3503). fec = "A.B.C.D/len". */
+  | { kind: 'mpls-echo-request'; id: number; seq: number; fec: string }
+  /** code: '!' egress, 'L' label-switched transit, 'B' unlabelled output, 'N' no label entry, 'f' FEC mismatch. */
+  | { kind: 'mpls-echo-reply'; id: number; seq: number; code: string; info: string };
 
 export interface UdpDatagram {
   srcPort: number;
@@ -91,18 +97,28 @@ export interface Ipv4Packet {
   sizeBytes: number;
 }
 
+/** One MPLS label stack entry (RFC 3032): 20-bit label, 3-bit TC (EXP), 8-bit TTL; S bit = last entry. */
+export interface MplsLabel {
+  label: number;
+  tc: number;
+  ttl: number;
+}
+
 export interface Frame {
   srcMac: string;
   dstMac: string;
   /** 802.1Q VLAN tag when the frame is tagged on the wire. */
   vlanTag?: number;
+  /** MPLS label stack (top first) between the Ethernet header and the IP packet. */
+  mpls?: MplsLabel[];
   payload: ArpPacket | Ipv4Packet;
   /** Packet-inspector flow this frame belongs to. */
   flowId: number;
 }
 
-export type EtherType = 'ARP (0x0806)' | 'IPv4 (0x0800)';
+export type EtherType = 'ARP (0x0806)' | 'IPv4 (0x0800)' | 'MPLS unicast (0x8847)';
 
 export function etherTypeOf(f: Frame): EtherType {
+  if (f.mpls?.length) return 'MPLS unicast (0x8847)';
   return f.payload.kind === 'arp' ? 'ARP (0x0806)' : 'IPv4 (0x0800)';
 }

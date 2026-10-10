@@ -325,6 +325,7 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
   if (ic.aclOut) L.push(` ip access-group ${ic.aclOut} out`);
   if (ic.natRole) L.push(` ip nat ${ic.natRole}`);
   if (ic.isisEnabled) L.push(' ip router isis');
+  if (ic.mplsIp) L.push(' mpls ip');
   if (ic.isisMetric) L.push(` isis metric ${ic.isisMetric}`);
   if (ic.isisCircuitType && ic.isisCircuitType !== 'level-1-2') L.push(` isis circuit-type ${ic.isisCircuitType}`);
   if (ic.ospfCost) L.push(` ip ospf cost ${ic.ospfCost}`);
@@ -354,6 +355,13 @@ export function globalLinesBeforeInterfaces(cfg: NetConfig): string[] {
   if (m.dnsServer) L.push('ip dns server');
   if (m.sshVersion) L.push(`ip ssh version ${m.sshVersion}`);
   if (L.length) L.push('!');
+  const mp = cfg.mpls;
+  if (mp.ldpRouterId || mp.explicitNull || !mp.propagateTtl) {
+    if (!mp.propagateTtl) L.push('no mpls ip propagate-ttl');
+    if (mp.explicitNull) L.push('mpls ldp explicit-null');
+    if (mp.ldpRouterId) L.push(`mpls ldp router-id ${longIfName(mp.ldpRouterId)} force`);
+    L.push('!');
+  }
   for (const r of cfg.dhcp.excluded) L.push(`ip dhcp excluded-address ${r.from}${r.to !== r.from ? ` ${r.to}` : ''}`);
   for (const [n, p] of Object.entries(cfg.dhcp.pools)) {
     L.push(`ip dhcp pool ${n}`);
@@ -394,6 +402,8 @@ export function globalLinesAfterInterfaces(cfg: NetConfig): string[] {
     for (const n of o.networks) L.push(` network ${n.address} ${n.wildcard} area ${n.area}`);
     if (o.redistributeStatic) L.push(' redistribute static subnets');
     if (o.defaultOriginate !== 'off') L.push(` default-information originate${o.defaultOriginate === 'always' ? ' always' : ''}`);
+    if (o.ldpSync) L.push(' mpls ldp sync');
+    if (o.ldpAutoconfig) L.push(' mpls ldp autoconfig');
     L.push('!');
   }
   const i = cfg.isis;

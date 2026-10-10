@@ -131,6 +131,16 @@ export interface LdpNeighbor {
   state: 'OPERATIONAL' | 'NON-EXISTENT' | 'INITIALIZED';
 }
 
+export interface LspResult {
+  src: string;
+  /** "A.B.C.D/len" */
+  fec: string;
+  kind: 'ping' | 'trace';
+  /** One IOS code per probe, e.g. "!!!!!" or "LL!". */
+  codes: string;
+  success: boolean;
+}
+
 export interface LfibEntry {
   device: string;
   inLabel: number | null;
@@ -282,6 +292,8 @@ export interface SimSnapshot {
   readonly vrfRoutes?: readonly VrfRoute[];
   readonly bgpVpnv4?: readonly BgpVpnv4Route[];
   readonly pseudowires?: readonly PseudowireState[];
+  /** Completed LSP pings / traces (ping mpls ipv4, traceroute mpls ipv4). */
+  readonly lspResults?: readonly LspResult[];
   // nms (Phase 6)
   readonly services?: readonly ServiceState[];
 }

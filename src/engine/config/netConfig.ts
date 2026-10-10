@@ -15,8 +15,21 @@ export type DeviceRole = 'host' | 'switch' | 'l3switch' | 'router' | 'hub' | 'op
 
 const HOST_KINDS: DeviceKind[] = ['pc', 'uts-prs', 'fois', 'ip-phone', 'cctv', 'nvr', 'wifi-ap', 'nms', 'dns-dhcp', 'laptop', 'server'];
 const ROUTER_KINDS: DeviceKind[] = [
-  'router', 'firewall', 'ler', 'lsr', 'rr', 'ucpe', 'hybrid-agg',
-  'neon-ler', 'neon-lsr', 'asr920', 'asr903', 'acx4000', 'mx104', 'sar8', 'ixr-r4',
+  'router',
+  'firewall',
+  'ler',
+  'lsr',
+  'rr',
+  'ucpe',
+  'hybrid-agg',
+  'neon-ler',
+  'neon-lsr',
+  'asr920',
+  'asr903',
+  'acx4000',
+  'mx104',
+  'sar8',
+  'ixr-r4',
 ];
 
 export function roleOf(kind: DeviceKind): DeviceRole {
@@ -92,6 +105,8 @@ const interfaceSchema = z.object({
   fhrp: z.array(fhrpSchema).optional(),
   servicePolicyIn: z.string().optional(),
   servicePolicyOut: z.string().optional(),
+  /** "mpls ip": label switching + LDP link hellos on this interface. */
+  mplsIp: z.boolean().optional(),
 });
 
 const ospfSchema = z.object({
@@ -103,6 +118,19 @@ const ospfSchema = z.object({
   redistributeStatic: z.boolean().default(false),
   /** auto-cost reference-bandwidth, Mbit/s (IOS default 100). */
   referenceBandwidth: z.number().int().min(1).max(4294967).default(100),
+  /** "mpls ldp sync": max OSPF cost on links whose LDP session is not up. */
+  ldpSync: z.boolean().default(false),
+  /** "mpls ldp autoconfig": "mpls ip" on every OSPF interface. */
+  ldpAutoconfig: z.boolean().default(false),
+});
+
+const mplsSchema = z.object({
+  /** "mpls ldp router-id IF [force]": interface whose address is the LDP router-id. */
+  ldpRouterId: z.string().optional(),
+  /** "mpls ldp explicit-null": advertise label 0 instead of implicit-null (3) for own prefixes. */
+  explicitNull: z.boolean().default(false),
+  /** "no mpls ip propagate-ttl": hide the core from traceroute (label TTL 255). */
+  propagateTtl: z.boolean().default(true),
 });
 
 const isisSchema = z.object({
@@ -224,6 +252,7 @@ const baseConfigSchema = z.object({
   isis: isisSchema.optional(),
   rip: ripSchema.optional(),
   mgmt: mgmtSchema.default({}),
+  mpls: mplsSchema.default({}),
   acls: z.record(aclSchema).default({}),
   nat: natSchema.default({}),
   dhcp: dhcpSchema.default({}),
@@ -245,6 +274,7 @@ export type OspfConfig = z.infer<typeof ospfSchema>;
 export type IsisConfig = z.infer<typeof isisSchema>;
 export type RipConfig = z.infer<typeof ripSchema>;
 export type MgmtConfig = z.infer<typeof mgmtSchema>;
+export type MplsConfig = z.infer<typeof mplsSchema>;
 export type AclConfig = z.infer<typeof aclSchema>;
 export type AclEntry = z.infer<typeof aclEntrySchema>;
 export type FhrpConfig = z.infer<typeof fhrpSchema>;
@@ -270,6 +300,7 @@ export function defaultNetConfig(kind: DeviceKind): NetConfig {
     qos: { classMaps: {}, policyMaps: {} },
     traffic: [],
     mgmt: mgmtSchema.parse({}),
+    mpls: mplsSchema.parse({}),
   };
 }
 

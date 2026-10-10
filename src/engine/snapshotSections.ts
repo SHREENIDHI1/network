@@ -1,6 +1,9 @@
 import type { EngineSections } from '../labs/framework/snapshot';
 import { analyseTraffic } from './qos/analysis';
 import type {
+  LdpNeighbor,
+  LfibEntry,
+  LspResult,
   AclBinding,
   AppResult,
   FhrpGroupInfo,
@@ -196,7 +199,37 @@ export function engineSections(sim: Sim): EngineSections {
     if (l) cutLinks.push([name(l.a.deviceId), name(l.b.deviceId)]);
   }
 
+  // MPLS / LDP (Phase 4).
+  const ldpNeighbors: LdpNeighbor[] = [];
+  for (const sess of sim.ldp.sessions) {
+    const state = sess.state === 'OPERATIONAL' ? 'OPERATIONAL' : 'NON-EXISTENT';
+    ldpNeighbors.push({ device: name(sess.a), neighbor: name(sess.b), state }, { device: name(sess.b), neighbor: name(sess.a), state });
+  }
+  const lfib: LfibEntry[] = [];
+  for (const e of sim.ldp.lfib) {
+    if (e.out === 'none') continue;
+    const fec = `${formatIpv4(e.network)}/${e.prefixLen}`;
+    const nextHop = formatIpv4(e.nextHop);
+    if (e.out === 'pop') lfib.push({ device: name(e.deviceId), inLabel: e.inLabel, fec, action: 'pop', nextHop });
+    else {
+      lfib.push({ device: name(e.deviceId), inLabel: e.inLabel, fec, action: 'swap', outLabel: e.out, nextHop });
+      lfib.push({ device: name(e.deviceId), inLabel: null, fec, action: 'push', outLabel: e.out, nextHop });
+    }
+  }
+  const lspResults: LspResult[] = [...sim.lspSessions.values()]
+    .filter((x) => x.done)
+    .map((x) => ({
+      src: name(x.srcDeviceId),
+      fec: `${formatIpv4(x.network)}/${x.prefixLen}`,
+      kind: x.kind,
+      codes: x.probes.map((p) => p.code).join(''),
+      success: x.kind === 'ping' ? x.probes.length > 0 && x.probes.every((p) => p.code === '!') : x.probes.some((p) => p.code === '!'),
+    }));
+
   return {
+    ldpNeighbors,
+    lfib,
+    lspResults,
     cutLinks,
     switchports,
     macTables,

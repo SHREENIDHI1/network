@@ -61,7 +61,16 @@ export function phase3Cmds(): Cmd[] {
         if (x.cfg.ospf && x.cfg.ospf.processId !== pid)
           return `% RailMPLS Lab supports one OSPF process per device (process ${x.cfg.ospf.processId} exists).`;
         if (!x.cfg.ospf) {
-          x.cfg.ospf = { processId: pid, networks: [], passive: [], defaultOriginate: 'off', redistributeStatic: false, referenceBandwidth: 100 };
+          x.cfg.ospf = {
+            processId: pid,
+            networks: [],
+            passive: [],
+            defaultOriginate: 'off',
+            redistributeStatic: false,
+            referenceBandwidth: 100,
+            ldpSync: false,
+            ldpAutoconfig: false,
+          };
           x.dirty();
         }
         x.setMode('config-router');
