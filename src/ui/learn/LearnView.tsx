@@ -1,5 +1,5 @@
 import { useReactFlow } from '@xyflow/react';
-import { BookOpen, CheckCircle2, Download, FlaskConical, Library, Lock, Map as MapIcon, Terminal, Upload } from 'lucide-react';
+import { BookOpen, CheckCircle2, Download, FlaskConical, Gauge, Library, Lock, Map as MapIcon, Terminal, Upload } from 'lucide-react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { CURRICULUM, LESSON_LOADERS, isAvailable } from '../../lessons/curriculum';
 import { exportProgress, importProgress, recordQuiz, type Progress } from '../../lessons/progress';
@@ -12,6 +12,7 @@ import { FlashQuiz } from './FlashQuiz';
 import { CommandsPage, GlossaryPage } from './ReferencePages';
 
 const JodhpurPlanPage = lazy(() => import('./JodhpurPlanPage').then((m) => ({ default: m.JodhpurPlanPage })));
+const DashboardPage = lazy(() => import('./DashboardPage').then((m) => ({ default: m.DashboardPage })));
 import { Widget } from './widgets';
 
 /** LEARN mode: curriculum list + lesson reader + 5-question flash quiz. */
@@ -19,7 +20,7 @@ export default function LearnView() {
   const progress = useProgress((s) => s.progress);
   const requested = useAppMode((s) => s.lessonId);
   const [current, setCurrent] = useState(() => (requested && isAvailable(requested) ? requested : 'A0'));
-  const [page, setPage] = useState<'lesson' | 'glossary' | 'commands' | 'jodhpur'>('lesson');
+  const [page, setPage] = useState<'lesson' | 'glossary' | 'commands' | 'jodhpur' | 'dashboard'>('lesson');
   useEffect(() => {
     if (requested && isAvailable(requested)) {
       setCurrent(requested);
@@ -104,7 +105,14 @@ export default function LearnView() {
             <div className="h-1.5 rounded bg-emerald-500" style={{ width: `${(done / CURRICULUM.length) * 100}%` }} />
           </div>
         </div>
-        <div className="flex gap-1 border-b border-slate-800 p-2 text-xs">
+        <div className="flex flex-wrap gap-1 border-b border-slate-800 p-2 text-xs">
+          <button
+            type="button"
+            className={`flex w-full items-center justify-center gap-1 rounded px-2 py-1 ${page === 'dashboard' ? 'bg-sky-900/60 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+            onClick={() => setPage('dashboard')}
+          >
+            <Gauge className="h-3.5 w-3.5" /> Dashboard
+          </button>
           <button
             type="button"
             className={`flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 ${page === 'glossary' ? 'bg-sky-900/60 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
@@ -177,6 +185,16 @@ export default function LearnView() {
         {page === 'jodhpur' && (
           <Suspense fallback={<p className="p-6 text-slate-500">Loading…</p>}>
             <JodhpurPlanPage />
+          </Suspense>
+        )}
+        {page === 'dashboard' && (
+          <Suspense fallback={<p className="p-6 text-slate-500">Loading…</p>}>
+            <DashboardPage
+              onOpenLesson={(id) => {
+                setCurrent(id);
+                setPage('lesson');
+              }}
+            />
           </Suspense>
         )}
         {page === 'lesson' && error && <p className="p-6 text-red-400">{error}</p>}

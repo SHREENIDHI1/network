@@ -1,88 +1,120 @@
 # RailMPLS Lab
 
-A browser-based **networking + IP-MPLS training simulator** set in the context of Indian Railways (NWR, Jodhpur division). It teaches from zero: what a network is → Ethernet, IP, OSPF → MPLS, VPNs and the divisional backbone. Lessons are in simple Hinglish; the UI, labels and CLI are in English.
+**Indian Railways (NWR, Jodhpur division) ke context mein networking + IP-MPLS seekhne ka browser-based training simulator.**
+Zero se shuru: network kya hai → Ethernet, IP, OSPF → MPLS, LDP, L3VPN, pseudowires, QoS, Traffic Engineering, Segment Routing → NMS aur poora divisional backbone. Lessons simple Hinglish mein; UI, labels aur CLI English mein.
 
-> **Honesty first.** RailMPLS Lab is an *educational simulator*, not a real router OS. Every simplification is listed in the in-app **Model Limitations** panel.
-> - Team Engineers NEON's real CLI is not public. NEON profiles use the hardware figures quoted from CAMTECH SP37A p.35 plus a *generic SP CLI* (IOS-XE style), with the banner "CLI syntax is generic, not official NEON syntax". `src/profiles/commandMapping.neon.json` stays unmapped until an official manual is available.
-> - Cisco/Juniper/Nokia profiles are marked **unverified** and behave like the generic SP router.
-> - The Jodhpur map is a **track** map. The simulator assumes OFC runs along the track; it is **not** the real RailTel/NWR network. Items marked `check` in `docs/jodhpur-check-report.md` need verification.
-> - Show commands print only state the engine really computes.
+Created by **Shreenidhi Sharma · JE (Tele), NWR** · Version **1.0.0**
 
-## Three modes
+> **Imaandari pehle (honesty first)**
+> - Yeh ek **educational simulator** hai, asli router OS nahi. Har simplification app ke **Model Limitations** panel mein likha hai.
+> - Team Engineers NEON ka asli CLI public nahi hai. NEON profiles mein CAMTECH SP37A p.35 ke hardware figures + ek **generic SP CLI (IOS-XE style)** hai — banner bhi yahi kehta hai. `src/profiles/commandMapping.neon.json` tab tak unmapped rahega jab tak official manual na mile.
+> - Cisco / Juniper / Nokia profiles **unverified** hain aur generic SP router jaise chalte hain.
+> - Jodhpur map ek **track map** hai. Simulator maanta hai ki OFC track ke saath hai; yeh **asli RailTel / NWR network nahi** hai. `docs/jodhpur-check-report.md` mein `check` wale items verify karne hain.
+> - Show commands sirf wahi state dikhate hain jo engine sach mein compute karta hai — kuch bhi "fake" output nahi.
 
-| Mode | What you do |
+## Isme kya hai
+
+| Mode | Kya karte ho |
 |---|---|
-| **Learn** | Lessons A0–A15 (foundations) and B0–B15 (IP-MPLS); A0–A8 available now. Railway analogies, interactive widgets (MAC learning, subnet calculator, VLSM planner, 802.1Q tag, root election…), glossary and a 5-question flash quiz. Also a searchable **Glossary** and **Command reference**. Progress is saved in the browser (Export/Import as JSON). |
-| **Lab** | Auto-checked labs L4.1–L8.1 at MTD (hub vs switch, addressing, VLSM, VLANs, STP + LACP + port security): live task checks from engine state, hints (−2 points each), break-fix fault, quiz, field note and the reference solution after completion. |
-| **Sandbox** | Free canvas: place devices, cable them, configure them via CLI, ping, and step packets hop by hop. The console's **Ask why** pane explains every field of the last show command. |
+| **Learn** | 32 lessons: A0–A15 (networking foundations) aur B0–B15 (IP-MPLS). Railway analogies, interactive widgets (subnet / VLSM calculator, SPF, LSP walk, CSPF, TI-LFA…), 5-question flash quiz, Glossary, Command Reference (188 commands), Jodhpur IP plan aur **Dashboard** (progress, points, "aage kya karein"). |
+| **Lab** | 31 auto-checked labs (L4.1 → LB15.1): scenario, plan, live task checks (engine state se), hints (−2 points), break-fix fault, quiz, field note, reference solution. Capstones: L15.1 (5 tickets) aur LB15.1 (J2 ke 27 routers, 23 ke catalog se seed se 10 tickets). |
+| **Sandbox** | Khaali canvas: devices rakho, cable lagao, CLI se configure karo, ping / traceroute karo, packets hop-by-hop dekho, Jodhpur topologies (J1–J4) load karo. |
 
-Click any device (or the ⓘ on a palette item, or double-click a device) for its **detail panel**: Overview, Hardware, Capabilities, How it forwards, Config guide, Verify & troubleshoot, Maintenance & safety, Station info and LIVE state, in English or Hinglish.
+Kisi bhi device par click karo → **detail panel** (Overview, Hardware, Capabilities, How it forwards, Config guide, Verify & troubleshoot, Maintenance & safety, Station info, LIVE state) — English ya Hinglish mein.
 
-## Status
+Engine mein: physical / optical budget, Ethernet, VLAN, RSTP, LACP, IPv4, ARP, ACL, NAT, DHCP, DNS, NTP, syslog / SNMP, SSH, HSRP / VRRP, OSPF, IS-IS, RIP, QoS, MPLS / LDP, LSP ping / trace, BGP + route reflector, VRF / MP-BGP L3VPN, VPWS, VPLS, E1 SAToP / CESoPSN, MPLS QoS (EXP), RSVP-TE + FRR, Segment Routing + TI-LFA, NMS alarms, fault injection, automation. Kya **simulate nahi** hota (jaise BFD, SDH byte-level) — Model Limitations panel mein dekho.
 
-| Phase | Scope | Status |
-|---|---|---|
-| P1 | Scaffold, canvas, device catalog (basics, NEON and vendor profiles), links, save/load, Model Limitations, device detail panel, LEARN framework + lessons A0–A3, Jodhpur station data (M0) | ✅ Done |
-| P2 | Engine core, physical (duplex), Ethernet/VLAN/STP, EtherChannel/LACP, CLI (incl. interface range), consoles, packet walk, Lab mode, lessons + labs A4–A8, Glossary, Command Reference, "Ask why" | ✅ Done |
-| P3 | Loopbacks, OSPF, IS-IS (L1/L2), RIPv2 (comparison), DHCP/DNS/NAT/NTP/syslog/SNMP traps/SSH-Telnet as real packets, ACL + vty security, HSRP/VRRP, QoS tab; lessons A9–A15 and labs L9.1–L15.1 (capstone with 5 fault tickets) | ✅ Done |
-| P4 | Jodhpur generators J1–J4 + IP plan + schematic map layout; MPLS + LDP (PHP, explicit-null, LDP-IGP sync), label data plane, LSP ping/trace, MPLS LIVE panel; lessons B0–B4 and labs LB1.1–LB4.1 | ✅ Done |
-| P5 | BGP (eBGP/iBGP, route reflectors, best path), VRFs, MP-BGP VPNv4 L3VPN with two-label data plane, PE–CE static/eBGP, ping/traceroute vrf, BGP/VRF LIVE panel; lessons B5–B6 and labs LB5.1, LB6.1, LB6.2 | ✅ Done |
-| P6 | Pseudowires: VPWS (port/VLAN), VPLS (VFI, MAC learning, split horizon), E1 circuit emulation SAToP/CESoPSN on logical E1 controllers, `ping mpls pseudowire`, L2VPN LIVE panel, Packet Inspector pseudowire payload; lessons B7–B8 and labs LB7.1, LB7.2, LB8.1 | ✅ Done |
-| P7 | MPLS QoS (EXP imposition, `match/set mpls experimental`, QoS tab over VPN/LDP/TE/pseudowire paths), RSVP-TE (OSPF TE, RSVP bandwidth, CSPF, explicit paths, autoroute), FRR facility backup + reoptimize, TE LIVE panel; lessons B9–B10 and labs LB9.1, LB10.1, LB10.2 | ✅ Done |
-| P8 | NMS tab (managed devices, root-cause / impact alarms, railway services, link load), power / card fault injection, Automation tab (templates, push, compliance), Inter-AS Option A hand-off; lessons B11–B13 and labs LB11.1, LB12.1, LB13.1 | ✅ Done — awaiting review |
-| P9 | Segment Routing (SR-MPLS over OSPF, prefix SIDs, TI-LFA) with SR LIVE panel; grand capstone on J2 (27 routers) with a 23-ticket catalog drawn by seed; lessons B14–B15 and labs LB14.1, LB15.1 | ✅ Done — awaiting review |
-| P10 | Final docs and polish | Next |
+## Windows par zero se chalana
 
-Everything a lab checks is engine state (tables, sessions, packets) — the simulator never fakes show output. Simplifications are listed in the in-app **Model Limitations** panel.
+### Step 1 — Node.js install karo (ek baar)
+1. <https://nodejs.org> kholo → **LTS** version (22.x ya 20.x) ka **Windows Installer (.msi)** download karo.
+2. Installer chalao → Next → Next → Install (default settings theek hain).
+3. **Naya** PowerShell kholo (Start → "PowerShell") aur check karo:
+   ```powershell
+   node -v
+   npm -v
+   ```
+   Dono version number dikhayein (jaise `v22.11.0` aur `10.9.0`) to ready ho.
 
-## Run it on Windows
-
-You already have Node.js. Check it in PowerShell with `node -v` (version 20 or 22 recommended).
-
+### Step 2 — Code download karo
+**Option A — Git se (recommended, update aasaan):** <https://git-scm.com/download/win> se Git install karo, phir:
 ```powershell
 git clone https://github.com/shreenidhi1/network.git
 cd network
 git checkout claude/railnet-sim-simulator-le2oq2
+```
+**Option B — ZIP se:** GitHub par repo kholo → branch **claude/railnet-sim-simulator-le2oq2** chuno → **Code → Download ZIP** → ZIP extract karo → us folder mein PowerShell kholo (folder mein Shift + Right-click → "Open PowerShell window here").
+
+### Step 3 — Install aur run
+```powershell
+npm install      # pehli baar: ~1–2 minute, internet chahiye
+npm run dev      # app chalu
+```
+Browser mein **<http://localhost:5173>** kholo. Band karne ke liye PowerShell mein **Ctrl + C**.
+
+**Agar error aaye:**
+- `npm.ps1 cannot be loaded because running scripts is disabled` → PowerShell mein ek baar chalao: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (ya **Command Prompt** use karo).
+- `'node' is not recognized` → Node install ke baad PowerShell band karke **naya** kholo.
+- Port 5173 busy → Vite khud doosra port (5174…) le leta hai; jo URL print ho woh kholo.
+
+### Update karna
+```powershell
+git pull origin claude/railnet-sim-simulator-le2oq2
 npm install
 npm run dev
 ```
-
-Open the URL it prints (usually <http://localhost:5173>). macOS/Linux: same commands.
+Phir browser mein **Ctrl + Shift + R** (hard refresh). Status bar ke right corner mein `v1.0.0 · <commit>` se pata chalta hai kaun sa version chal raha hai.
 
 ### Localhost par purane items dikh rahe hain?
+1. Status bar ka commit GitHub ke latest se purana hai → upar wala "Update karna" karo.
+2. Canvas par purana topology = browser ka **autosave** (aapka pichhla kaam). Fresh start: Sandbox → **New**. Lab start karne par bhi canvas lab topology se replace hota hai.
+3. Sab reset (progress bhi): pehle Learn → Export se progress save karo, phir browser DevTools → Application → Local Storage → `railnet-sim:autosave` aur `railmpls-lab:*` keys delete karo.
 
-1. **Status bar ke right corner** mein `v0.9.0 · <commit>` dekho. Agar commit GitHub ke latest se purana hai, to code purana hai:
-   ```powershell
-   git pull origin claude/railnet-sim-simulator-le2oq2
-   npm install
-   ```
-   Phir `npm run dev` band karke (Ctrl+C) dobara chalao, aur browser mein **Ctrl+Shift+R** (hard refresh).
-2. Canvas par purana topology = browser ka **autosave** (aapka pichhla kaam). App ab notice dikhata hai "Restored your last canvas…". Fresh start ke liye Sandbox mein **New** dabao. Lab start karne par bhi canvas lab topology se replace ho jaata hai.
-3. Sab kuch reset karna ho (progress bhi): browser DevTools → Application → Local Storage → `railnet-sim:autosave` aur `railmpls-lab:*` keys delete karo. Progress pehle Learn mode se Export kar lo.
+## Commands (npm scripts)
 
-## Scripts
-
-| Command | What it does |
+| Command | Kya karta hai |
 |---|---|
-| `npm run dev` | Start the dev server with hot reload |
-| `npm test` | Run all unit tests once (Vitest) |
-| `npm run test:watch` | Run tests in watch mode |
+| `npm run dev` | Dev server (hot reload) — roz ke use ke liye |
+| `npm test` | Saare automated tests ek baar (Vitest, 627 tests) |
+| `npm run test:watch` | Tests watch mode mein |
 | `npm run typecheck` | TypeScript type check |
-| `npm run build` | Type check + production build into `dist/` (static files, works offline) |
-| `npm run preview` | Serve the production build |
-| `npm run report:jodhpur` | Regenerate `docs/jodhpur-check-report.md` from the station data |
+| `npm run build` | Type check + production build → `dist/` folder (static website) |
+| `npm run preview` | `dist/` ko local server par chalao (build check karne ke liye) |
+| `npm run report:jodhpur` | Station data se `docs/jodhpur-check-report.md` dobara banao |
 
-## Deploy for free
+## Free mein online deploy (koi server / database nahi chahiye)
 
-`npm run build` produces a static site in `dist/`, with relative asset paths so it works from any sub-folder.
+`npm run build` ek static website `dist/` mein banata hai (relative paths — kisi bhi sub-folder se chalti hai). Progress aur autosave har user ke apne browser mein rehta hai.
 
-- **Netlify** (easiest): <https://app.netlify.com/drop> → drag the `dist` folder onto the page. Or connect the repo with build command `npm run build` and publish directory `dist`.
-- **Vercel**: import the GitHub repo → framework *Vite* → build `npm run build`, output `dist`.
-- **GitHub Pages**: repo *Settings → Pages → Source: GitHub Actions* → use the "Static HTML" starter workflow, and change its upload `path` to `dist` after an `npm ci && npm run build` step.
+**1. Netlify Drop (sabse aasaan, 2 minute):**
+1. `npm run build` chalao.
+2. <https://app.netlify.com/drop> kholo (free account banana padega).
+3. `dist` folder ko us page par **drag & drop** karo → turant ek public link milta hai (jaise `https://xyz.netlify.app`). Site settings mein naam badal sakte ho.
 
-No server, database or API key is needed. Progress and autosave live in the visitor's browser.
+**2. GitHub Pages (har push par auto-update):** repo mein `.github/workflows/deploy-pages.yml` pehle se hai.
+1. GitHub repo → **Settings → Pages → Source: "GitHub Actions"**.
+2. **Actions** tab → "Deploy to GitHub Pages" → **Run workflow** (ya branch par push karo).
+3. Workflow tests + build chala kar site publish karta hai: `https://shreenidhi1.github.io/network/`.
 
-## Sandbox: using the simulator
+**3. Cloudflare Pages / Vercel:** repo connect karo → build command `npm run build`, output folder `dist`.
+
+> `dist/index.html` ko seedha double-click karke (file://) mat kholo — browser security module scripts ko block karti hai. `npm run preview` ya upar ka koi hosting use karo.
+
+## Seekhne ka suggested plan (~6–8 hafte, 5–6 ghante / hafta)
+
+| Hafta | Lessons | Labs |
+|---|---|---|
+| 1 | A0–A5 (network, layers, physical, Ethernet, IP) | L4.1, L5.1 |
+| 2 | A6–A9 (VLSM, VLAN, STP, routing) | L6.1–L9.1 |
+| 3 | A10–A15 (OSPF / IS-IS, services, security, HSRP, QoS, capstone) | L10.1–L15.1 |
+| 4 | B0–B4 (MPLS, LDP, Jodhpur core) | LB1.1–LB4.1 |
+| 5 | B5–B8 (BGP, L3VPN, VPWS / VPLS, E1) | LB5.1–LB8.1 |
+| 6 | B9–B13 (QoS, TE / FRR, NMS, automation, Inter-AS) | LB9.1–LB13.1 |
+| 7–8 | B14–B15 (SR, grand capstone) + revision | LB14.1, LB15.1 (alag-alag seeds se dobara) |
+
+Learn → **Dashboard** hamesha batata hai agla lesson / lab kaun sa hai.
+
+## Commands aur features — quick reference
 
 - **Configure hosts** (PC, UTS/PRS, FOIS, CCTV…): select the device → *IP Configuration* (address, mask, gateway) → Apply.
 - **Configure switches/routers**: select the device → *Open CLI* (or *Console* in the toolbar). IOS-like commands, e.g.
@@ -117,44 +149,56 @@ No server, database or API key is needed. Progress and autosave live in the visi
 - **Realtime vs Simulation mode** (toolbar): Realtime runs commands instantly; Simulation queues events — use Step ⏭ / Play ▶ / speed and watch frames move on the canvas (yellow glow) and in the *Events* tab.
 - **Faults**: select a link → *Cut fibre/cable* and *Repair*. Canvas shows `DOWN`, `DOWN (admin)`, `CUT` and `STP BLK` badges.
 
-## Sandbox: using the editor
+## Editor tips
 
-- **Add devices**: drag from the left palette (Legacy / LAN-IP / IP-MPLS), or click a palette item.
-- **Connect**: hover a device, drag from a blue handle and drop on another device. A dialog offers only *physically valid* link types and free port pairs, for example:
-  - STM-1 aggregate ↔ STM-1 only (STM-1 ↔ STM-4 is refused: rate mismatch)
-  - PD-Mux FXS ↔ phone, PD-Mux FXO ↔ exchange subscriber (FXS), E&M ↔ E&M
-  - CWDM lambda: coloured STM/SFP optic ↔ CWDM channel port; OFC between CWDM LINE ports
-  - Cat6 limited to 100 m
-- **Inspect / edit**: click a device (name, station code, ports and what they connect to) or a link (length, label, cores, optics).
-- **Optical budget**: OFC links compute Rx power from Tx, fibre dB/km, connectors, splices and extra (CWDM) loss using ITU-T G.957 / IEEE 802.3 optic profiles. Failing links turn red with an **LOS** badge.
-- **Save / Open**: JSON files (`*.railnet.json` (format name kept for compatibility)). Loading re-validates every link against the physical rules. Work is also autosaved in the browser.
-- **Load demo**: a two-station STM-1 + PD-Mux + LAN example.
+- **Device add karo**: left palette se drag karo ya click karo.
+- **Cable lagao**: device par hover → blue handle se drag karke doosre device par chhodo. Dialog sirf **physically valid** link aur free ports dikhata hai (Cat6 max 100 m; OFC par optical budget check hota hai).
+- **Inspect / edit**: device par click (naam, station code, ports) ya link par click (length, label, cores, optics; *Cut* / *Repair*).
+- **Optical budget**: OFC links ka Rx power Tx, fibre dB/km, connectors, splices se nikalta hai (ITU-T G.957 / IEEE 802.3 optic profiles). Fail hone par link laal aur **LOS** badge.
+- **Save / Open**: JSON files (`*.railnet.json`). Load par har link phir se validate hota hai. Kaam browser mein autosave bhi hota hai.
+- **Networking-only mode**: SDH / STM, PD-Mux, CWDM, E1/G.703 jaise legacy TDM devices palette se chhupe hain (unka code rakha hai); E1 sirf logical controllers ke roop mein circuit emulation ke liye hai.
+
+## Status — saare phases complete
+
+| Phase | Scope | Status |
+|---|---|---|
+| P1 | Scaffold, canvas, device catalog (basics, NEON, vendor profiles), links, save/load, Model Limitations, device detail panel, Learn framework + A0–A3, Jodhpur station data (M0) | ✅ |
+| P2 | Engine core, physical, Ethernet / VLAN / STP, LACP, CLI, consoles, packet walk, Lab mode, A4–A8, Glossary, Command Reference, Ask why | ✅ |
+| P3 | OSPF, IS-IS, RIP, DHCP / DNS / NAT / NTP / syslog / SNMP / SSH, ACL, HSRP / VRRP, QoS tab, A9–A15, labs L9.1–L15.1 | ✅ |
+| P4 | Jodhpur generators J1–J4 + IP plan, MPLS + LDP, LSP ping / trace, B0–B4, LB1.1–LB4.1 | ✅ |
+| P5 | BGP + RR, VRF, MP-BGP L3VPN, B5–B6, LB5.1–LB6.2 | ✅ |
+| P6 | VPWS, VPLS, E1 SAToP / CESoPSN, B7–B8, LB7.1–LB8.1 | ✅ |
+| P7 | MPLS QoS (EXP), RSVP-TE, CSPF, FRR, B9–B10, LB9.1–LB10.2 | ✅ |
+| P8 | NMS + alarms, fault injection, automation, Inter-AS Option A, B11–B13, LB11.1–LB13.1 | ✅ |
+| P9 | Segment Routing + TI-LFA, grand capstone with seeded tickets, B14–B15, LB14.1–LB15.1 | ✅ |
+| P10 | Progress dashboard, Hinglish README (Windows setup, free deploy, study plan), GitHub Pages workflow, v1.0.0 | ✅ |
+
+## Quality
+
+- **627 automated tests** (Vitest): engine units, CLI parsing aur show output, har lesson ka data, aur **har lab** ke liye: start par saare tasks fail, reference solution se saare pass, har fault check ko todta hai aur uska fix theek karta hai, practical quiz answers engine output se match.
+- TypeScript strict mode, Prettier formatting, har phase ke baad asli Chromium mein Playwright browser check.
 
 ## Project structure
 
 ```
 src/
-  model/          domain types, device catalog, link rules, pure topology ops, limitations register
-  engine/         simulation engine (pure TypeScript, no UI imports)
-    core/         event queue, frame/packet types, MAC addressing
-    config/       per-device NetConfig (running-config) model + defaults
-    physical/     optical power budget, link/port state, fibre cuts
-    ethernet/     simplified RSTP
-    ip/           IPv4 helpers, L3 interfaces (ports, subinterfaces, SVIs), routing table
-    cli/          IOS-like CLI parser/commands, show formatting, host command prompt
-    sim.ts        discrete-event engine: bridging, ARP, IPv4 forwarding, ICMP, traces
-  io/             save/load JSON with schema validation
-  store/          Zustand store
-  ui/             React components (canvas, palette, properties, dialogs)
-  topologies/     topology builder + demo / preloaded topologies
-  labs/           Labs framework (auto-checked labs from P2)
-  lessons/        LEARN mode: curriculum, lesson content (content/a0.ts …), progress, widget maths
-  equipment/      device detail panel data (per-kind + per-family docs, generated config/verify guides)
-  profiles/       NEON / vendor router profiles + NEON command mapping (unmapped)
-  topologies/data Jodhpur division stations and sections (M0)
+  engine/        protocol engine (pure TypeScript, UI se alag)
+    core/        event queue, frame / packet types, MAC
+    config/      per-device NetConfig (running-config) + Zod schema
+    physical/    optical budget, port / link state, fibre cuts, power / card faults
+    ethernet/    STP, EtherChannel, L2 segments
+    ip/ ospf/ igp/  IPv4, routing table, OSPF, IS-IS, RIP
+    services/ security/ fhrp/  DHCP, DNS, NAT, NTP, syslog, SNMP, SSH, ACL, HSRP / VRRP
+    mpls/ bgp/ l2vpn/ te/ sr/  LDP + LFIB, BGP / VRF / VPNv4, pseudowires, RSVP-TE + FRR, Segment Routing
+    qos/ nms/ automation/      QoS analysis, NMS alarms + services, templates + compliance
+    cli/         IOS-XE-style CLI grammar, show formatting, host prompt
+    sim.ts       recompute() control-plane pipeline + discrete-event data plane
+  labs/          lab framework (snapshot, checks, seeded tickets) + 31 labs
+  lessons/       curriculum, 32 lessons, widget maths, progress + dashboard
+  topologies/    lab topologies + Jodhpur generator (J1–J4) + station data
+  ui/            React: canvas, panels, console dock, Learn / Lab views
+  docs/ equipment/ profiles/ model/ store/ io/
 ```
-
-Engine modules for `pdh`, `sdh`, `ethernet`, `ip`, `ospf`, `mpls`, `bgp` and `qos` are added under `src/engine/` in their phases.
 
 ## Reference
 
