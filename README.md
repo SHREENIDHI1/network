@@ -13,7 +13,16 @@ Is version mein naya kya hai (pichhle 3-hour video ke comparison mein):
 - Shuru mein **Course map** (har chapter ka start time). Wahi list `CHAPTERS.txt` mein bhi hai.
 - Naya chapter: **BFD** (v1.1.0), aur poora **software tour** + **troubleshooting method** + **final revision exam**.
 
-## Download aur join kaise karein (Windows)
+## MP4 format (recommended) — folder `mp4/`
+
+Har chapter ki alag **MP4** file (10–26 MB). Mobile, laptop, WhatsApp — kahin bhi seedha chal jayegi, join karne ki zarurat nahi.
+
+- Sirf ek topic dekhna hai → us chapter ki MP4 download karo (file kholo → **Download raw file**).
+- Poora course ek saath → saari 19 MP4 + `RailMPLS-Full-Course-PLAYLIST.m3u` ek folder mein rakho aur playlist ko **VLC** mein kholo — saare chapters ek ke baad ek chalenge.
+
+(Ek single 473 MB MP4 GitHub par nahi aa sakti — GitHub 100 MB se badi file allow nahi karta.)
+
+## TS format (single file banane ke liye)
 
 1. Is branch ke saare `RailMPLS-Narrated-partNN.ts` files aur `JOIN-VIDEO.bat` ek hi folder mein download karo
    (har file kholo → **Download raw file** button).
