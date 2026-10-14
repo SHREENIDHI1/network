@@ -126,6 +126,15 @@ export interface SrSidInfo {
   index: number;
 }
 
+export interface BfdSessionInfo {
+  device: string;
+  iface: string;
+  neighbor: string;
+  state: 'Up' | 'Down';
+  detectMs: number;
+  reason?: string;
+}
+
 export interface TiLfaInfo {
   device: string;
   prefix: string;
@@ -334,6 +343,8 @@ export interface SimSnapshot {
   readonly srSids?: readonly SrSidInfo[];
   readonly srRouters?: readonly string[];
   readonly tiLfa?: readonly TiLfaInfo[];
+  /** BFD sessions for OSPF (v1.1), one per router end. */
+  readonly bfdSessions?: readonly BfdSessionInfo[];
   readonly nmsAlarms?: readonly NmsAlarmInfo[];
   /** Running-config text of routers and switches (automation / compliance checks). */
   readonly runningConfigs?: ReadonlyArray<{ device: string; text: string }>;

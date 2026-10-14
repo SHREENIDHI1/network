@@ -95,6 +95,16 @@ const interfaceSchema = z.object({
   ospfHello: z.number().int().min(1).max(65535).optional(),
   ospfDead: z.number().int().min(1).max(65535).optional(),
   ospfPriority: z.number().int().min(0).max(255).optional(),
+  /** "bfd interval <ms> min_rx <ms> multiplier <n>": BFD timers on this interface (RFC 5880 asynchronous mode). */
+  bfd: z
+    .object({
+      intervalMs: z.number().int().min(50).max(9999),
+      minRxMs: z.number().int().min(50).max(9999),
+      multiplier: z.number().int().min(3).max(50),
+    })
+    .optional(),
+  /** "ip ospf bfd": OSPF registers with BFD on this interface. */
+  ospfBfd: z.boolean().optional(),
   natRole: z.enum(['inside', 'outside']).optional(),
   aclIn: z.string().optional(),
   aclOut: z.string().optional(),
@@ -178,6 +188,8 @@ const ospfSchema = z.object({
   ldpSync: z.boolean().default(false),
   /** "mpls ldp autoconfig": "mpls ip" on every OSPF interface. */
   ldpAutoconfig: z.boolean().default(false),
+  /** "bfd all-interfaces": OSPF registers with BFD on every OSPF interface. */
+  bfdAllInterfaces: z.boolean().optional(),
 });
 
 const mplsSchema = z.object({

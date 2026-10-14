@@ -20,6 +20,7 @@ import type {
   NmsDeviceInfo,
   SrSidInfo,
   TiLfaInfo,
+  BfdSessionInfo,
   NmsAlarmInfo,
   ServiceState,
   EtherChannelInfo,
@@ -201,10 +202,28 @@ export function engineSections(sim: Sim): EngineSections {
   const srSids: SrSidInfo[] = sim.sr.sids.map((x) => ({ device: name(x.owner), prefix: `${formatIpv4(x.network)}/${x.prefixLen}`, index: x.index }));
   const srRouters = [...sim.sr.routers.keys()].map(name);
   const tiLfa: TiLfaInfo[] = sim.sr.tiLfa.map((x) => ({ device: name(x.deviceId), prefix: x.prefix, protected: x.path.length > 0 }));
+  const bfdSessions: BfdSessionInfo[] = sim.bfd.sessions.map((b) => ({
+    device: name(b.deviceId),
+    iface: b.iface,
+    neighbor: name(b.neighborDeviceId),
+    state: b.state,
+    detectMs: b.detectMs,
+    reason: b.reason,
+  }));
   const nv = sim.nmsView();
   const nmsDevices: NmsDeviceInfo[] = nv.devices.map((d) => ({ device: name(d.deviceId), state: d.state }));
-  const nmsAlarms: NmsAlarmInfo[] = nv.alarms.map((a) => ({ device: name(a.deviceId), object: a.object, type: a.type, severity: a.severity, layer: a.layer }));
-  const services: ServiceState[] = nv.services.map((s) => ({ name: s.name, status: s.status === 'UNKNOWN' ? 'DOWN' : s.status, carriedBy: s.kind === 'pw' ? 'mpls' : 'ip' }));
+  const nmsAlarms: NmsAlarmInfo[] = nv.alarms.map((a) => ({
+    device: name(a.deviceId),
+    object: a.object,
+    type: a.type,
+    severity: a.severity,
+    layer: a.layer,
+  }));
+  const services: ServiceState[] = nv.services.map((s) => ({
+    name: s.name,
+    status: s.status === 'UNKNOWN' ? 'DOWN' : s.status,
+    carriedBy: s.kind === 'pw' ? 'mpls' : 'ip',
+  }));
   const runningConfigs = sim.topology.devices
     .filter((d) => ['router', 'l3switch', 'switch'].includes(roleOf(d.kind)))
     .map((d) => ({ device: d.name, text: runningConfig(d, sim.config(d.id)!) }));
@@ -335,6 +354,7 @@ export function engineSections(sim: Sim): EngineSections {
     srSids,
     srRouters,
     tiLfa,
+    bfdSessions,
     nmsAlarms,
     services,
     runningConfigs,

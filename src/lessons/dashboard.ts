@@ -80,3 +80,23 @@ export function dashboardSummary(progress: Progress, lessons: readonly DashLesso
     next,
   };
 }
+
+export interface CertificateInfo {
+  /** Every available lesson and every lab completed. */
+  complete: boolean;
+  title: string;
+  pointsPct: number;
+  /** Ids of completed labs, in curriculum order. */
+  labsDone: string[];
+}
+
+/** Text behind the printable training record (v1.1). A full certificate only when everything is done. */
+export function certificateInfo(s: DashboardSummary): CertificateInfo {
+  const complete = s.lessons.total > 0 && s.lessons.done === s.lessons.total && s.labs.total > 0 && s.labs.completed === s.labs.total;
+  return {
+    complete,
+    title: complete ? 'Certificate of Completion' : 'Training Progress Record',
+    pointsPct: s.labs.maxPoints ? Math.round((s.labs.points / s.labs.maxPoints) * 100) : 0,
+    labsDone: s.rows.filter((r) => r.completed).map((r) => r.id),
+  };
+}

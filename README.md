@@ -3,7 +3,7 @@
 **Indian Railways (NWR, Jodhpur division) ke context mein networking + IP-MPLS seekhne ka browser-based training simulator.**
 Zero se shuru: network kya hai → Ethernet, IP, OSPF → MPLS, LDP, L3VPN, pseudowires, QoS, Traffic Engineering, Segment Routing → NMS aur poora divisional backbone. Lessons simple Hinglish mein; UI, labels aur CLI English mein.
 
-Created by **Shreenidhi Sharma · JE (Tele), NWR** · Version **1.0.0**
+Created by **Shreenidhi Sharma · JE (Tele), NWR** · Version **1.1.0**
 
 > **Imaandari pehle (honesty first)**
 > - Yeh ek **educational simulator** hai, asli router OS nahi. Har simplification app ke **Model Limitations** panel mein likha hai.
@@ -16,13 +16,13 @@ Created by **Shreenidhi Sharma · JE (Tele), NWR** · Version **1.0.0**
 
 | Mode | Kya karte ho |
 |---|---|
-| **Learn** | 32 lessons: A0–A15 (networking foundations) aur B0–B15 (IP-MPLS). Railway analogies, interactive widgets (subnet / VLSM calculator, SPF, LSP walk, CSPF, TI-LFA…), 5-question flash quiz, Glossary, Command Reference (188 commands), Jodhpur IP plan aur **Dashboard** (progress, points, "aage kya karein"). |
-| **Lab** | 31 auto-checked labs (L4.1 → LB15.1): scenario, plan, live task checks (engine state se), hints (−2 points), break-fix fault, quiz, field note, reference solution. Capstones: L15.1 (5 tickets) aur LB15.1 (J2 ke 27 routers, 23 ke catalog se seed se 10 tickets). |
+| **Learn** | 32 lessons: A0–A15 (networking foundations) aur B0–B15 (IP-MPLS). Railway analogies, interactive widgets (subnet / VLSM calculator, SPF, LSP walk, CSPF, TI-LFA…), 5-question flash quiz, Glossary, Command Reference (192 commands), Jodhpur IP plan aur **Dashboard** (progress, points, "aage kya karein", printable **training certificate**). |
+| **Lab** | 32 auto-checked labs (L4.1 → LB15.1): scenario, plan, live task checks (engine state se), hints (−2 points), break-fix fault, quiz, field note, reference solution. Capstones: L15.1 (5 tickets) aur LB15.1 (J2 ke 27 routers, 23 ke catalog se seed se 10 tickets). |
 | **Sandbox** | Khaali canvas: devices rakho, cable lagao, CLI se configure karo, ping / traceroute karo, packets hop-by-hop dekho, Jodhpur topologies (J1–J4) load karo. |
 
 Kisi bhi device par click karo → **detail panel** (Overview, Hardware, Capabilities, How it forwards, Config guide, Verify & troubleshoot, Maintenance & safety, Station info, LIVE state) — English ya Hinglish mein.
 
-Engine mein: physical / optical budget, Ethernet, VLAN, RSTP, LACP, IPv4, ARP, ACL, NAT, DHCP, DNS, NTP, syslog / SNMP, SSH, HSRP / VRRP, OSPF, IS-IS, RIP, QoS, MPLS / LDP, LSP ping / trace, BGP + route reflector, VRF / MP-BGP L3VPN, VPWS, VPLS, E1 SAToP / CESoPSN, MPLS QoS (EXP), RSVP-TE + FRR, Segment Routing + TI-LFA, NMS alarms, fault injection, automation. Kya **simulate nahi** hota (jaise BFD, SDH byte-level) — Model Limitations panel mein dekho.
+Engine mein: physical / optical budget, Ethernet, VLAN, RSTP, LACP, IPv4, ARP, ACL, NAT, DHCP, DNS, NTP, syslog / SNMP, SSH, HSRP / VRRP, OSPF, IS-IS, RIP, QoS, MPLS / LDP, LSP ping / trace, BGP + route reflector, VRF / MP-BGP L3VPN, VPWS, VPLS, E1 SAToP / CESoPSN, MPLS QoS (EXP), RSVP-TE + FRR, BFD (OSPF ke liye), Segment Routing + TI-LFA, NMS alarms, fault injection, automation. Kya **simulate nahi** hota (jaise BFD control packets, SDH byte-level) — Model Limitations panel mein dekho.
 
 ## Windows par zero se chalana
 
@@ -63,7 +63,7 @@ git pull origin claude/railnet-sim-simulator-le2oq2
 npm install
 npm run dev
 ```
-Phir browser mein **Ctrl + Shift + R** (hard refresh). Status bar ke right corner mein `v1.0.0 · <commit>` se pata chalta hai kaun sa version chal raha hai.
+Phir browser mein **Ctrl + Shift + R** (hard refresh). Status bar ke right corner mein `v1.1.0 · <commit>` se pata chalta hai kaun sa version chal raha hai.
 
 ### Localhost par purane items dikh rahe hain?
 1. Status bar ka commit GitHub ke latest se purana hai → upar wala "Update karna" karo.
@@ -109,10 +109,10 @@ Phir browser mein **Ctrl + Shift + R** (hard refresh). Status bar ke right corne
 | 3 | A10–A15 (OSPF / IS-IS, services, security, HSRP, QoS, capstone) | L10.1–L15.1 |
 | 4 | B0–B4 (MPLS, LDP, Jodhpur core) | LB1.1–LB4.1 |
 | 5 | B5–B8 (BGP, L3VPN, VPWS / VPLS, E1) | LB5.1–LB8.1 |
-| 6 | B9–B13 (QoS, TE / FRR, NMS, automation, Inter-AS) | LB9.1–LB13.1 |
+| 6 | B9–B13 (QoS, TE / FRR / BFD, NMS, automation, Inter-AS) | LB9.1–LB13.1 (LB10.3 BFD bhi) |
 | 7–8 | B14–B15 (SR, grand capstone) + revision | LB14.1, LB15.1 (alag-alag seeds se dobara) |
 
-Learn → **Dashboard** hamesha batata hai agla lesson / lab kaun sa hai.
+Learn → **Dashboard** hamesha batata hai agla lesson / lab kaun sa hai. **Certificate** button se apna naam daal kar training record print karo (ya "Save as PDF"); saare lessons + labs complete hone par title "Certificate of Completion" ho jaata hai. Yeh sirf RailMPLS Lab ka training record hai — official IR / RDSO / IRISET certificate nahi.
 
 ## Commands aur features — quick reference
 
@@ -142,6 +142,7 @@ Learn → **Dashboard** hamesha batata hai agla lesson / lab kaun sa hai.
 - **BGP / L3VPN (P5)**: `vrf definition UTS` → `rd 10.0.1.1:100` → `address-family ipv4` → `route-target both 65000:100`; on the interface `vrf forwarding UTS` *then* `ip address …` (IOS removes the IP when the VRF changes). `router bgp 65000` → `neighbor 10.0.1.1 remote-as 65000` / `update-source loopback0`; `address-family vpnv4` → `neighbor … activate` (+ `route-reflector-client` on the RR); `address-family ipv4 vrf UTS` → `redistribute connected` or a PE–CE `neighbor … remote-as 65201`. Check with `show ip bgp summary`, `show bgp vpnv4 unicast all [summary|labels]`, `show ip route vrf UTS`, `show vrf`, `ping vrf UTS …`, `traceroute vrf UTS …`. If a session is not Established, the summary prints the reason under the table. Labs: LB5.1 (RR + eBGP to Jaipur division), LB6.1 (UTS/RAILNET VPNs + firewall internet), LB6.2 (SCADA PE–CE eBGP + NMS shared service).
 - **L2VPN / TDM (P6)**: VPWS on a PE port: `interface gi0/3/2` → `xconnect 10.0.1.13 1301 encapsulation mpls` (peer = the other PE's loopback, same VC ID both sides; no IP on the port). VPLS: `l2 vfi CCTV manual` → `vpn id 104` → `neighbor <PE loopback> encapsulation mpls` (one per other PE), then `xconnect vfi CCTV` on the port. E1 (logical controllers from the NEON profile): `controller E1 0/2/0` → `cem-group 0 unframed` (SAToP) or `cem-group 0 timeslots 1-4` (CESoPSN) → `interface CEM0/2/0` → `cem 0` → `xconnect <peer> <vc> encapsulation mpls`. Check with `show mpls l2transport vc [detail]` (reason under the table when DOWN), `show vfi`, `show controllers E1 0/2/0`, `ping mpls pseudowire <peer> <vc>`. Labs: LB7.1 (Data Logger VPWS), LB7.2 (CCTV VPLS), LB8.1 (BPAC + control E1).
 - **MPLS QoS / TE (P7)**: core classes match labels: `class-map match-any CORE-RT` → `match mpls experimental topmost 5 6`; at the PE `set mpls experimental imposition 6` in an input policy. TE: `mpls traffic-eng tunnels` (global + interfaces), `ip rsvp bandwidth`, under `router ospf`: `mpls traffic-eng router-id loopback0`, `mpls traffic-eng area 0`; `ip explicit-path name X enable` → `next-address` / `exclude-address`; `interface tunnel1` → `ip unnumbered loopback0`, `tunnel mode mpls traffic-eng`, `tunnel destination <tail loopback>`, `tunnel mpls traffic-eng bandwidth <kbps>`, `tunnel mpls traffic-eng path-option 1 explicit name X | dynamic`, `tunnel mpls traffic-eng autoroute announce`, `tunnel mpls traffic-eng fast-reroute`; protect a link with `mpls traffic-eng backup-path tunnel2`. Check with `show mpls traffic-eng tunnels [brief]`, `show mpls traffic-eng fast-reroute database`, `show ip rsvp interface`, `show ip explicit-paths`; after a cut, `mpls traffic-eng reoptimize`. Labs: LB9.1 (EXP + core queues), LB10.1 (TE around a busy span), LB10.2 (FRR fibre-cut drill).
+- **BFD (v1.1)**: on each core interface `bfd interval 50 min_rx 50 multiplier 3`, then register OSPF with `bfd all-interfaces` under `router ospf 1` (or `ip ospf bfd` per interface). Check with `show bfd neighbors [details]`: state, LD/RD, negotiated intervals and detection time (remote multiplier × agreed receive interval — slower side wins). The log shows `%BFD-6-BFD_SESS_UP/DOWN`. Lab: LB10.3 (BFD on the ring, 150 ms on JU–PPR, 300 ms over the DNA lease, fibre-cut drill).
 - **Operations (P8)**: put an NMS device on a LAN, set its SNMP polling community and services in its properties; routers become managed with `snmp-server community <same> ro` (plus `snmp-server host`, `snmp-server enable traps`, `logging host`). Bottom dock → **NMS** shows managed / unreachable devices, root-cause vs impact alarms, service status and link load. Device properties → **Fault injection**: power failure, card failure (fibre cuts are on the link). Bottom dock → **Automation**: pick devices, write a template with `{{hostname}}`, `{{loopback}}`, `{{station}}`, `{{router_id}}`, Preview / Push, and check compliance with regex rules. Labs: LB11.1 (NMS drill), LB12.1 (baseline automation + drift), LB13.1 (Option A hand-off at Phulera).
 - **Segment Routing / capstone (P9)**: `segment-routing mpls` → `connected-prefix-sid-map` → `address-family ipv4` → `10.0.1.1/32 index 1 range 1` → `exit-address-family`; under `router ospf 1`: `segment-routing mpls`, and for TI-LFA `fast-reroute per-prefix enable prefix-priority low` + `fast-reroute per-prefix ti-lfa`. Labels are 16000 + index; LDP stays preferred until you remove `mpls ip`. Check with `show mpls forwarding-table`, `ping mpls ipv4 <loopback>/32` and the device's LIVE **Segment Routing** panel (SRGB, SIDs, conflicts, TI-LFA repairs). Labs: LB14.1 (LDP → SR migration + TI-LFA), LB15.1 (grand capstone on J2: build the UTS VPN, Data Logger VPWS and NMS baseline on 27 routers, then 10 fault tickets drawn by seed from a catalog of 23 — the lab panel shows the seed; the same seed gives the same tickets).
 - **QoS tab** (bottom dock): offered vs delivered rate and loss per traffic flow, and which interface is the bottleneck.
@@ -172,10 +173,11 @@ Learn → **Dashboard** hamesha batata hai agla lesson / lab kaun sa hai.
 | P8 | NMS + alarms, fault injection, automation, Inter-AS Option A, B11–B13, LB11.1–LB13.1 | ✅ |
 | P9 | Segment Routing + TI-LFA, grand capstone with seeded tickets, B14–B15, LB14.1–LB15.1 | ✅ |
 | P10 | Progress dashboard, Hinglish README (Windows setup, free deploy, study plan), GitHub Pages workflow, v1.0.0 | ✅ |
+| v1.1 | BFD for OSPF (timers, negotiation, detection time, logs), lab LB10.3, B10 BFD section, printable training certificate | ✅ |
 
 ## Quality
 
-- **627 automated tests** (Vitest): engine units, CLI parsing aur show output, har lesson ka data, aur **har lab** ke liye: start par saare tasks fail, reference solution se saare pass, har fault check ko todta hai aur uska fix theek karta hai, practical quiz answers engine output se match.
+- **641 automated tests** (Vitest): engine units, CLI parsing aur show output, har lesson ka data, aur **har lab** ke liye: start par saare tasks fail, reference solution se saare pass, har fault check ko todta hai aur uska fix theek karta hai, practical quiz answers engine output se match.
 - TypeScript strict mode, Prettier formatting, har phase ke baad asli Chromium mein Playwright browser check.
 
 ## Project structure
@@ -189,11 +191,11 @@ src/
     ethernet/    STP, EtherChannel, L2 segments
     ip/ ospf/ igp/  IPv4, routing table, OSPF, IS-IS, RIP
     services/ security/ fhrp/  DHCP, DNS, NAT, NTP, syslog, SNMP, SSH, ACL, HSRP / VRRP
-    mpls/ bgp/ l2vpn/ te/ sr/  LDP + LFIB, BGP / VRF / VPNv4, pseudowires, RSVP-TE + FRR, Segment Routing
+    mpls/ bgp/ l2vpn/ te/ sr/ bfd/  LDP + LFIB, BGP / VRF / VPNv4, pseudowires, RSVP-TE + FRR, Segment Routing, BFD
     qos/ nms/ automation/      QoS analysis, NMS alarms + services, templates + compliance
     cli/         IOS-XE-style CLI grammar, show formatting, host prompt
     sim.ts       recompute() control-plane pipeline + discrete-event data plane
-  labs/          lab framework (snapshot, checks, seeded tickets) + 31 labs
+  labs/          lab framework (snapshot, checks, seeded tickets) + 32 labs
   lessons/       curriculum, 32 lessons, widget maths, progress + dashboard
   topologies/    lab topologies + Jodhpur generator (J1–J4) + station data
   ui/            React: canvas, panels, console dock, Learn / Lab views

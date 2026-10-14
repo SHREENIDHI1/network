@@ -1631,6 +1631,42 @@ export const COMMANDS: CommandRef[] = [
     hi: 'TI-LFA repair paths.',
     lesson: 'B14',
   },
+  {
+    topic: 'BFD',
+    example: 'bfd interval 50 min_rx 50 multiplier 3',
+    mode: 'config-if',
+    device: r,
+    en: 'BFD timers on the interface: send every 50 ms, accept every 50 ms, declare down after 3 misses (150 ms).',
+    hi: 'Interface par BFD timers (150 ms detection).',
+    lesson: 'B10',
+  },
+  {
+    topic: 'BFD',
+    example: 'ip ospf bfd',
+    mode: 'config-if',
+    device: r,
+    en: 'Register OSPF on this interface with BFD (OSPF drops the neighbour as soon as BFD goes down).',
+    hi: 'Is interface par OSPF BFD use kare.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'BFD',
+    example: 'bfd all-interfaces',
+    mode: 'config-router',
+    device: r,
+    en: '(under router ospf) Register OSPF with BFD on every OSPF interface that has BFD timers.',
+    hi: 'Sab OSPF interfaces par BFD.',
+    lesson: 'B10',
+  },
+  {
+    topic: 'BFD',
+    example: 'show bfd neighbors details',
+    mode: 'priv',
+    device: r,
+    en: 'BFD sessions with state, negotiated intervals, detection time and why a session is down.',
+    hi: 'BFD sessions aur detection time dekho.',
+    lesson: 'B10',
+  },
 ];
 
 /** CLI lines that bring a fresh device into `mode` (used by the reference test and the "try it" hint). */

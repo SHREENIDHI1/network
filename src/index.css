@@ -13,7 +13,13 @@ body,
   margin: 0;
   background: #0b1220;
   color: #e2e8f0;
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
 }
 
 .react-flow,
@@ -60,5 +66,31 @@ body,
 
   .rn-label {
     @apply mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400;
+  }
+}
+
+/* Printable training record (v1.1): only the certificate is printed. */
+@media print {
+  html,
+  body {
+    background: white !important;
+  }
+  body > #root,
+  .rn-no-print {
+    display: none !important;
+  }
+  .rn-cert-overlay {
+    position: static !important;
+    background: white !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .rn-cert {
+    box-shadow: none !important;
+    max-width: none !important;
+  }
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
   }
 }

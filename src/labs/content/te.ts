@@ -513,4 +513,164 @@ const b10b: Lab = {
   },
 };
 
-export const TE_LABS: Lab[] = [b9, b10, b10b];
+// ---------------------------------------------------------------------------
+// LB10.3 BFD on the ring (B10, v1.1)
+// ---------------------------------------------------------------------------
+
+const bfdFast = 'bfd interval 50 min_rx 50 multiplier 3';
+const bfdLease = 'bfd interval 100 min_rx 100 multiplier 3';
+const bfdBoth = (second: string, register: 'process' | 'interface') => [
+  ...CONF,
+  'interface te0/0/0',
+  bfdFast,
+  ...(register === 'interface' ? ['ip ospf bfd'] : []),
+  'interface te0/0/1',
+  second,
+  ...(register === 'interface' ? ['ip ospf bfd'] : []),
+  'exit',
+  ...(register === 'process' ? ['router ospf 1', 'bfd all-interfaces'] : []),
+  'end',
+];
+
+const b10c: Lab = {
+  id: 'LB10.3',
+  part: 'B',
+  level: 10,
+  order: 3,
+  lessonId: 'B10',
+  title: 'BFD on the ring: detect a fibre cut in milliseconds',
+  scenario:
+    'Ring JU–PPR–MTD–DNA (DNA–JU leased lambda) par OSPF aur LDP chal rahe hain, par koi BFD nahi. Agar beech mein koi media converter ya DWDM transponder ho to fibre katne par local port up hi reh sakta hai — tab OSPF ko 40 second (dead interval) baad pata chalega. Kaam: ring ke har link par BFD lagao (JU–PPR span par 150 ms detection), OSPF ko BFD se register karo, phir PPR–JU fibre kaato aur dekho MTD ka CCTV JU ke NVR tak pahunchta rahe.',
+  concept:
+    'BFD (Bidirectional Forwarding Detection, RFC 5880): do routers ke beech chhote control packets har kuch milliseconds par. "multiplier" packets lagaatar miss hue to session Down, aur jo protocol register hai (yahan OSPF) turant neighbour gira deta hai.\n' +
+    'Negotiation: har side batati hai "main itni der mein bhejna chahta hoon" (interval) aur "itni jaldi le sakta hoon" (min_rx). Dono mein jo dheema hai wahi chalta hai. Detection time = remote multiplier × agreed receive interval.\n' +
+    'Hello/dead timers (10 s / 40 s) ko 1 s karna CPU par bhaari hai aur fir bhi second mein; BFD milliseconds mein, aur protocol se alag.\n' +
+    'Railway analogy: BFD = block instrument ka continuous track-circuit current — current ruka to turant signal laal, station master ke 40 second wait karne ki zaroorat nahi.',
+  objectives: ['BFD timers on every ring interface', 'OSPF registered with BFD', 'Fibre cut drill with the backup path via DNA'],
+  topologyId: 'lab-b10-bfd',
+  requiredModules: ['topology', 'physical', 'sim', 'ip', 'ospf', 'mpls'],
+  plan: {
+    headers: ['Item', 'Value'],
+    rows: [
+      ['Ring links', 'JU–PPR, PPR–MTD, MTD–DNA on Te0/0/0 / Te0/0/1; DNA–JU leased lambda on Te0/0/1 of JU and DNA'],
+      ['Own fibre (all Te0/0/0, PPR/MTD Te0/0/1)', bfdFast + '  → detection 150 ms'],
+      ['DNA Te0/0/1 (lease side)', bfdLease + '  (provider hand-off cannot go faster); JU Te0/0/1 keeps the 50 ms timers'],
+      ['OSPF registration', '"bfd all-interfaces" under router ospf 1 (or "ip ospf bfd" per interface)'],
+      ['Drill', 'Cut the PPR–JU fibre, then ping JU-NVR from MTD-CAM1'],
+    ],
+  },
+  tasks: [
+    {
+      id: 't1',
+      text: 'BFD session JU-LSR ⇄ PPR-LSR is Up on both ends with a detection time of 150 ms or less (after the drill: the timers stay configured).',
+      check: C.any(
+        'JU-LSR ⇄ PPR-LSR has no Up BFD session with detection ≤ 150 ms ("show bfd neighbors" on both).',
+        C.bfdSessionUp(JU, PPR, 150),
+        C.all(C.linkCut(PPR, JU), C.configHasLines([JU, PPR], [`^ ${bfdFast}$`, '^ bfd all-interfaces$|^ ip ospf bfd$'])),
+      ),
+      points: 25,
+    },
+    {
+      id: 't2',
+      text: 'Every FULL OSPF adjacency on the ring has an Up BFD session (including the DNA–JU lease).',
+      check: C.bfdOnAllAdjacencies(),
+      points: 20,
+    },
+    {
+      id: 't3',
+      text: `Drill: with the PPR–JU fibre cut, BFD JU ⇄ DNA is still Up and MTD-CAM1 reaches JU-NVR (${NET.nvr}.10) via DNA.`,
+      check: C.all(C.linkCut(PPR, JU), C.bfdSessionUp(JU, DNA), C.pingSucceeds('MTD-CAM1', `${NET.nvr}.10`)),
+      points: 25,
+    },
+  ],
+  hints: [
+    [
+      `On JU-LSR and PPR-LSR: interface te0/0/0 → ${bfdFast}`,
+      'Then register OSPF: router ospf 1 → bfd all-interfaces. "show bfd neighbors details" shows the negotiated intervals.',
+    ],
+    [
+      `Every Te0/0/0 and Te0/0/1 needs timers; on DNA Te0/0/1 use the lease timers (${bfdLease}).`,
+      'A session stays Down if only one side has timers, or if OSPF on the other side does not register — read "Down because" in "show bfd neighbors details".',
+    ],
+    [
+      'Select the PPR–JU link on the canvas → Cut. Look at the JU-LSR log: %BFD-6-BFD_SESS_DOWN shows the detection time.',
+      `Then from MTD-CAM1: ping ${NET.nvr}.10 — OSPF now goes MTD–DNA–JU.`,
+    ],
+  ],
+  breakFix: {
+    complaint: 'NOC JU: "Lease provider ne DNA par hand-off port badla, uske baad se JU par DNA wala BFD session Down dikha raha hai."',
+    apply: (t) =>
+      configure(t, DNA, (c) => {
+        const i = c.interfaces['Te0/0/1'];
+        if (i) delete i.bfd;
+      }),
+    check: C.bfdSessionUp(JU, DNA),
+    hints: ['"show bfd neighbors details" on JU-LSR: why is the DNA session down?', `On DNA-LSR: interface te0/0/1 → ${bfdLease}`],
+    fix: { cli: { [DNA]: [...CONF, 'interface te0/0/1', bfdLease, 'end'] } },
+  },
+  quiz: [
+    {
+      id: 'q1',
+      kind: 'mcq',
+      prompt: 'JU sends with interval 50 ms; the neighbour says min_rx 100 ms. What transmit interval does JU use?',
+      options: ['50 ms', '100 ms', '150 ms', '300 ms'],
+      correctIndex: 1,
+      explanation: 'Transmit = max(own interval, neighbour min_rx) — never faster than the receiver can take.',
+    },
+    {
+      id: 'q2',
+      kind: 'mcq',
+      prompt: 'Why add BFD when OSPF already has hello and dead timers?',
+      options: [
+        'BFD encrypts OSPF',
+        'BFD detects a dead path in milliseconds, independent of the routing protocol, even when the local port stays up',
+        'BFD replaces OSPF',
+        'BFD increases bandwidth',
+      ],
+      correctIndex: 1,
+      explanation: 'With a media converter or transponder in the path the port can stay up; only a packet-based check notices.',
+    },
+    {
+      id: 'q3',
+      kind: 'mcq',
+      prompt: 'BFD Down on an OSPF interface — what does OSPF do?',
+      options: ['Nothing until the dead timer expires', 'Brings the neighbour down at once and reconverges', 'Reloads the router', 'Disables MPLS'],
+      correctIndex: 1,
+      explanation: 'OSPF is a registered client; BFD tells it immediately.',
+    },
+    {
+      id: 'q4',
+      kind: 'mcq',
+      prompt: 'Interval 50 ms, multiplier 3 on both sides. Detection time?',
+      options: ['50 ms', '100 ms', '150 ms', '3 s'],
+      correctIndex: 2,
+      explanation: 'Detection = remote multiplier × agreed receive interval = 3 × 50 ms.',
+    },
+    {
+      id: 'q5',
+      kind: 'practical',
+      prompt: 'After the solution, run "show bfd neighbors" on JU-LSR. What is the detection time towards DNA-LSR (over the lease)?',
+      options: ['150 ms', '300 ms', '450 ms', '600 ms'],
+      correctIndex: 1,
+      explanation: 'DNA can only send every 100 ms, so JU receives at 100 ms; DNA multiplier 3 × 100 ms = 300 ms.',
+    },
+  ],
+  estMinutes: 35,
+  fieldNote:
+    'Real gear: BFD runs in hardware/line cards on NEON-class routers and 50 ms × 3 is a common railway core setting; slower links (leases, microwave) get relaxed timers. In RailMPLS Lab the timers are negotiated and the detection time is computed and logged, but no BFD packets are sent — the engine reconverges at once. On a direct fibre cut, loss of light would also bring the port down; BFD matters most where something in the middle keeps the port up.\nInterview questions: "BFD detection time kaise nikalta hai?", "BFD echo vs async mode?", "BFD single-hop vs multihop?"',
+  solution: {
+    cli: {
+      [JU]: bfdBoth(bfdFast, 'process'),
+      [PPR]: bfdBoth(bfdFast, 'process'),
+      [MTD]: bfdBoth(bfdFast, 'interface'),
+      [DNA]: bfdBoth(bfdLease, 'process'),
+    },
+    cuts: [[PPR, JU]],
+    pings: [
+      ['MTD-CAM1', `${NET.nvr}.10`],
+      ['MTD-CAM1', `${NET.nvr}.10`],
+    ],
+  },
+};
+
+export const TE_LABS: Lab[] = [b9, b10, b10b, b10c];

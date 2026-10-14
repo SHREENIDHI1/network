@@ -777,6 +777,39 @@ export function noLdp(devices: string[]): Check {
   };
 }
 
+/** A BFD session between `a` and `b` is Up on both ends, optionally with detection time ≤ `maxDetectMs`. */
+export function bfdSessionUp(a: string, b: string, maxDetectMs?: number): Check {
+  return (snap) => {
+    const s = section(snap, 'bfdSessions', 'ospf');
+    if (isResult(s)) return s;
+    for (const [x, y] of [
+      [a, b],
+      [b, a],
+    ]) {
+      const e = s.find((v) => v.device === x && v.neighbor === y);
+      if (!e) return fail(`${x} has no BFD session towards ${y} (OSPF must be FULL and register with BFD: "ip ospf bfd" or "bfd all-interfaces").`);
+      if (e.state !== 'Up') return fail(`BFD ${x} → ${y} is Down: ${e.reason ?? 'check the timers on both ends'}.`);
+      if (maxDetectMs !== undefined && e.detectMs > maxDetectMs)
+        return fail(`BFD ${x} → ${y} detects a failure in ${e.detectMs} ms — the plan needs ≤ ${maxDetectMs} ms.`);
+    }
+    return pass();
+  };
+}
+
+/** Every FULL OSPF adjacency also has a BFD session Up on both ends. */
+export function bfdOnAllAdjacencies(): Check {
+  return (snap) => {
+    const nb = section(snap, 'ospfNeighbors', 'ospf');
+    if (isResult(nb)) return nb;
+    const s = section(snap, 'bfdSessions', 'ospf');
+    if (isResult(s)) return s;
+    const full = nb.filter((n) => n.state === 'FULL');
+    if (!full.length) return fail('No OSPF adjacency is FULL yet.');
+    const gap = full.find((n) => !s.some((v) => v.device === n.device && v.neighbor === n.neighbor && v.state === 'Up'));
+    return gap ? fail(`${gap.device} → ${gap.neighbor} is an OSPF adjacency without an Up BFD session.`) : pass();
+  };
+}
+
 /** Every SR prefix that `dev` forwards has a TI-LFA repair path. */
 export function tiLfaProtected(dev: string): Check {
   return (snap) => {

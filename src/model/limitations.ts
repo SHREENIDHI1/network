@@ -25,7 +25,7 @@ export const LIMITATIONS: Limitation[] = [
     area: 'General',
     status: 'active',
     phase: 2,
-    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6), MPLS QoS (EXP marking and core classes) with RSVP-TE tunnels and fast reroute (Phase 7), and operations: NMS view with alarms and railway services, power / card / fibre fault drills, an automation tab and the Option A inter-division hand-off (Phase 8), Segment Routing (SR-MPLS over OSPF with TI-LFA) and the grand capstone with seeded fault tickets (Phase 9), and a progress dashboard with the final documentation (Phase 10).',
+    text: 'Built so far: topology editor (Phase 1), Ethernet + IPv4 engine (Phase 2), OSPF, IS-IS, RIPv2, DHCP, DNS, NAT, NTP, syslog/SNMP traps, SSH/Telnet login checks, ACL, HSRP/VRRP and QoS analysis (Phase 3), MPLS with LDP, LSP ping/trace and the Jodhpur division topologies J1–J4 (Phase 4), BGP (eBGP/iBGP, route reflectors) with MP-BGP VPNv4 L3VPNs and VRFs (Phase 5), L2VPN pseudowires — VPWS, VPLS and E1 circuit emulation (SAToP/CESoPSN) on logical E1 controllers (Phase 6), MPLS QoS (EXP marking and core classes) with RSVP-TE tunnels and fast reroute (Phase 7), and operations: NMS view with alarms and railway services, power / card / fibre fault drills, an automation tab and the Option A inter-division hand-off (Phase 8), Segment Routing (SR-MPLS over OSPF with TI-LFA) and the grand capstone with seeded fault tickets (Phase 9), a progress dashboard with the final documentation (Phase 10), and in v1.1 BFD for OSPF (negotiated timers, detection time) with lab LB10.3 and a printable training certificate.',
   },
   // ---------------- Physical ----------------
   {
@@ -299,10 +299,10 @@ export const LIMITATIONS: Limitation[] = [
     text: 'Autoroute announce moves the head end\'s IGP routes whose path passes through the tail into the tunnel. FRR is facility backup with link protection (merge at the next hop or next-next hop); the switchover is immediate in the model, and an LSP stays on its backup until "mpls traffic-eng reoptimize" is run on the head end so the FRR state can be studied — real head ends re-signal on their own within seconds (make-before-break). Established LSPs keep their path while it stays valid (no periodic re-optimisation). The JU–DNA lease in the B10 labs is a teaching assumption: the J1 core is a tree.',
   },
   {
-    area: 'MPLS TE',
+    area: 'BFD',
     status: 'active',
     phase: 7,
-    text: 'BFD (Bidirectional Forwarding Detection) is taught in lessons B2 and B10 but not simulated: a link or node failure is detected instantly because the engine recomputes on every change. Real networks need BFD (or loss-of-light) to detect failures in milliseconds; timers, multipliers and BFD sessions are not modelled.',
+    text: 'BFD (v1.1) is computed, not packet-driven: sessions exist for FULL OSPF adjacencies that register with BFD, timers are negotiated (RFC 5880 asynchronous mode) and the detection time is computed and logged, but no BFD control packets are sent and the engine reconverges at once on any failure — the detection time is reported, not waited for. Only OSPF registers as a client (no BGP, static or LDP clients), only single-hop sessions are modelled, and echo mode, authentication, dampening and BFD templates are not. On a direct fibre cut loss of light would also bring the port down; BFD matters most where equipment in the middle keeps the port up.',
   },
   // ---------------- Phase 8 ----------------
   {
@@ -419,9 +419,9 @@ export const LIMITATIONS: Limitation[] = [
   },
   {
     area: 'Labs',
-    status: 'planned',
-    phase: 7,
-    text: 'Completion certificates are RailMPLS Lab training records only. They are not official Indian Railways, RDSO or IRISET certificates.',
+    status: 'active',
+    phase: 10,
+    text: 'The printable certificate (Learn → Dashboard → Certificate) is a RailMPLS Lab training record only, built from the progress saved in this browser and not verified. It is not an official Indian Railways, RDSO or IRISET certificate.',
   },
   {
     area: 'Equipment docs',

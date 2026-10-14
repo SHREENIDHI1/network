@@ -27,6 +27,7 @@ import { bgpCmds } from './iosBgp';
 import { l2vpnCmds } from './iosL2vpn';
 import { teCmds } from './iosTe';
 import { srCmds } from './iosSr';
+import { bfdCmds } from './iosBfd';
 import { l2Cmds, propagatePortChannel } from './iosL2';
 
 /**
@@ -878,7 +879,18 @@ const CMDS: Cmd[] = [
   ),
 ];
 
-CMDS.push(...phase3Cmds(), ...l2Cmds(), ...igpCmds(), ...mgmtCmds(), ...mplsCmds(), ...bgpCmds(), ...l2vpnCmds(), ...teCmds(), ...srCmds());
+CMDS.push(
+  ...phase3Cmds(),
+  ...l2Cmds(),
+  ...igpCmds(),
+  ...mgmtCmds(),
+  ...mplsCmds(),
+  ...bgpCmds(),
+  ...l2vpnCmds(),
+  ...teCmds(),
+  ...srCmds(),
+  ...bfdCmds(),
+);
 
 function saveStartup(x: Exec): string {
   const { startup: _ignored, ...running } = x.cfg;

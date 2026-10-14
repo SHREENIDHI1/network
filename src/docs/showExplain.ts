@@ -650,6 +650,30 @@ const ENTRIES: Array<{ pattern: string[]; host?: boolean; ex: ShowExplain }> = [
     },
   },
   {
+    pattern: ['show', 'bfd', 'neighbors'],
+    ex: {
+      title: 'show bfd neighbors',
+      fields: [
+        f('NeighAddr / Neighbor', 'Neighbour interface address and router.', 'Padosi ka address.'),
+        f(
+          'LD/RD',
+          'Local and remote discriminators — the session IDs each side puts in its packets; RD 0 = nothing heard yet.',
+          'Session IDs; RD 0 = kuch nahi aaya.',
+        ),
+        f('State', 'Up = both ends agree; Down = see "show bfd neighbors details" for the reason.', 'Up / Down.'),
+        f(
+          'Detect(ms)',
+          'Detection time = remote multiplier × agreed receive interval (the slower side wins).',
+          'Kitni der mein failure pakda jaayega.',
+        ),
+      ],
+      lookFor: {
+        en: 'A Down session usually means timers on one end only, or OSPF not registered on the far end ("bfd all-interfaces" / "ip ospf bfd").',
+        hi: 'Down = ek taraf timers nahi, ya OSPF registered nahi.',
+      },
+    },
+  },
+  {
     pattern: ['show', 'mpls', 'traffic-eng', 'tunnels', 'brief'],
     ex: {
       title: 'show mpls traffic-eng tunnels brief',

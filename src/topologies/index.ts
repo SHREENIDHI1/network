@@ -59,6 +59,11 @@ export const TOPOLOGIES: readonly TopologyEntry[] = [
     load: () => import('./teLabs').then((m) => m.b10Ring({ congested: false, teOnMtd: true })),
   },
   {
+    id: 'lab-b10-bfd',
+    title: 'Lab B10: BFD on the ring',
+    load: () => import('./teLabs').then((m) => m.b10Ring({ congested: false, teOnMtd: false, bfd: true })),
+  },
+  {
     id: 'lab-b14-sr',
     title: 'Lab B14: Segment Routing on the ring',
     load: () => import('./teLabs').then((m) => m.b10Ring({ congested: false, teOnMtd: false, sr: true })),

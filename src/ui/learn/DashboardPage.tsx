@@ -1,5 +1,6 @@
 import { useReactFlow } from '@xyflow/react';
-import { BookOpen, CheckCircle2, FlaskConical, Wrench } from 'lucide-react';
+import { Award, BookOpen, CheckCircle2, FlaskConical, Wrench } from 'lucide-react';
+import { useState } from 'react';
 import { CURRICULUM, isAvailable } from '../../lessons/curriculum';
 import { dashboardSummary } from '../../lessons/dashboard';
 import { LABS, visibleLabs } from '../../labs/registry';
@@ -7,11 +8,13 @@ import { useAppMode } from '../../store/appModeStore';
 import { maxLabScore, useLabStore } from '../../store/labStore';
 import { useProgress } from '../../store/progressStore';
 import { useTopologyStore } from '../../store/topologyStore';
+import { CertificateView } from './CertificateView';
 
 /** Learn → Dashboard: lessons, quizzes, labs, points and what to do next (P10). */
 export function DashboardPage({ onOpenLesson }: { onOpenLesson: (id: string) => void }) {
   const progress = useProgress((s) => s.progress);
   const { fitView } = useReactFlow();
+  const [cert, setCert] = useState(false);
   const s = dashboardSummary(
     progress,
     CURRICULUM.map((c) => ({ id: c.id, part: c.part, title: c.title, available: isAvailable(c.id) })),
@@ -51,7 +54,13 @@ export function DashboardPage({ onOpenLesson }: { onOpenLesson: (id: string) => 
 
   return (
     <article className="mx-auto max-w-5xl px-6 py-6">
-      <h1 className="text-2xl font-semibold text-slate-100">Your progress</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold text-slate-100">Your progress</h1>
+        <button type="button" className="rn-btn" onClick={() => setCert(true)}>
+          <Award className="h-4 w-4" /> Certificate
+        </button>
+      </div>
+      {cert && <CertificateView summary={s} onClose={() => setCert(false)} />}
       <p className="mt-1 text-sm text-slate-400">Saved in this browser. Use the export button (top left) to keep a copy or move it to another PC.</p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

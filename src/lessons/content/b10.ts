@@ -55,6 +55,11 @@ export const lesson: Lesson = {
       body: 'Simulator: RSVP-TE computed hai (Path/Resv refresh, priorities/pre-emption, affinities nahi). FRR switchover model mein turant hota hai; head-end tab tak backup par rehta hai jab tak "mpls traffic-eng reoptimize" na chalao — taaki aap FRR state dekh sako. Asli head-end kuch seconds mein khud re-signal karta hai. B10 ring ka JU–DNA lease ek teaching assumption hai (J1 core tree hai).',
     },
     {
+      kind: 'text',
+      heading: 'BFD: failure ko milliseconds mein pakadna',
+      body: 'FRR tabhi kaam karta hai jab failure pata chale. Fibre seedha kate to port down (loss of light) turant dikh jaata hai — par beech mein media converter, DWDM transponder ya lease provider ka equipment ho to local port up reh sakta hai, aur OSPF ko dead interval (40 s) baad pata chalega. BFD (RFC 5880) dono routers ke beech har kuch milliseconds par chhota packet bhejta hai; "multiplier" packets miss hue to session Down, aur registered protocol (OSPF, "bfd all-interfaces" ya "ip ospf bfd") neighbour turant gira deta hai. Timers negotiate hote hain: jo side dheemi hai wahi chalti hai. Detection time = remote multiplier × agreed receive interval (50 ms × 3 = 150 ms).',
+    },
+    {
       kind: 'analogy',
       body: 'TE = goods train ke liye pehle se path block karna (chord line, reservation ke saath). FRR = har section ka pehle se tay diversion — line block hote hi station master turant diversion par bhejta hai, control ka order baad mein.',
     },
@@ -105,7 +110,15 @@ export const lesson: Lesson = {
       hi: 'Tunnel ko routing mein use karo.',
     },
     { term: 'FRR / PLR', en: 'Fast reroute; the point of local repair switches traffic to a pre-signalled backup.', hi: 'Turant backup par switch.' },
+    {
+      term: 'BFD',
+      en: 'Bidirectional Forwarding Detection (RFC 5880): fast hello packets that tell OSPF/BGP within milliseconds that a path is dead.',
+      hi: 'Millisecond mein link failure pakadne wala hello.',
+    },
     { term: 'Make-before-break', en: 'New LSP is signalled before the old one is torn down.', hi: 'Naya path pehle, purana baad mein.' },
   ],
-  practice: { labId: 'LB10.1', note: 'Lab LB10.1: busy JU–PPR span ke bagal se TE tunnel. Lab LB10.2: PPR–JU par FRR aur fibre-cut drill.' },
+  practice: {
+    labId: 'LB10.1',
+    note: 'Lab LB10.1: busy JU–PPR span ke bagal se TE tunnel. Lab LB10.2: PPR–JU par FRR aur fibre-cut drill. Lab LB10.3: ring par BFD (150 ms detection).',
+  },
 };

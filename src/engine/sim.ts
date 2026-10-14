@@ -23,6 +23,7 @@ import { deriveL3Interfaces, portCarriesVlan, vlanExists, type L3Interface } fro
 import { formatIpv4, inSubnet } from './ip/ipv4';
 import { buildRoutingTable, lookup, resolve, routesPackets, type Route } from './ip/routing';
 import { computePhysical, portKey, type PhysicalState } from './physical/linkState';
+import { computeBfd, emptyBfd, type BfdResult } from './bfd/bfd';
 
 /**
  * RailMPLS Lab discrete-event network engine (Phase 2).
@@ -360,6 +361,7 @@ export class Sim {
   pw: PwResult = emptyPw();
   te: TeResult = emptyTe();
   sr: SrResult = emptySr();
+  bfd: BfdResult = emptyBfd();
   /** RSVP-TE path memory: LSPs keep their path (or FRR backup) until re-optimised. */
   readonly teMemory: TeMemory = new Map();
   /** VPLS MAC tables: "deviceId|vfi" → MAC → attachment interface or pseudowire peer. */
@@ -539,6 +541,11 @@ export class Sim {
 
     // Autoroute announce: destinations reached through a tunnel's tail use the tunnel.
     this.applyAutoroute();
+
+    // BFD sessions for OSPF adjacencies (v1.1): computed detection times, state-change logs.
+    const oldBfd = this.bfd;
+    this.bfd = computeBfd(this.configs, this.ospf);
+    this.logBfdChanges(oldBfd);
 
     // Segment Routing (OSPF prefix SIDs) on the final global tables.
     this.sr = computeSr(this.topology, this.configs, l3g, this.routes, this.ospf);
@@ -2389,6 +2396,25 @@ export class Sim {
     this.logs.set(deviceId, l);
   }
 
+  /** BFD session up / down messages (with the detection time OSPF would have been told after). */
+  private logBfdChanges(old: BfdResult): void {
+    const key = (x: { deviceId: string; iface: string; neighborDeviceId: string }) => `${x.deviceId}|${x.iface}|${x.neighborDeviceId}`;
+    const now = new Map(this.bfd.sessions.filter((x) => x.state === 'Up').map((x) => [key(x), x]));
+    const before = new Map(old.sessions.filter((x) => x.state === 'Up').map((x) => [key(x), x]));
+    for (const [k, b] of before)
+      if (!now.has(k))
+        this.log(
+          b.deviceId,
+          `%BFD-6-BFD_SESS_DOWN: BFD session to neighbor ${formatIpv4(b.neighborIp)} on ${longIfName(b.iface)} went down — failure detected in ${b.detectMs} ms; OSPF neighbour brought down`,
+        );
+    for (const [k, n] of now)
+      if (!before.has(k))
+        this.log(
+          n.deviceId,
+          `%BFD-6-BFD_SESS_UP: BFD session to neighbor ${formatIpv4(n.neighborIp)} on ${longIfName(n.iface)} is up (detection time ${n.detectMs} ms)`,
+        );
+  }
+
   /** Link up/down messages to the local log, syslog hosts and SNMP trap receivers. */
   private logLinkChanges(old: PhysicalState): void {
     if (!old.ports.size) return;
@@ -3049,9 +3075,7 @@ export class Sim {
     // MPLS imposition (FTN): push the label learned from the next hop's LSR for this prefix
     // (for a BGP route: the label of its BGP next hop — the "BGP-free core").
     const fecRoute = !o.vrf && r.route.protocol === 'B' && r.route.nextHop !== undefined ? (lookup(table, r.route.nextHop) ?? r.route) : r.route;
-    const ftn = o.vrf
-      ? undefined
-      : this.ftn(deviceId, fecRoute.network, fecRoute.prefixLen, r.nextHop, iface.name);
+    const ftn = o.vrf ? undefined : this.ftn(deviceId, fecRoute.network, fecRoute.prefixLen, r.nextHop, iface.name);
     let mpls: MplsLabel[] | undefined;
     if (ftn && typeof ftn.out === 'number') {
       const propagate = this.configs.get(deviceId)!.mpls.propagateTtl;
@@ -3261,7 +3285,9 @@ export class Sim {
   ftn(deviceId: string, network: number, prefixLen: number, nextHop?: number, iface?: string): LfibEntry | undefined {
     const key = `${deviceId}|${prefixKey(network, prefixLen)}`;
     const ldp = this.ldp.byFec.get(key);
-    const l = (nextHop !== undefined ? ldp?.find((e) => e.nextHop === nextHop && (!iface || e.iface === iface)) : undefined) ?? (nextHop === undefined ? ldp?.[0] : undefined);
+    const l =
+      (nextHop !== undefined ? ldp?.find((e) => e.nextHop === nextHop && (!iface || e.iface === iface)) : undefined) ??
+      (nextHop === undefined ? ldp?.[0] : undefined);
     if (l && typeof l.out === 'number') return l;
     const sr = this.sr.byFec.get(key);
     if (sr && sr.out !== 'none' && (nextHop === undefined || sr.nextHop === nextHop))
@@ -3277,7 +3303,17 @@ export class Sim {
     const pkt = frame.payload as Ipv4Packet;
     const fec = `${formatIpv4(e.sid.network)}/${e.sid.prefixLen}`;
     if (ttl <= 0) {
-      this.trace(flowId, { deviceId, iface: iface.name, action: 'drop', table: 'LFIB', detail: `Label TTL expired (SR label ${top.label}, prefix SID ${fec} index ${e.sid.index}).` }, frame);
+      this.trace(
+        flowId,
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'drop',
+          table: 'LFIB',
+          detail: `Label TTL expired (SR label ${top.label}, prefix SID ${fec} index ${e.sid.index}).`,
+        },
+        frame,
+      );
       if (pkt.icmp?.type === 'echo-request' && iface.ip !== undefined && !frame.l2) {
         const err: Ipv4Packet = {
           kind: 'ipv4',
@@ -3286,7 +3322,13 @@ export class Sim {
           ttl: 255,
           dscp: 0,
           protocol: 'icmp',
-          icmp: { type: 'time-exceeded', id: pkt.icmp.id, seq: pkt.icmp.seq, code: 'ttl-exceeded', mplsLabels: stack.map((l) => ({ label: l.label, exp: l.tc })) },
+          icmp: {
+            type: 'time-exceeded',
+            id: pkt.icmp.id,
+            seq: pkt.icmp.seq,
+            code: 'ttl-exceeded',
+            mplsLabels: stack.map((l) => ({ label: l.label, exp: l.tc })),
+          },
           sizeBytes: 56,
         };
         if (rest.length) this.mplsInput(deviceId, iface, { ...frame, payload: err, mpls: stack.map((l) => ({ ...l, ttl: 256 })) });
@@ -3306,7 +3348,13 @@ export class Sim {
     if (typeof e.out === 'number') {
       this.trace(
         flowId,
-        { deviceId, iface: iface.name, action: 'forward', table: 'LFIB', detail: `SR swap: label ${top.label} → ${e.out} (prefix SID ${fec}, index ${e.sid.index}) towards ${formatIpv4(e.nextHop)} on ${e.iface}.` },
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'forward',
+          table: 'LFIB',
+          detail: `SR swap: label ${top.label} → ${e.out} (prefix SID ${fec}, index ${e.sid.index}) towards ${formatIpv4(e.nextHop)} on ${e.iface}.`,
+        },
         frame,
       );
       this.sendToNextHop(deviceId, out, e.nextHop, pkt, [{ ...top, label: e.out, ttl }, ...rest], flowId, false, frame.l2);
@@ -3315,13 +3363,29 @@ export class Sim {
     if (e.out === 'pop') {
       this.trace(
         flowId,
-        { deviceId, iface: iface.name, action: 'forward', table: 'LFIB', detail: `SR pop: label ${top.label} removed (prefix SID ${fec}; next hop owns the prefix — PHP).` },
+        {
+          deviceId,
+          iface: iface.name,
+          action: 'forward',
+          table: 'LFIB',
+          detail: `SR pop: label ${top.label} removed (prefix SID ${fec}; next hop owns the prefix — PHP).`,
+        },
         frame,
       );
       this.sendToNextHop(deviceId, out, e.nextHop, { ...pkt, ttl: ipTtl }, rest.length ? rest : undefined, flowId, false, frame.l2);
       return;
     }
-    this.trace(flowId, { deviceId, iface: iface.name, action: 'forward', table: 'LFIB', detail: `SR label ${top.label}: next hop does not run SR — label removed, routed as IP.` }, frame);
+    this.trace(
+      flowId,
+      {
+        deviceId,
+        iface: iface.name,
+        action: 'forward',
+        table: 'LFIB',
+        detail: `SR label ${top.label}: next hop does not run SR — label removed, routed as IP.`,
+      },
+      frame,
+    );
     if (frame.l2) return;
     this.routeAndSend(deviceId, { ...pkt, ttl: ipTtl }, flowId, { originated: false, ingress: iface });
   }

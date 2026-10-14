@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dashboardSummary, type DashLab, type DashLesson } from './dashboard';
+import { certificateInfo, dashboardSummary, type DashLab, type DashLesson } from './dashboard';
 import type { Progress } from './progress';
 
 const lessons: DashLesson[] = [
@@ -37,5 +37,15 @@ describe('dashboard summary', () => {
     const lab = { completed: true, bestScore: 1, attempts: 1, breakFixDone: true, quizBest: 5 };
     const s = dashboardSummary({ version: 1, lessons: { A0: done, A4: done, B0: done }, labs: { 'L4.1': lab, 'LB1.1': lab } }, lessons, labs);
     expect(s.next).toBeNull();
+    expect(certificateInfo(s)).toEqual({ complete: true, title: 'Certificate of Completion', pointsPct: 1, labsDone: ['L4.1', 'LB1.1'] });
+  });
+
+  it('partial progress gives a progress record, not a certificate', () => {
+    const s = dashboardSummary(
+      { version: 1, lessons: {}, labs: { 'L4.1': { completed: true, bestScore: 80, attempts: 1, breakFixDone: false, quizBest: 3 } } },
+      lessons,
+      labs,
+    );
+    expect(certificateInfo(s)).toEqual({ complete: false, title: 'Training Progress Record', pointsPct: 44, labsDone: ['L4.1'] });
   });
 });

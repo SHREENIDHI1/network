@@ -341,6 +341,8 @@ export function interfaceLines(ic: InterfaceConfig | undefined): string[] {
   if (ic.ospfCost) L.push(` ip ospf cost ${ic.ospfCost}`);
   if (ic.ospfHello) L.push(` ip ospf hello-interval ${ic.ospfHello}`);
   if (ic.ospfDead) L.push(` ip ospf dead-interval ${ic.ospfDead}`);
+  if (ic.bfd) L.push(` bfd interval ${ic.bfd.intervalMs} min_rx ${ic.bfd.minRxMs} multiplier ${ic.bfd.multiplier}`);
+  if (ic.ospfBfd) L.push(' ip ospf bfd');
   if (ic.ospfPriority !== undefined) L.push(` ip ospf priority ${ic.ospfPriority}`);
   for (const f of ic.fhrp ?? []) {
     const c = f.protocol === 'hsrp' ? 'standby' : 'vrrp';
@@ -478,6 +480,7 @@ export function globalLinesAfterInterfaces(cfg: NetConfig): string[] {
     if (o.defaultOriginate !== 'off') L.push(` default-information originate${o.defaultOriginate === 'always' ? ' always' : ''}`);
     if (o.ldpSync) L.push(' mpls ldp sync');
     if (o.ldpAutoconfig) L.push(' mpls ldp autoconfig');
+    if (o.bfdAllInterfaces) L.push(' bfd all-interfaces');
     if (o.segmentRouting) L.push(' segment-routing mpls');
     if (o.frrPerPrefix) L.push(' fast-reroute per-prefix enable prefix-priority low');
     if (o.tiLfa) L.push(' fast-reroute per-prefix ti-lfa');

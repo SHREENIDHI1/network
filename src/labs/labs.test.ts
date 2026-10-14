@@ -49,6 +49,7 @@ describe('labs A4–A15 and B1–B13', () => {
       'B9',
       'B10',
       'B10',
+      'B10',
       'B11',
       'B12',
       'B13',
@@ -284,6 +285,12 @@ describe('practical quiz answers match the engine', () => {
   it('LB13.1: JU learns the Jaipur UTS LAN from FL over iBGP', async () => {
     const out = await solvedCli('LB13.1', 'JU-LSR', ['show ip route vrf UTS']);
     expect(out).toMatch(/^B\s+10\.150\.1\.0\/24 \[200\/0\] via 10\.0\.3\.10/m);
+  });
+
+  it('LB10.3: JU-LSR detects a failure towards DNA-LSR in 300 ms', async () => {
+    const out = await solvedCli('LB10.3', 'JU-LSR', ['show bfd neighbors']);
+    const row = out.split('\n').find((l) => l.includes('DNA-LSR'));
+    expect(row).toMatch(/\bUp\s+Te0\/0\/1\s+300\s/);
   });
 
   it('LB14.1: MTD-LSR uses local label 16001 for the JU loopback', async () => {
