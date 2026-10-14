@@ -1,0 +1,23 @@
+RailMPLS Lab — Networking & IP-MPLS: the complete narrated course
+Created by Shreenidhi Sharma · JE (Tele), North Western Railway
+Total length 3:38:55
+
+0:00:00  Welcome and how to use this course
+0:05:42  Chapter 01 — Networks from zero
+0:17:38  Chapter 02 — IPv4 addressing and subnetting
+0:30:46  Chapter 03 — Routing: static, OSPF and IS-IS
+0:42:43  Chapter 04 — Services, security and redundancy
+0:56:32  Chapter 05 — Why MPLS: labels instead of addresses
+1:09:39  Chapter 06 — LDP: building label switched paths
+1:24:01  Chapter 07 — BGP for the MPLS core
+1:34:30  Chapter 08 — MPLS L3VPN: separate networks for every railway service
+1:49:38  Chapter 09 — L2VPN: VPWS, VPLS and E1 circuit emulation
+2:03:23  Chapter 10 — MPLS QoS: EXP and core classes
+2:12:30  Chapter 11 — Traffic Engineering and Fast Reroute
+2:25:15  Chapter 12 — BFD: detecting failures in milliseconds
+2:32:44  Chapter 13 — Segment Routing and TI-LFA
+2:44:11  Chapter 14 — Operations: NMS, faults and automation
+2:56:36  Chapter 15 — The Jodhpur division teaching design
+3:04:01  Chapter 16 — Using RailMPLS Lab: a complete software tour
+3:17:00  Chapter 17 — Troubleshooting method and the grand capstone
+3:27:59  Chapter 18 — Final revision and exam
