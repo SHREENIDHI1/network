@@ -1,0 +1,32 @@
+[
+ {
+  "count": 5,
+  "sense": "see",
+  "prompt": "Look around. Notice five things you can see.",
+  "hint": "A colour, a shape, light on a wall, the sky, your own hands."
+ },
+ {
+  "count": 4,
+  "sense": "feel",
+  "prompt": "Notice four things you can feel.",
+  "hint": "Your feet on the floor, the chair under you, air on your skin, your clothes."
+ },
+ {
+  "count": 3,
+  "sense": "hear",
+  "prompt": "Listen for three sounds.",
+  "hint": "Near or far: a fan, traffic, birds, your own breath."
+ },
+ {
+  "count": 2,
+  "sense": "smell",
+  "prompt": "Notice two things you can smell.",
+  "hint": "If nothing comes, imagine a favourite smell — chai, rain on soil, incense."
+ },
+ {
+  "count": 1,
+  "sense": "taste",
+  "prompt": "Notice one thing you can taste.",
+  "hint": "Or simply take a slow sip of water."
+ }
+]

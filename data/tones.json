@@ -1,0 +1,12 @@
+[
+  { "id": "om-drone", "title": "Om drone", "kind": "drone", "icon": "infinite-outline", "defaultVolume": 0.5,
+    "detail": "A slow, warm drone tuned to 136.1 Hz, the pitch traditionally linked with Om.", "headphones": false },
+  { "id": "tanpura", "title": "Tanpura drone", "kind": "drone", "icon": "musical-notes-outline", "defaultVolume": 0.5,
+    "detail": "A tanpura-style Sa–Pa drone, like the steady backdrop of Indian classical music.", "headphones": false },
+  { "id": "warm-pad", "title": "Warm pad", "kind": "drone", "icon": "sunny-outline", "defaultVolume": 0.45,
+    "detail": "A soft, slowly breathing chord.", "headphones": false },
+  { "id": "binaural-alpha", "title": "Binaural · alpha-style", "kind": "binaural", "icon": "headset-outline", "defaultVolume": 0.4,
+    "detail": "Two slightly different tones (200 Hz and 210 Hz), one in each ear, over soft noise.", "headphones": true },
+  { "id": "binaural-theta", "title": "Binaural · theta-style", "kind": "binaural", "icon": "headset-outline", "defaultVolume": 0.4,
+    "detail": "Two slightly different tones (180 Hz and 186 Hz), one in each ear, over soft noise.", "headphones": true }
+]

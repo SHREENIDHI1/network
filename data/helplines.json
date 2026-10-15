@@ -1,0 +1,12 @@
+{
+  "region": "IN",
+  "emergency": { "name": "Emergency services", "phone": "112", "note": "If you or someone near you is in immediate danger." },
+  "lines": [
+    { "id": "kiran", "name": "KIRAN mental health helpline", "org": "Government of India", "phone": "1800-599-0019",
+      "hours": "24 × 7", "languages": "Many Indian languages", "verified": true,
+      "note": "Number provided by the app owner." },
+    { "id": "tele-manas", "name": "Tele-MANAS", "org": "Government of India", "phone": "14416",
+      "hours": "24 × 7", "languages": "Many Indian languages", "verified": false,
+      "note": "Placeholder — please verify before release." }
+  ]
+}

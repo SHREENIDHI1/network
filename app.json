@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Sthira",
+    "slug": "sthira",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "sthira",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0b1220",
+    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#0b1220" },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.sthira.wellness",
+      "infoPlist": { "UIBackgroundModes": ["audio"] }
+    },
+    "android": {
+      "package": "app.sthira.wellness",
+      "adaptiveIcon": {
+        "backgroundColor": "#0b1220",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": []
+    },
+    "web": { "favicon": "./assets/favicon.png", "output": "single" },
+    "plugins": [
+      "expo-router",
+      ["expo-audio", { "microphonePermission": false, "enableBackgroundPlayback": true }]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

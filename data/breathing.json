@@ -1,0 +1,14 @@
+[
+  { "id": "box", "name": "Box breathing", "description": "Equal sides: in, hold, out, hold. Steadying and simple.",
+    "phases": [{ "kind": "in", "seconds": 4 }, { "kind": "hold", "seconds": 4 }, { "kind": "out", "seconds": 4 }, { "kind": "holdOut", "seconds": 4 }],
+    "cycles": 8, "builtIn": true },
+  { "id": "478", "name": "4-7-8 breath", "description": "A long, slow out-breath. Many people like it before sleep.",
+    "phases": [{ "kind": "in", "seconds": 4 }, { "kind": "hold", "seconds": 7 }, { "kind": "out", "seconds": 8 }],
+    "cycles": 4, "builtIn": true },
+  { "id": "calm", "name": "Calm", "description": "In for 4, out for 6. A gentle, longer exhale.",
+    "phases": [{ "kind": "in", "seconds": 4 }, { "kind": "out", "seconds": 6 }],
+    "cycles": 10, "builtIn": true },
+  { "id": "energize", "name": "Energize", "description": "A brighter rhythm for a sleepy afternoon. Stop if you feel light-headed.",
+    "phases": [{ "kind": "in", "seconds": 4 }, { "kind": "hold", "seconds": 2 }, { "kind": "out", "seconds": 3 }],
+    "cycles": 8, "builtIn": true }
+]
